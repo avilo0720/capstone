@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/src/css/font.css" />
+    <link rel="stylesheet" href="/src/css/style.css" />
+    <title><%= title %> | Inventory</title>
+  </head>
+  <body data-can-edit="<%= (typeof rolePermissions !== 'undefined' && typeof user !== 'undefined' && user && rolePermissions[user.role]) ? rolePermissions[user.role].canEdit : false %>">
+    <div class="app container">
+      <%- include('sidebar') %>
+      <%- include('header') %>
+      <div class="main">

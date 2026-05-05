@@ -1,0 +1,93 @@
+<% 
+  const userRole = typeof user !== 'undefined' && user ? user.role : '';
+  const perms = typeof rolePermissions !== 'undefined' && rolePermissions && userRole ? rolePermissions[userRole] : null;
+  const allowedPages = perms ? perms.pages : [];
+%>
+
+<div class="sideBar-ontoggle --hidden">
+  <div class="sideBar__logo-container">
+    <img src="../assets/images/waterlogo.svg" alt="water logo" class="water-logo" />
+    <h2 class="sideBar__logo-text">Water Inventory</h2>
+  </div>
+  <div class="sideBar__icons">
+    <a href="/" class="sideBar__dashboard sideBar__icon <%= title === 'Dashboard' ? '--selectedBtnUi' : '' %>" style="text-decoration: none; color: inherit;">
+      <svg class="icon">
+        <use xlink:href="/assets/images/sprite.svg#homeIcon"></use>
+      </svg>
+      <p>Dashboard</p>
+    </a>
+    <% if (allowedPages.includes('inventory')) { %>
+    <a href="/inventory" class="sideBar__inventory sideBar__icon <%= title === 'Inventory' ? '--selectedBtnUi' : '' %>" style="text-decoration: none; color: inherit;">
+      <svg class="icon">
+        <use xlink:href="/assets/images/sprite.svg#productIcon"></use>
+      </svg>
+      <p>Inventory</p>
+    </a>
+    <% } %>
+
+    <% if (allowedPages.includes('forecast')) { %>
+    <a href="/forecast" class="sideBar__forecast sideBar__icon <%= title === 'Forecasting' ? '--selectedBtnUi' : '' %>" style="text-decoration: none; color: inherit;">
+      <img src="/assets/images/Categories.svg" alt="forecast icon" />
+      <p>Forecasting</p>
+    </a>
+    <% } %>
+
+    <% if (allowedPages.includes('reports')) { %>
+    <a href="/reports" class="sideBar__reports sideBar__icon <%= title === 'Reports' ? '--selectedBtnUi' : '' %>" style="text-decoration: none; color: inherit;">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10 9 9 9 8 9"/>
+      </svg>
+      <p>Reports</p>
+    </a>
+    <% } %>
+  </div>
+</div>
+<div class="sideBar-ontoggle-backdrop --hidden"></div>
+
+<div class="sideBar">
+  <div class="sideBar__logo-container">
+    <img src="../assets/images/waterlogo.svg" alt="water logo" class="water-logo" />
+    <h2 class="sideBar__logo-text">Water Inventory</h2>
+  </div>
+
+  <div class="sideBar__icons">
+    <a href="/" class="sideBar__dashboard sideBar__icon <%= title === 'Dashboard' ? '--selectedBtnUi' : '' %>" style="text-decoration: none; color: inherit;">
+      <svg class="icon">
+        <use xlink:href="/assets/images/sprite.svg#homeIcon"></use>
+      </svg>
+      <p>Dashboard</p>
+    </a>
+    <% if (allowedPages.includes('inventory')) { %>
+    <a href="/inventory" class="sideBar__inventory sideBar__icon <%= title === 'Inventory' ? '--selectedBtnUi' : '' %>" style="text-decoration: none; color: inherit;">
+      <svg class="icon">
+        <use xlink:href="/assets/images/sprite.svg#productIcon"></use>
+      </svg>
+      <p>Inventory</p>
+    </a>
+    <% } %>
+
+    <% if (allowedPages.includes('forecast')) { %>
+    <a href="/forecast" class="sideBar__forecast sideBar__icon <%= title === 'Forecasting' ? '--selectedBtnUi' : '' %>" style="text-decoration: none; color: inherit;">
+      <img src="/assets/images/Categories.svg" alt="forecast icon" />
+      <p>Forecasting</p>
+    </a>
+    <% } %>
+
+    <% if (allowedPages.includes('reports')) { %>
+    <a href="/reports" class="sideBar__reports sideBar__icon <%= title === 'Reports' ? '--selectedBtnUi' : '' %>" style="text-decoration: none; color: inherit;">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10 9 9 9 8 9"/>
+      </svg>
+      <p>Reports</p>
+    </a>
+    <% } %>
+  </div>
+</div>

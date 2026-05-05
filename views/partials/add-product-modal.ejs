@@ -1,0 +1,53 @@
+<div class="addProSection --hidden">
+  <div class="addProModal">
+    <h1 class="addProModal__title">New Item</h1>
+    <form class="addProModal__form">
+      <div class="addProModal__form__inputs">
+        <p>Item Name</p>
+        <input
+          type="text"
+          placeholder="Enter item name"
+          class="productNameInput"
+        />
+      </div>
+      <div class="addProModal__form__inputs">
+        <p>Size</p>
+        <input
+          type="text"
+          placeholder="Enter size"
+          class="itemSizeInput"
+        />
+      </div>
+      <div class="addProModal__form__inputs">
+        <p>Quantity</p>
+        <input
+          type="number"
+          placeholder="Enter product quantity"
+          class="productQuantityInput"
+        />
+      </div>
+      <div class="addProModal__form__inputs">
+        <p>Price</p>
+        <input
+          type="number"
+          step="0.01"
+          min="0"
+          placeholder="Enter buying price"
+          class="productPriceInput"
+        />
+      </div>
+      <div class="addProModal__form__inputs">
+        <p>Average Monthly Consumption (AMC)</p>
+        <input
+          type="number"
+          placeholder="Enter average monthly consumption"
+          class="productDemandInput"
+        />
+      </div>
+      <div class="addProModal__form__buttons">
+        <button type="button" class="addProModalCancelBtn">Discard</button>
+        <button type="submit" class="addProModalSubmitBtn">Add Item</button>
+      </div>
+    </form>
+  </div>
+</div>

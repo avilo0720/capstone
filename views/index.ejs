@@ -1,0 +1,55 @@
+<%- include('partials/layout-head', { title: 'Dashboard' }) %>
+  <div class="dashboardUi">
+    <div class="dashboardUi__header">
+      <h1>Overview</h1>
+    </div>
+    <div class="dashboardUi__main">
+      <div class="dashboardUi__main__items">
+        <img src="/assets/images/Cancel.svg" alt="Cancel Item" />
+        <p class="dashboardUi__notAvailable" id="dashboardItems">0</p>
+        <p>Number of Items</p>
+      </div>
+
+      <div class="dashboardUi__main__items">
+        <img src="/assets/images/Quantity.svg" alt="quantity" />
+        <p class="dashboardUi__quantity" id="dashboardQty">0</p>
+        <p>Total Quantity</p>
+      </div>
+
+      <div class="dashboardUi__main__items">
+        <img src="/assets/images/Sales.svg" alt="salesItem" />
+        <p class="dashboardUi__sales" id="dashboardSales">₱0</p>
+        <p>Total Value in Hand</p>
+      </div>
+
+      <div class="dashboardUi__main__items">
+        <img src="/assets/images/Sales.svg" alt="subtotal total cost" />
+        <p id="dashboardSubtotalTotalCost">₱0</p>
+        <p>Subtotal of Total Cost</p>
+      </div>
+
+      <div class="dashboardUi__main__items">
+        <img src="/assets/images/Sales.svg" alt="restock subtotal cost" />
+        <p id="dashboardSubtotalRestockCost">₱0</p>
+        <p>Subtotal Cost (RS Needed)</p>
+      </div>
+
+      <div class="dashboardUi__main__items">
+        <img src="/assets/images/Sales.svg" alt="restock subtotal by lead time" />
+        <p id="dashboardRestockPerLeadTime">₱0</p>
+        <p>RS Needed Cost / Total Procurement Lead Time</p>
+      </div>
+
+      <div class="dashboardUi__main__items">
+        <img src="/assets/images/Sales.svg" alt="half restock subtotal" />
+        <p id="dashboardHalfRestockCost">₱0</p>
+        <p>Half of RS Needed Cost</p>
+      </div>
+    </div>
+
+    <!-- Live Low-Stock Alert Banner -->
+    <div class="dashboard-alerts" id="dashboardAlerts">
+      <!-- Populated by Dashboard.js -->
+    </div>
+  </div>
+<%- include('partials/layout-foot') %>

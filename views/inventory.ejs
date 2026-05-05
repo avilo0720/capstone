@@ -1,0 +1,47 @@
+<%- include('partials/layout-head', { title: 'Inventory' }) %>
+  <div class="inventory-app">
+    <div class="product-section__header">
+      <h1>Items</h1>
+      <div class="product-section__header__buttons">
+        <button type="button" class="addProBtn">Add Item</button>
+        <button type="button" class="editToggleBtn">Edit</button>
+        <div class="downloadDropdown">
+          <button type="button" class="downloadBtn">Download</button>
+          <div class="downloadMenu --hidden">
+            <button type="button" class="downloadOptionBtn" data-format="pdf">Download PDF</button>
+            <button type="button" class="downloadOptionBtn" data-format="excel">Download Excel</button>
+          </div>
+        </div>
+        <div class="filterDropdown">
+          <button type="button" class="filterBtn">
+            <img src="/assets/images/filterIcon.svg" alt="filter Icon" />
+            <p>Filters</p>
+          </button>
+          <div class="inventoryFilterPanel --hidden">
+            <div class="filterGroup">
+              <p class="filterGroupTitle">FSN</p>
+              <div class="filterGroupOptions">
+                <button type="button" class="filterOptionBtn" data-group="fsn" data-value="F">F</button>
+                <button type="button" class="filterOptionBtn" data-group="fsn" data-value="S">S</button>
+                <button type="button" class="filterOptionBtn" data-group="fsn" data-value="N">N</button>
+              </div>
+            </div>
+            <div class="filterGroup">
+              <p class="filterGroupTitle">Trigger Point</p>
+              <div class="filterGroupOptions">
+                <button type="button" class="filterOptionBtn" data-group="trigger" data-value="RS Needed">RS Needed</button>
+                <button type="button" class="filterOptionBtn" data-group="trigger" data-value="Sufficient">Sufficient</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="product-section">
+      <table class="product-section-table">
+      </table>
+    </div>
+  </div>
+  <%- include('partials/add-product-modal') %>
+<%- include('partials/layout-foot') %>

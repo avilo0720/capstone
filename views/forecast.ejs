@@ -1,0 +1,41 @@
+<%- include('partials/layout-head', { title: 'Forecasting' }) %>
+  <div class="forecastUi">
+    <div class="product-section__header">
+      <h1>Inventory Forecasting</h1>
+      <div class="product-section__header__buttons --hidden" id="forecastActions">
+        <div class="downloadDropdown">
+          <button type="button" class="downloadBtn" id="forecastDownloadBtn">Download</button>
+          <div class="downloadMenu --hidden" id="forecastDownloadMenu">
+            <button type="button" class="downloadOptionBtn forecastDownloadOption" data-format="pdf">Download PDF</button>
+            <button type="button" class="downloadOptionBtn forecastDownloadOption" data-format="excel">Download Excel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Initial state: Generate button -->
+    <div class="forecast-placeholder" id="forecastPlaceholder">
+      <div class="forecast-placeholder__icon">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="20" x2="18" y2="10"/>
+          <line x1="12" y1="20" x2="12" y2="4"/>
+          <line x1="6" y1="20" x2="6" y2="14"/>
+        </svg>
+      </div>
+      <h2 class="forecast-placeholder__title">Ready to Forecast</h2>
+      <p class="forecast-placeholder__desc">Analyze your inventory data to project 3‑month, 6‑month, and 1‑year restocking needs.</p>
+      <button type="button" class="forecast-placeholder__btn" id="generateForecastBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        Generate Forecast
+      </button>
+    </div>
+
+    <!-- Table: hidden until generated -->
+    <div class="product-section --hidden" id="forecastTableWrapper">
+      <table class="forecast-section-table">
+      </table>
+    </div>
+  </div>
+<%- include('partials/layout-foot') %>
