@@ -59,6 +59,20 @@ async function initDB() {
         MODIFY COLUMN id BIGINT NOT NULL AUTO_INCREMENT;
     `);
 
+    // Create Transactions Table (stock movement log)
+    await connection.query(`
+        CREATE TABLE IF NOT EXISTS transactions (
+            id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            itemId BIGINT NOT NULL,
+            action ENUM('add', 'use') NOT NULL,
+            quantity INT NOT NULL DEFAULT 0,
+            transactionDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_transaction_date (transactionDate),
+            INDEX idx_item (itemId)
+        );
+    `);
+
     // Create Users Table
     await connection.query(`
         CREATE TABLE IF NOT EXISTS users (

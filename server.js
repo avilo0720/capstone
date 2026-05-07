@@ -37,9 +37,9 @@ app.use('/assets', express.static(path.join(__dirname, 'public/assets'), staticO
 
 // ======================= ROLE PERMISSIONS =======================
 const ROLE_PERMISSIONS = {
-    'Branch Manager':      { pages: ['dashboard', 'inventory', 'forecast', 'reports'], canEdit: true },
-    'Department Manager':  { pages: ['dashboard', 'inventory', 'forecast', 'reports'], canEdit: true },
-    'Inventory Clerk':     { pages: ['dashboard', 'inventory', 'forecast'],            canEdit: true },
+    'Branch Manager':      { pages: ['dashboard', 'inventory', 'forecast', 'reports', 'calendar'], canEdit: true },
+    'Department Manager':  { pages: ['dashboard', 'inventory', 'forecast', 'reports', 'calendar'], canEdit: true },
+    'Inventory Clerk':     { pages: ['dashboard', 'inventory', 'forecast', 'calendar'],            canEdit: true },
     'Warehouse Staff':     { pages: ['dashboard', 'inventory'],                        canEdit: false },
 };
 
@@ -161,6 +161,11 @@ app.get('/reports', requirePage('reports'), (req, res) => {
     res.render('reports', { title: 'Reports' });
 });
 
+// Calendar route
+app.get('/calendar', requirePage('calendar'), (req, res) => {
+    res.render('calendar', { title: 'Calendar' });
+});
+
 // ======================= API ROUTES (Protected) =======================
 app.get('/api/items', requireAuth, async (req, res) => {
     try {
@@ -258,6 +263,70 @@ app.delete('/api/categories/:id', requireAuth, async (req, res) => {
         res.json({success: true});
     } catch (e) {
         res.status(500).json({error: e.message});
+    }
+});
+
+// ======================= STOCK MANAGEMENT API =======================
+
+app.post('/api/stock', requireAuth, async (req, res) => {
+    if (!req.session.user || !ROLE_PERMISSIONS[req.session.user.role]?.canEdit) {
+        return res.status(403).json({ error: 'You do not have permission to manage stock' });
+    }
+    const { itemId, action, quantity } = req.body;
+    if (!itemId || !action || !quantity || quantity <= 0) {
+        return res.status(400).json({ error: 'itemId, action (add/use), and a positive quantity are required' });
+    }
+    if (action !== 'add' && action !== 'use') {
+        return res.status(400).json({ error: 'action must be "add" or "use"' });
+    }
+    try {
+        // Get current item
+        const items = await db.query('SELECT * FROM items WHERE id = ?', [itemId]);
+        if (!items || items.length === 0) {
+            return res.status(404).json({ error: 'Item not found' });
+        }
+        const item = items[0];
+        let newQuantity;
+        if (action === 'add') {
+            newQuantity = (Number(item.quantity) || 0) + Number(quantity);
+        } else {
+            newQuantity = (Number(item.quantity) || 0) - Number(quantity);
+            if (newQuantity < 0) newQuantity = 0;
+        }
+        // Update item quantity
+        await db.query('UPDATE items SET quantity = ?, updated = ? WHERE id = ?', [newQuantity, new Date(), itemId]);
+        // Log the transaction
+        const now = new Date();
+        await db.query(
+            'INSERT INTO transactions (itemId, action, quantity, transactionDate, created_at) VALUES (?, ?, ?, ?, ?)',
+            [itemId, action, Number(quantity), now, now]
+        );
+        res.json({ success: true, newQuantity });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ======================= TRANSACTIONS API =======================
+
+app.get('/api/transactions', requireAuth, async (req, res) => {
+    const { month, year } = req.query;
+    if (!month || !year) {
+        return res.status(400).json({ error: 'month and year query params are required' });
+    }
+    try {
+        const rows = await db.query(
+            `SELECT t.id, t.itemId, t.action, t.quantity, t.transactionDate,
+                    i.title AS itemTitle, i.itemCode
+             FROM transactions t
+             LEFT JOIN items i ON t.itemId = i.id
+             WHERE MONTH(t.transactionDate) = ? AND YEAR(t.transactionDate) = ?
+             ORDER BY t.transactionDate ASC`,
+            [Number(month), Number(year)]
+        );
+        res.json(rows);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
 

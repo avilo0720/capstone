@@ -2,6 +2,7 @@ import DashboardUi from "./Dashboard.js";
 import InventoryUi from "./InventoryView.js";
 import ForecastingUi from "./ForecastingView.js";
 import ReportsView from "./ReportsView.js";
+import CalendarView from "./CalendarView.js";
 import Storage from "./API.js";
 
 // --------------------------  Sidebar-Menu  ---------------------------------
@@ -34,6 +35,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     ForecastingUi.setApp();
   } else if (document.querySelector(".reports-page")) {
     ReportsView.setApp();
+  } else if (document.querySelector(".calendar-page")) {
+    CalendarView.setApp();
   }
 
   // Start session monitoring

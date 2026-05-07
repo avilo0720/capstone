@@ -8,6 +8,7 @@ let ProModalCancelBtn;
 let ModalTitle;
 let productForm;
 let editToggleBtn;
+let stockToggleBtn;
 let filterToggleBtn;
 let filterPanel;
 let filterDropdown;
@@ -30,6 +31,7 @@ class InventoryUi {
     this.id = 0;
     this.isSubmitting = false;
     this.isEditMode = false;
+    this.isStockMode = false;
     this.canEdit = true; // default, updated in setApp()
     this.selectedFsnFilter = "";
     this.selectedTriggerFilter = "";
@@ -45,6 +47,7 @@ class InventoryUi {
     ModalTitle = document.querySelector(".addProModal__title");
     productForm = document.querySelector(".addProModal__form");
     editToggleBtn = document.querySelector(".editToggleBtn");
+    stockToggleBtn = document.querySelector(".stockToggleBtn");
     filterToggleBtn = document.querySelector(".filterBtn");
     filterPanel = document.querySelector(".inventoryFilterPanel");
     filterDropdown = document.querySelector(".filterDropdown");
@@ -62,15 +65,17 @@ class InventoryUi {
     this.loadColumnWidths();
     this.inventoryRoot = document.querySelector(".inventory-app");
 
-    // Hide Add/Edit buttons for view-only roles
+    // Hide Add/Edit/Stock buttons for view-only roles
     if (!this.canEdit) {
       const addBtn = document.querySelector(".addProBtn");
       if (addBtn) addBtn.style.display = 'none';
       if (editToggleBtn) editToggleBtn.style.display = 'none';
+      if (stockToggleBtn) stockToggleBtn.style.display = 'none';
     }
 
     this.bindEvents();
     this.applyEditModeUI();
+    this.applyStockModeUI();
     this.applyFilterUI();
 
     // Selecting the products table section
@@ -118,7 +123,18 @@ class InventoryUi {
     if (editToggleBtn) {
       editToggleBtn.addEventListener("click", () => {
         this.isEditMode = !this.isEditMode;
+        if (this.isEditMode) { this.isStockMode = false; this.applyStockModeUI(); }
         this.applyEditModeUI();
+        this.updateDom(Storage.getItems());
+      });
+    }
+
+    if (stockToggleBtn) {
+      stockToggleBtn.addEventListener("click", () => {
+        this.isStockMode = !this.isStockMode;
+        if (this.isStockMode) { this.isEditMode = false; this.applyEditModeUI(); }
+        this.applyStockModeUI();
+        this.updateDom(Storage.getItems());
       });
     }
 
@@ -220,6 +236,18 @@ class InventoryUi {
         this.editBtnLogic(id);
       })
     );
+
+    // Bind inline stock buttons
+    const stockBtns = document.querySelectorAll(".inline-stock__btn");
+    stockBtns.forEach((btn) =>
+      btn.addEventListener("click", async (e) => {
+        const id = Number(e.currentTarget.dataset.id);
+        const action = e.currentTarget.dataset.action;
+        const input = e.currentTarget.parentElement.querySelector(".inline-stock__input");
+        const qty = Math.max(1, Number(input?.value) || 1);
+        await this.handleStockAdjustment(id, action, qty);
+      })
+    );
   }
 
   getRowMetrics(item, cumulativeDemand, cumulativePercent, procurementLeadTimeMonths) {
@@ -275,7 +303,18 @@ class InventoryUi {
   }
 
   createItemHTML(row) {
-    const actionsHtml = this.canEdit ? `
+    let actionsHtml;
+    if (this.isStockMode && this.canEdit) {
+      actionsHtml = `
+        <td class="stockTableSection">
+          <div class="inline-stock">
+            <button type="button" class="inline-stock__btn --minus" data-id="${row.item.id}" data-action="use">−</button>
+            <input type="number" class="inline-stock__input" data-id="${row.item.id}" value="1" min="1" />
+            <button type="button" class="inline-stock__btn --plus" data-id="${row.item.id}" data-action="add">+</button>
+          </div>
+        </td>`;
+    } else if (this.canEdit) {
+      actionsHtml = `
         <td class="editTableSection">
             <div class="table__icons">
             <div class="editIcon" data-id=${row.item.id}>
@@ -289,7 +328,10 @@ class InventoryUi {
                 <img src="../assets/images/deleteIcon.svg" alt="deleteIcon" />
             </div>
             </div>
-        </td>` : '<td></td>';
+        </td>`;
+    } else {
+      actionsHtml = '<td></td>';
+    }
 
     return `
      <tr>
@@ -397,6 +439,40 @@ class InventoryUi {
     if (editToggleBtn) {
       editToggleBtn.textContent = "Edit";
       editToggleBtn.classList.toggle("--active", this.isEditMode);
+    }
+  }
+
+  applyStockModeUI() {
+    if (this.inventoryRoot) {
+      this.inventoryRoot.classList.toggle("--stockMode", this.isStockMode);
+    }
+    if (stockToggleBtn) {
+      stockToggleBtn.classList.toggle("--active", this.isStockMode);
+    }
+  }
+
+  async handleStockAdjustment(itemId, action, quantity) {
+    try {
+      const res = await fetch('/api/stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId, action, quantity })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || 'Stock update failed');
+        return;
+      }
+      const data = await res.json();
+      // Update local cache
+      const item = Storage.getItems().find(i => i.id == itemId);
+      if (item) {
+        item.quantity = data.newQuantity;
+      }
+      this.updateDom(Storage.getItems());
+    } catch (e) {
+      console.error('Stock adjustment error:', e);
+      alert('Failed to update stock. Please try again.');
     }
   }
 
