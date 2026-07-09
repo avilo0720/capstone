@@ -66,6 +66,27 @@
       </div>
     </div>
 
+    <!-- Forecasting Charts -->
+    <div class="reports-forecast-charts" id="reportsForecastCharts">
+      <div class="reports-forecast-charts__header">
+        <h2>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Forecasting Overview
+        </h2>
+        <p class="reports-forecast-charts__desc">Graphical summary of WMA and Croston's Method projections across inventory</p>
+      </div>
+      <div class="reports-forecast-charts__grid">
+        <div class="reports-chart-card">
+          <h3>Method Distribution</h3>
+          <canvas id="reportsMethodChart" height="220"></canvas>
+        </div>
+        <div class="reports-chart-card">
+          <h3>Top Restock Needs (3 Months)</h3>
+          <canvas id="reportsNeedChart" height="220"></canvas>
+        </div>
+      </div>
+    </div>
+
     <!-- Low-Stock Alerts Section -->
     <div class="reports-alerts">
       <div class="reports-alerts__header">
@@ -77,6 +98,7 @@
       <div class="reports-alerts__body" id="reportsAlertsBody">
         <div class="reports-alerts__loading">Loading alerts...</div>
       </div>
+      <div class="table-pagination-container" id="reportsPagination"></div>
     </div>
   </div>
 <%- include('partials/layout-foot') %>

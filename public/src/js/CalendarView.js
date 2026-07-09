@@ -1,12 +1,16 @@
+import Pagination from "./Pagination.js";
+
 class CalendarView {
   constructor() {
     this.currentMonth = new Date().getMonth(); // 0-indexed
     this.currentYear = new Date().getFullYear();
     this.transactions = [];
+    this.dayTransactions = [];
     this.monthSelect = null;
     this.yearSelect = null;
     this.grid = null;
     this.overlay = null;
+    this.pagination = null;
   }
 
   setApp() {
@@ -14,6 +18,11 @@ class CalendarView {
     this.yearSelect = document.getElementById("calYearSelect");
     this.grid = document.getElementById("calendarGrid");
     this.overlay = document.getElementById("dailyOverlayModal");
+    this.pagination = new Pagination({
+      pageSize: 8,
+      onPageChange: () => this.renderDayTransactions(),
+    });
+    this.pagination.setContainer(document.getElementById("calendarPagination"));
 
     if (!this.grid) return;
 
@@ -149,11 +158,9 @@ class CalendarView {
     const title = document.getElementById("dailyOverviewTitle");
     const totalAddedEl = document.getElementById("dailyTotalAdded");
     const totalUsedEl = document.getElementById("dailyTotalUsed");
-    const listEl = document.getElementById("dailyTransactionList");
 
     title.textContent = `${monthNames[this.currentMonth]} ${day}, ${this.currentYear}`;
 
-    // Filter transactions for this day
     const dayTx = this.transactions.filter((tx) => {
       const d = new Date(tx.transactionDate);
       return d.getDate() === day;
@@ -162,10 +169,21 @@ class CalendarView {
     const totalAdded = dayTx.filter(t => t.action === "add").reduce((s, t) => s + (Number(t.quantity) || 0), 0);
     const totalUsed = dayTx.filter(t => t.action === "use").reduce((s, t) => s + (Number(t.quantity) || 0), 0);
 
+    this.dayTransactions = dayTx;
     totalAddedEl.textContent = totalAdded;
     totalUsedEl.textContent = totalUsed;
 
-    if (dayTx.length === 0) {
+    this.pagination.reset();
+    this.renderDayTransactions();
+
+    this.overlay.classList.remove("--hidden");
+  }
+
+  renderDayTransactions() {
+    const listEl = document.getElementById("dailyTransactionList");
+    if (!listEl) return;
+
+    if (this.dayTransactions.length === 0) {
       listEl.innerHTML = `
         <div class="daily-empty">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40">
@@ -173,27 +191,31 @@ class CalendarView {
           </svg>
           <p>No transactions on this day.</p>
         </div>`;
-    } else {
-      let listHtml = "";
-      dayTx.forEach((tx) => {
-        const time = new Date(tx.transactionDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const actionClass = tx.action === "add" ? "--add" : "--use";
-        const actionLabel = tx.action === "add" ? "Added" : "Used";
-        const itemCode = tx.itemCode ? `#${String(tx.itemCode).replace(/^item[-_\s]*/i, "")}` : "";
-
-        listHtml += `
-          <div class="daily-tx-item ${actionClass}">
-            <div class="daily-tx-item__indicator"></div>
-            <div class="daily-tx-item__info">
-              <p class="daily-tx-item__name">${tx.itemTitle || "Unknown Item"} <span class="daily-tx-item__code">${itemCode}</span></p>
-              <p class="daily-tx-item__meta">${actionLabel} <strong>${tx.quantity}</strong> unit${tx.quantity !== 1 ? 's' : ''} · ${time}</p>
-            </div>
-          </div>`;
-      });
-      listEl.innerHTML = listHtml;
+      this.pagination.renderControls({ totalItems: 0, totalPages: 1 });
+      return;
     }
 
-    this.overlay.classList.remove("--hidden");
+    const page = this.pagination.getSlice(this.dayTransactions);
+    let listHtml = "";
+
+    page.items.forEach((tx) => {
+      const time = new Date(tx.transactionDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const actionClass = tx.action === "add" ? "--add" : "--use";
+      const actionLabel = tx.action === "add" ? "Added" : "Used";
+      const itemCode = tx.itemCode ? `#${String(tx.itemCode).replace(/^item[-_\s]*/i, "")}` : "";
+
+      listHtml += `
+        <div class="daily-tx-item ${actionClass}">
+          <div class="daily-tx-item__indicator"></div>
+          <div class="daily-tx-item__info">
+            <p class="daily-tx-item__name">${tx.itemTitle || "Unknown Item"} <span class="daily-tx-item__code">${itemCode}</span></p>
+            <p class="daily-tx-item__meta">${actionLabel} <strong>${tx.quantity}</strong> unit${tx.quantity !== 1 ? 's' : ''} · ${time}</p>
+          </div>
+        </div>`;
+    });
+
+    listEl.innerHTML = listHtml;
+    this.pagination.renderControls(page);
   }
 
   closeDailyModal() {

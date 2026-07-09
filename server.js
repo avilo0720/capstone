@@ -330,6 +330,38 @@ app.get('/api/transactions', requireAuth, async (req, res) => {
     }
 });
 
+// ======================= FORECAST DATA API =======================
+
+app.get('/api/forecast-data', requireAuth, async (req, res) => {
+    try {
+        // Get per-item daily usage (only "use" actions), grouped by date
+        const rows = await db.query(
+            `SELECT t.itemId,
+                    DATE(t.transactionDate) AS day,
+                    SUM(t.quantity) AS total
+             FROM transactions t
+             WHERE t.action = 'use' 
+               AND t.transactionDate >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
+             GROUP BY t.itemId, day
+             ORDER BY t.itemId, day`
+        );
+
+        // Group by itemId
+        const usage = {};
+        rows.forEach(r => {
+            if (!usage[r.itemId]) usage[r.itemId] = [];
+            usage[r.itemId].push({
+                date: r.day,
+                qty: Number(r.total)
+            });
+        });
+
+        res.json(usage);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // ======================= REPORTS API =======================
 
 app.get('/api/reports/summary', requireAuth, async (req, res) => {

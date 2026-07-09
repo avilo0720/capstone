@@ -1,4 +1,5 @@
 import Storage from "./API.js";
+import Pagination from "./Pagination.js";
 
 const mainApp = document.querySelector(".main");
 // Selecting the prodcut modal
@@ -37,6 +38,11 @@ class InventoryUi {
     this.selectedTriggerFilter = "";
     this.columnWidths = {};
     this.columnWidthStorageKey = "inventoryColumnWidths";
+    this.filteredItems = [];
+    this.pagination = new Pagination({
+      pageSize: 10,
+      onPageChange: () => this.renderTable(),
+    });
   }
 
   setApp() {
@@ -64,6 +70,18 @@ class InventoryUi {
     localStorage.removeItem(this.columnWidthStorageKey);
     this.loadColumnWidths();
     this.inventoryRoot = document.querySelector(".inventory-app");
+    this.pagination.setContainer(document.getElementById("inventoryPagination"));
+    this.viewModal = document.getElementById("viewItemModal");
+    this.viewModalBody = document.getElementById("viewItemBody");
+    const viewItemClose = document.getElementById("viewItemClose");
+    if (viewItemClose) {
+      viewItemClose.addEventListener("click", () => this.closeViewModal());
+    }
+    if (this.viewModal) {
+      this.viewModal.addEventListener("click", (e) => {
+        if (e.target.classList.contains("viewItemSection")) this.closeViewModal();
+      });
+    }
 
     // Hide Add/Edit/Stock buttons for view-only roles
     if (!this.canEdit) {
@@ -81,7 +99,8 @@ class InventoryUi {
     // Selecting the products table section
     this.productSectionHTMl = document.querySelector(".product-section-table");
     if (this.productSectionHTMl) {
-      this.updateDom(Storage.getItems());
+      this.filteredItems = this.getFilteredItems(Storage.getItems());
+      this.renderTable();
     }
   }
 
@@ -125,7 +144,7 @@ class InventoryUi {
         this.isEditMode = !this.isEditMode;
         if (this.isEditMode) { this.isStockMode = false; this.applyStockModeUI(); }
         this.applyEditModeUI();
-        this.updateDom(Storage.getItems());
+        this.renderTable();
       });
     }
 
@@ -134,7 +153,7 @@ class InventoryUi {
         this.isStockMode = !this.isStockMode;
         if (this.isStockMode) { this.isEditMode = false; this.applyEditModeUI(); }
         this.applyStockModeUI();
-        this.updateDom(Storage.getItems());
+        this.renderTable();
       });
     }
 
@@ -156,7 +175,9 @@ class InventoryUi {
         }
 
         this.applyFilterUI();
-        this.updateDom(Storage.getItems());
+        this.filteredItems = this.getFilteredItems(Storage.getItems());
+        this.pagination.reset();
+        this.renderTable();
       });
     }
 
@@ -174,35 +195,13 @@ class InventoryUi {
     }
   }
 
-  updateDom(allItems) {
-    let result = `
-    <tr class="table__title">
-        <td>No</td>
-        <td>Item Description</td>
-        <td>Size</td>
-        <td>Current Stock</td>
-        <td>Average Monthly Consumption (AMC)</td>
-        <td>Cumulative</td>
-        <td>%</td>
-        <td>FSN Classification</td>
-        <td>Lead Time Demand (LTD)</td>
-        <td>Total Procurement Lead Time (Months)</td>
-        <td>Safety Stock (SS)</td>
-        <td>Reordering Point (ROP)</td>
-        <td>Minimum Stock Level (MSL)</td>
-        <td>Material / Unit Cost</td>
-        <td>Total Cost</td>
-        <td>Trigger Point</td>
-        <td></td>
-    </tr>    
-    `;
-
-    // Getting all the Data
+  getFilteredItems(allItems) {
     const maxCumulative =
       allItems.reduce((acc, item) => acc + (Number(item.monthlyDemand) || 0), 0) || 0;
     const totalProcurementLeadTimeMonths = 3.5;
-
     let cumulativeDemand = 0;
+    const rows = [];
+
     allItems.forEach((item) => {
       cumulativeDemand += Number(item.monthlyDemand) || 0;
       const cumulativePercent = maxCumulative === 0 ? 0 : cumulativeDemand / maxCumulative;
@@ -212,12 +211,45 @@ class InventoryUi {
         cumulativePercent,
         totalProcurementLeadTimeMonths
       );
-
-      if (!this.passesFilters(rowMetrics)) return;
-      result += this.createItemHTML(rowMetrics); // Create HTML for each data
+      if (this.passesFilters(rowMetrics)) {
+        rows.push(rowMetrics);
+      }
     });
 
-    this.productSectionHTMl.innerHTML = result; // Update the Dom
+    return rows;
+  }
+
+  renderTable() {
+    this.updateDom(this.filteredItems);
+  }
+
+  updateDom(allRowMetrics) {
+    const page = this.pagination.getSlice(allRowMetrics);
+
+    let result = `
+    <tr class="table__title">
+        <td>No</td>
+        <td>Item Description</td>
+        <td>Size</td>
+        <td>Current Stock</td>
+        <td>AMC</td>
+        <td>FSN</td>
+        <td>Trigger Point</td>
+        <td></td>
+    </tr>    
+    `;
+
+    page.items.forEach((rowMetrics) => {
+      result += this.createItemHTML(rowMetrics);
+    });
+
+    this.productSectionHTMl.innerHTML = result;
+    this.pagination.renderControls({
+      totalItems: page.totalItems,
+      totalPages: page.totalPages,
+      startIndex: page.startIndex,
+      endIndex: page.endIndex,
+    });
     this.enableColumnResize();
 
     // Selecting the delete and edit Icon
@@ -232,8 +264,18 @@ class InventoryUi {
     const editBtns = document.querySelectorAll(".editIcon");
     editBtns.forEach((editBtn) =>
       editBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
         const id = Number(e.currentTarget.dataset.id);
         this.editBtnLogic(id);
+      })
+    );
+
+    const viewBtns = document.querySelectorAll(".viewIcon");
+    viewBtns.forEach((viewBtn) =>
+      viewBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = Number(e.currentTarget.dataset.id);
+        this.openViewModal(id);
       })
     );
 
@@ -317,6 +359,9 @@ class InventoryUi {
       actionsHtml = `
         <td class="editTableSection">
             <div class="table__icons">
+            <button type="button" class="viewIcon" data-id="${row.item.id}" title="View details">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
             <div class="editIcon" data-id=${row.item.id}>
                 <svg class="icon">
                 <use
@@ -330,7 +375,12 @@ class InventoryUi {
             </div>
         </td>`;
     } else {
-      actionsHtml = '<td></td>';
+      actionsHtml = `
+        <td class="editTableSection">
+          <button type="button" class="viewIcon" data-id="${row.item.id}" title="View details">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </td>`;
     }
 
     return `
@@ -340,21 +390,44 @@ class InventoryUi {
         <td>${row.item.size || '---'}</td>
         <td>${row.currentStock}</td>
         <td>${row.amc}</td>
-        <td>${row.cumulativeDemand}</td>
-        <td>${(row.cumulativePercent * 100).toFixed(2)}%</td>
         <td>${row.fsn}</td>
-        <td>${row.roundedLeadTimeDemand}</td>
-        <td>${row.procurementLeadTimeMonths}</td>
-        <td>${row.roundedSafetyStock}</td>
-        <td>${row.reorderingPoint}</td>
-        <td>${row.displayedMinimumStockLevel}</td>
-        <td>₱${(Number(row.item.price) || 0).toFixed(2)}</td>
-        <td>₱${row.totalCost.toFixed(2)}</td>
         <td><span class="${row.triggerClass}">${row.triggerPoint}</span></td>
         ${actionsHtml}
     </tr>
 
     `;
+  }
+
+  openViewModal(id) {
+    const row = this.filteredItems.find((r) => r.item.id == id);
+    if (!row || !this.viewModal || !this.viewModalBody) return;
+
+    this.viewModalBody.innerHTML = `
+      <div class="viewItemModal__section">
+        <h3>${row.item.title}${row.item.size ? ` (${row.item.size})` : ""}</h3>
+        <p class="viewItemModal__code">Item No. ${this.formatItemCode(row.item.itemCode)}</p>
+      </div>
+      <div class="viewItemModal__grid">
+        <div class="viewItemModal__field"><span>Current Stock</span><strong>${row.currentStock}</strong></div>
+        <div class="viewItemModal__field"><span>Average Monthly Consumption</span><strong>${row.amc}</strong></div>
+        <div class="viewItemModal__field"><span>Cumulative Demand</span><strong>${row.cumulativeDemand}</strong></div>
+        <div class="viewItemModal__field"><span>Cumulative %</span><strong>${(row.cumulativePercent * 100).toFixed(2)}%</strong></div>
+        <div class="viewItemModal__field"><span>FSN Classification</span><strong>${row.fsn}</strong></div>
+        <div class="viewItemModal__field"><span>Lead Time Demand (LTD)</span><strong>${row.roundedLeadTimeDemand}</strong></div>
+        <div class="viewItemModal__field"><span>Procurement Lead Time</span><strong>${row.procurementLeadTimeMonths} months</strong></div>
+        <div class="viewItemModal__field"><span>Safety Stock (SS)</span><strong>${row.roundedSafetyStock}</strong></div>
+        <div class="viewItemModal__field"><span>Reordering Point (ROP)</span><strong>${row.reorderingPoint}</strong></div>
+        <div class="viewItemModal__field"><span>Minimum Stock Level (MSL)</span><strong>${row.displayedMinimumStockLevel}</strong></div>
+        <div class="viewItemModal__field"><span>Unit Cost</span><strong>₱${(Number(row.item.price) || 0).toFixed(2)}</strong></div>
+        <div class="viewItemModal__field"><span>Total Cost</span><strong>₱${row.totalCost.toFixed(2)}</strong></div>
+        <div class="viewItemModal__field"><span>Trigger Point</span><strong><span class="${row.triggerClass}">${row.triggerPoint}</span></strong></div>
+      </div>`;
+
+    this.viewModal.classList.remove("--hidden");
+  }
+
+  closeViewModal() {
+    if (this.viewModal) this.viewModal.classList.add("--hidden");
   }
 
   formatItemCode(itemCode) {
@@ -469,7 +542,8 @@ class InventoryUi {
       if (item) {
         item.quantity = data.newQuantity;
       }
-      this.updateDom(Storage.getItems());
+      this.filteredItems = this.getFilteredItems(Storage.getItems());
+      this.renderTable();
     } catch (e) {
       console.error('Stock adjustment error:', e);
       alert('Failed to update stock. Please try again.');
@@ -523,23 +597,29 @@ class InventoryUi {
   }
 
   getVisibleTableData() {
-    if (!this.productSectionHTMl) return { headers: [], rows: [] };
-    const rows = [...this.productSectionHTMl.querySelectorAll("tr")];
-    if (!rows.length) return { headers: [], rows: [] };
-
-    const headerCells = [...rows[0].querySelectorAll("td")];
-    const actionIdx = headerCells.findIndex((cell) => cell.textContent.trim() === "");
-    const keepIndexes = headerCells
-      .map((_, idx) => idx)
-      .filter((idx) => idx !== actionIdx);
-
-    const headers = keepIndexes.map((idx) => headerCells[idx].textContent.trim());
-    const dataRows = rows.slice(1).map((row) => {
-      const cells = [...row.querySelectorAll("td")];
-      return keepIndexes.map((idx) => (cells[idx]?.textContent || "").trim());
-    });
-
-    return { headers, rows: dataRows };
+    const fullHeaders = [
+      "No", "Item Description", "Size", "Current Stock", "AMC", "Cumulative", "%",
+      "FSN", "LTD", "Lead Time (Months)", "SS", "ROP", "MSL", "Unit Cost", "Total Cost", "Trigger Point"
+    ];
+    const rows = this.filteredItems.map((row) => [
+      this.formatItemCode(row.item.itemCode),
+      row.item.title,
+      row.item.size || "---",
+      String(row.currentStock),
+      String(row.amc),
+      String(row.cumulativeDemand),
+      `${(row.cumulativePercent * 100).toFixed(2)}%`,
+      row.fsn,
+      String(row.roundedLeadTimeDemand),
+      String(row.procurementLeadTimeMonths),
+      String(row.roundedSafetyStock),
+      String(row.reorderingPoint),
+      String(row.displayedMinimumStockLevel),
+      `₱${(Number(row.item.price) || 0).toFixed(2)}`,
+      `₱${row.totalCost.toFixed(2)}`,
+      row.triggerPoint,
+    ]);
+    return { headers: fullHeaders, rows };
   }
 
   async exportVisibleTable(format) {
@@ -642,7 +722,8 @@ class InventoryUi {
       if (searchBar) searchBar.value = "";
 
       // Updating the DOM
-      this.updateDom(Storage.getItems());
+      this.filteredItems = this.getFilteredItems(Storage.getItems());
+      this.renderTable();
       // Closing the modal
       this.closeProductModal();
     } finally {
@@ -656,7 +737,8 @@ class InventoryUi {
     // Update the DOM
     if (searchBar) searchBar.value = "";
 
-    this.updateDom(Storage.getItems());
+    this.filteredItems = this.getFilteredItems(Storage.getItems());
+    this.renderTable();
   }
 
   editBtnLogic(id) {
@@ -679,10 +761,15 @@ class InventoryUi {
   seachLogic(inputValue) {
     const targetValue = inputValue.toLowerCase().trim();
     const allItems = Storage.getItems();
-    const filteredItem = allItems.filter((item) =>
-      item.title.toLowerCase().trim().includes(targetValue) || (item.itemCode && item.itemCode.toLowerCase().trim().includes(targetValue))
-    );
-    this.updateDom(filteredItem);
+    const searchedItems = targetValue
+      ? allItems.filter((item) =>
+          item.title.toLowerCase().trim().includes(targetValue) ||
+          (item.itemCode && item.itemCode.toLowerCase().trim().includes(targetValue))
+        )
+      : allItems;
+    this.filteredItems = this.getFilteredItems(searchedItems);
+    this.pagination.reset();
+    this.renderTable();
   }
 }
 
