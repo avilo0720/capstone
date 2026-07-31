@@ -1,4 +1,5 @@
 import Pagination from "./Pagination.js";
+import DownloadOptions from "./DownloadOptions.js";
 import { computeForecasts } from "./ForecastEngine.js";
 
 class ReportsView {
@@ -111,7 +112,6 @@ class ReportsView {
             <th>Current Stock</th>
             <th>Deficit</th>
             <th>Urgency</th>
-            <th></th>
           </tr>
         </thead>
         <tbody>`;
@@ -119,12 +119,11 @@ class ReportsView {
     page.items.forEach((item) => {
       const urgencyClass = `reports-urgency--${item.urgency}`;
       html += `
-          <tr>
+          <tr class="reports-alert-row" data-id="${item.id}" title="Click to view details">
             <td class="reports-alerts__item-name">${item.title}</td>
             <td>${item.currentStock}</td>
             <td>${item.deficit}</td>
             <td><span class="reports-urgency-badge ${urgencyClass}">${item.urgency.toUpperCase()}</span></td>
-            <td><button type="button" class="reports-view-btn" data-id="${item.id}">View</button></td>
           </tr>`;
     });
 
@@ -132,9 +131,9 @@ class ReportsView {
     body.innerHTML = html;
     this.pagination.renderControls(page);
 
-    body.querySelectorAll(".reports-view-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const item = sorted.find((i) => i.id == btn.dataset.id);
+    body.querySelectorAll(".reports-alert-row").forEach((rowEl) => {
+      rowEl.addEventListener("click", () => {
+        const item = sorted.find((i) => i.id == rowEl.dataset.id);
         if (item) this.showAlertDetail(item);
       });
     });
@@ -318,40 +317,25 @@ class ReportsView {
 
   bindEvents() {
     const downloadBtn = document.getElementById('reportDownloadBtn');
-    const downloadMenu = document.getElementById('reportDownloadMenu');
 
-    if (downloadBtn && downloadMenu) {
-      downloadBtn.addEventListener('click', () => {
-        downloadMenu.classList.toggle('--hidden');
-      });
-      downloadMenu.addEventListener('click', async (e) => {
-        const option = e.target.closest('.reportDownloadOption');
-        if (!option) return;
-        const format = option.dataset.format;
-        await this.exportReport(format);
-        downloadMenu.classList.add('--hidden');
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', async () => {
+        await this.exportReport();
       });
     }
-
-    document.addEventListener('click', (e) => {
-      if (downloadMenu && downloadBtn && !downloadBtn.contains(e.target) && !downloadMenu.contains(e.target)) {
-        downloadMenu.classList.add('--hidden');
-      }
-    });
   }
 
-  async exportReport(format) {
+  exportReport() {
     if (!this.summaryData) {
       alert('Report data not loaded yet.');
       return;
     }
 
-    const endpoint = format === 'pdf' ? '/api/export/report/pdf' : '/api/export/report/excel';
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+    DownloadOptions.open(
+      { format: 'pdf', paper: 'A4', orientation: 'portrait' },
+      async (options) => {
+        const endpoint = options.format === 'pdf' ? '/api/export/report/pdf' : '/api/export/report/excel';
+        const payload = {
           summary: {
             totalItems: this.summaryData.totalItems,
             totalQuantity: this.summaryData.totalQuantity,
@@ -359,26 +343,61 @@ class ReportsView {
             lowStockCount: this.summaryData.lowStockCount
           },
           lowStockItems: this.summaryData.lowStockItems
-        })
-      });
-      if (!res.ok) {
-        alert('Export failed. Please try again.');
-        return;
+        };
+        if (options.format === 'pdf') {
+          payload.paper = options.paper;
+          payload.orientation = options.orientation;
+          payload.fontSize = options.fontSize;
+          payload.rowSize = options.rowSize;
+        }
+
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Export failed');
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        link.href = url;
+        link.download = `inventory-report-${stamp}.${options.format === 'pdf' ? 'pdf' : 'xlsx'}`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      },
+      {
+        fetchPreview: async (options, signal) => {
+          const payload = {
+            format: options.format,
+            summary: {
+              totalItems: this.summaryData.totalItems,
+              totalQuantity: this.summaryData.totalQuantity,
+              totalValue: this.summaryData.totalValue,
+              lowStockCount: this.summaryData.lowStockCount,
+            },
+            lowStockItems: this.summaryData.lowStockItems,
+          };
+          if (options.format === "pdf") {
+            payload.paper = options.paper;
+            payload.orientation = options.orientation;
+            payload.fontSize = options.fontSize;
+            payload.rowSize = options.rowSize;
+          }
+          const res = await fetch("/api/export/report/preview", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+            signal,
+          });
+          if (!res.ok) throw new Error("Preview failed");
+          return res.blob();
+        },
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-      link.href = url;
-      link.download = `inventory-report-${stamp}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error('Export failed:', e);
-      alert('Export failed. Please try again.');
-    }
+    );
   }
 }
 

@@ -1,0 +1,109 @@
+@extends('layouts.app')
+
+@section('content')
+  <div class="forecastUi">
+    <div class="product-section__header">
+      <h1>Inventory Forecasting</h1>
+      <div class="product-section__header__buttons --hidden" id="forecastActions">
+        <div class="amc-toggle" id="amcToggleGroup">
+          <input type="radio" id="amcForecast" name="amcMode" value="forecast" checked>
+          <label for="amcForecast">Forecast AMC</label>
+
+          <input type="radio" id="amcInventory" name="amcMode" value="inventory">
+          <label for="amcInventory">Inventory AMC</label>
+
+          <input type="radio" id="amcCombined" name="amcMode" value="combined">
+          <label for="amcCombined">Combined AMC</label>
+        </div>
+
+        <button type="button" class="downloadBtn" id="forecastDownloadBtn">Download</button>
+      </div>
+    </div>
+
+    <div class="forecast-placeholder" id="forecastPlaceholder">
+      <div class="forecast-placeholder__icon">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="20" x2="18" y2="10"/>
+          <line x1="12" y1="20" x2="12" y2="4"/>
+          <line x1="6" y1="20" x2="6" y2="14"/>
+        </svg>
+      </div>
+      <h2 class="forecast-placeholder__title">Ready to Forecast</h2>
+      <p class="forecast-placeholder__desc">Analyze your inventory data using Croston's Method and Weighted Moving Average to project restocking needs.</p>
+      <button type="button" class="forecast-placeholder__btn" id="generateForecastBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        Generate Forecast
+      </button>
+    </div>
+
+    <div class="forecast-algo-panel --hidden" id="forecastAlgoPanel">
+      <h3 class="forecast-algo-panel__title">Forecasting Algorithms</h3>
+      <div class="forecast-algo-panel__grid">
+        <div class="forecast-algo-card">
+          <h4>Weighted Moving Average (WMA)</h4>
+          <p>Used for items with regular demand (usage on ≥33% of days in the analysis period). Aggregates daily usage into calendar months, then applies weights 1, 2, 3 to the last three months:</p>
+          <code class="forecast-algo-formula">Forecast = (M₁×1 + M₂×2 + M₃×3) ÷ 6</code>
+        </div>
+        <div class="forecast-algo-card">
+          <h4>Croston's Method</h4>
+          <p>Used for intermittent demand (usage on &lt;33% of days). Separately smooths demand size and interval between usage events (α = 0.2), then derives a daily rate:</p>
+          <code class="forecast-algo-formula">Daily Rate = Smoothed Size ÷ Smoothed Interval</code>
+          <p class="forecast-algo-note">Monthly forecast = Daily Rate × 30</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="product-section --hidden" id="forecastTableWrapper">
+      <table class="forecast-section-table"></table>
+      <div class="table-pagination-container" id="forecastPagination"></div>
+    </div>
+
+    <div id="forecastChartHost" class="forecast-chart-host" aria-hidden="true">
+      <div class="forecast-chart-panel --hidden" id="forecastChartPanel">
+        <div class="forecast-chart-panel__header">
+          <div class="forecast-chart-panel__heading">
+            <h2 id="forecastChartTitle">Demand Timeline</h2>
+            <div class="forecast-chart-legend">
+              <span class="forecast-chart-legend__item">
+                <i class="forecast-chart-legend__swatch forecast-chart-legend__swatch--demand"></i>
+                Actual demand
+              </span>
+              <span class="forecast-chart-legend__item forecast-chart-legend__forecast">
+                <i class="forecast-chart-legend__swatch forecast-chart-legend__swatch--forecast"></i>
+                Forecast rate
+              </span>
+            </div>
+          </div>
+          <button type="button" class="forecast-chart-panel__close" id="forecastChartClose" title="Close chart">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="forecast-chart-wrapper">
+          <canvas id="forecastChart" width="900" height="340"></canvas>
+        </div>
+        <div class="forecast-stat-cards" id="forecastStatCards">
+          <div class="forecast-stat-card">
+            <span class="forecast-stat-card__label">Monthly Forecast</span>
+            <span class="forecast-stat-card__value" id="statForecast">—</span>
+          </div>
+          <div class="forecast-stat-card">
+            <span class="forecast-stat-card__label">Avg Demand Size</span>
+            <span class="forecast-stat-card__value" id="statDemandSize">—</span>
+          </div>
+          <div class="forecast-stat-card">
+            <span class="forecast-stat-card__label">Avg Interval</span>
+            <span class="forecast-stat-card__value" id="statInterval">—</span>
+          </div>
+          <div class="forecast-stat-card">
+            <span class="forecast-stat-card__label">Method</span>
+            <span class="forecast-stat-card__value" id="statMethod">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+@endsection

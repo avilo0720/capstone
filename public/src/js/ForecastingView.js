@@ -1,5 +1,6 @@
 import Storage from "./API.js";
 import Pagination from "./Pagination.js";
+import DownloadOptions from "./DownloadOptions.js";
 import { computeForecasts } from "./ForecastEngine.js";
 
 class ForecastingUi {
@@ -39,11 +40,7 @@ class ForecastingUi {
 
     if (chartClose) {
       chartClose.addEventListener("click", () => {
-        const panel = document.getElementById("forecastChartPanel");
-        if (panel) panel.classList.add("--hidden");
-        this.selectedItemId = null;
-        // Remove active row highlight
-        document.querySelectorAll(".forecast-section-table tr.--active").forEach(r => r.classList.remove("--active"));
+        this.hideChart();
       });
     }
 
@@ -97,6 +94,8 @@ class ForecastingUi {
   }
 
   updateDom(allItems) {
+    this.parkChartPanel();
+
     const page = this.pagination.getSlice(allItems);
 
     let amcLabel = "AMC (Forecast)";
@@ -128,6 +127,20 @@ class ForecastingUi {
     });
     this.enableColumnResize();
     this.bindRowClicks();
+
+    // Re-open chart under the selected row if it is still on this page
+    if (this.selectedItemId != null) {
+      const activeRow = this.forecastSectionHTML.querySelector(
+        `tr.forecast-row[data-item-id="${this.selectedItemId}"]`
+      );
+      const item = this.forecastData.find((i) => i.id === this.selectedItemId);
+      if (activeRow && item) {
+        activeRow.classList.add("--active");
+        this.showChart(item, activeRow);
+      } else {
+        this.hideChart();
+      }
+    }
   }
 
   createRowHTML(item) {
@@ -176,27 +189,62 @@ class ForecastingUi {
         const item = this.forecastData.find(i => i.id === itemId);
         if (!item) return;
 
-        // Highlight active row
+        // Toggle closed if tapping the same row again
+        if (this.selectedItemId === itemId) {
+          this.hideChart();
+          return;
+        }
+
         rows.forEach(r => r.classList.remove("--active"));
         row.classList.add("--active");
 
         this.selectedItemId = itemId;
-        this.showChart(item);
+        this.showChart(item, row);
       });
     });
   }
 
   // ============== CHART RENDERING ==============
 
-  showChart(item) {
+  parkChartPanel() {
+    const panel = document.getElementById("forecastChartPanel");
+    const host = document.getElementById("forecastChartHost");
+    if (panel && host && panel.parentElement !== host) {
+      host.appendChild(panel);
+    }
+    document.querySelectorAll(".forecast-chart-expand-row").forEach((row) => row.remove());
+  }
+
+  hideChart() {
+    const panel = document.getElementById("forecastChartPanel");
+    if (panel) panel.classList.add("--hidden");
+    this.parkChartPanel();
+    this.selectedItemId = null;
+    document
+      .querySelectorAll(".forecast-section-table tr.--active")
+      .forEach((r) => r.classList.remove("--active"));
+  }
+
+  showChart(item, row) {
     const panel = document.getElementById("forecastChartPanel");
     const title = document.getElementById("forecastChartTitle");
-    if (!panel) return;
+    if (!panel || !row) return;
+
+    // Place chart directly under the tapped row
+    this.parkChartPanel();
+
+    const expandRow = document.createElement("tr");
+    expandRow.className = "forecast-chart-expand-row";
+    const cell = document.createElement("td");
+    cell.colSpan = row.cells.length || 7;
+    cell.className = "forecast-chart-expand-cell";
+    cell.appendChild(panel);
+    expandRow.appendChild(cell);
+    row.after(expandRow);
 
     panel.classList.remove("--hidden");
     title.textContent = `${item.title}${item.size ? ' (' + item.size + ')' : ''} — Demand Timeline`;
 
-    // Update stat cards
     document.getElementById("statForecast").textContent =
       item.forecast ? `${item.forecast.toFixed(1)} / month` : "—";
     document.getElementById("statDemandSize").textContent =
@@ -208,9 +256,13 @@ class ForecastingUi {
     methodEl.textContent = item.method;
     methodEl.className = "forecast-stat-card__value forecast-stat-card__method--" + item.method.toLowerCase();
 
-    // Draw the canvas chart
     const dailyUsage = this.usageData[item.id] || [];
-    this.drawChart(dailyUsage, item);
+
+    // Draw after layout so canvas width matches the expanded cell
+    requestAnimationFrame(() => {
+      this.drawChart(dailyUsage, item);
+      panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
   }
 
   drawChart(dailyUsage, item) {
@@ -219,197 +271,244 @@ class ForecastingUi {
 
     const ctx = canvas.getContext("2d");
     const dpr = window.devicePixelRatio || 1;
+    const fontFamily = '"Segoe UI", system-ui, -apple-system, sans-serif';
 
-    // Size to container
     const wrapper = canvas.parentElement;
-    const w = wrapper.clientWidth;
-    const h = 260;
+    const w = Math.max(wrapper.clientWidth, 320);
+    const h = 340;
     canvas.width = w * dpr;
     canvas.height = h * dpr;
     canvas.style.width = w + "px";
     canvas.style.height = h + "px";
-    ctx.scale(dpr, dpr);
-
-    // Clear
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
-    const pad = { top: 30, right: 20, bottom: 45, left: 50 };
+    const pad = { top: 28, right: 24, bottom: 52, left: 56 };
     const plotW = w - pad.left - pad.right;
     const plotH = h - pad.top - pad.bottom;
 
+    // Soft panel background
+    ctx.fillStyle = "#f8fafc";
+    ctx.beginPath();
+    ctx.roundRect(0, 0, w, h, 12);
+    ctx.fill();
+
     if (!dailyUsage || dailyUsage.length === 0) {
-      ctx.fillStyle = "#8896a4";
-      ctx.font = "500 14px Inter, sans-serif";
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = `500 15px ${fontFamily}`;
       ctx.textAlign = "center";
       ctx.fillText("No usage data available for this item", w / 2, h / 2);
       return;
     }
 
-    // Build full date range from first to last usage
-    const dates = dailyUsage.map(d => new Date(d.date));
+    const dates = dailyUsage.map((d) => new Date(d.date));
     const minDate = new Date(Math.min(...dates));
     const maxDate = new Date(Math.max(...dates));
-    const totalDays = Math.max(1, (maxDate - minDate) / (1000 * 60 * 60 * 24));
+    const totalDays = Math.max(1, Math.round((maxDate - minDate) / (1000 * 60 * 60 * 24)));
 
-    // Build lookup of date -> qty
     const dayMap = {};
-    dailyUsage.forEach(d => {
+    dailyUsage.forEach((d) => {
       const key = new Date(d.date).toISOString().slice(0, 10);
       dayMap[key] = (dayMap[key] || 0) + d.qty;
     });
 
-    const maxQty = Math.max(...Object.values(dayMap), 1);
+    let forecastDaily = 0;
+    let forecastColor = "#f97316";
+    if (item.dailyRate && item.dailyRate > 0) {
+      forecastDaily = item.dailyRate;
+      forecastColor = "#f97316";
+    } else if (item.method === "WMA" && item.forecast > 0) {
+      forecastDaily = item.forecast / 30;
+      forecastColor = "#8b5cf6";
+    }
 
-    // Draw grid lines
-    ctx.strokeStyle = "#e8ecf1";
+    const rawMax = Math.max(...Object.values(dayMap), forecastDaily, 1);
+    const maxQty = rawMax * 1.15;
+
+    // Plot area card
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#e2e8f0";
     ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(pad.left - 8, pad.top - 8, plotW + 16, plotH + 16, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    // Horizontal grid + Y labels
     const gridLines = 5;
+    ctx.font = `500 11px ${fontFamily}`;
     for (let i = 0; i <= gridLines; i++) {
       const y = pad.top + plotH - (plotH / gridLines) * i;
+      ctx.strokeStyle = i === 0 ? "#cbd5e1" : "#f1f5f9";
+      ctx.lineWidth = i === 0 ? 1.5 : 1;
       ctx.beginPath();
       ctx.moveTo(pad.left, y);
       ctx.lineTo(pad.left + plotW, y);
       ctx.stroke();
 
-      // Y-axis labels
-      ctx.fillStyle = "#8896a4";
-      ctx.font = "11px Inter, sans-serif";
+      ctx.fillStyle = "#64748b";
       ctx.textAlign = "right";
-      ctx.fillText(Math.round((maxQty / gridLines) * i), pad.left - 8, y + 4);
+      ctx.textBaseline = "middle";
+      const labelVal = (maxQty / gridLines) * i;
+      ctx.fillText(labelVal >= 10 ? Math.round(labelVal) : labelVal.toFixed(1), pad.left - 12, y);
     }
 
-    // Draw bars for each day in range
-    const barColor = "#3b82f6";
-    const barWidth = Math.max(2, Math.min(12, plotW / (totalDays + 1) - 1));
-
+    // Build series points for line/area
+    const points = [];
     for (let dayOffset = 0; dayOffset <= totalDays; dayOffset++) {
       const d = new Date(minDate);
       d.setDate(d.getDate() + dayOffset);
       const key = d.toISOString().slice(0, 10);
       const qty = dayMap[key] || 0;
-      if (qty === 0) continue;
-
       const x = pad.left + (dayOffset / totalDays) * plotW;
-      const barH = (qty / maxQty) * plotH;
-      const y = pad.top + plotH - barH;
-
-      ctx.fillStyle = barColor;
-      ctx.beginPath();
-      const radius = Math.min(3, barWidth / 2);
-      ctx.roundRect(x - barWidth / 2, y, barWidth, barH, [radius, radius, 0, 0]);
-      ctx.fill();
+      const y = pad.top + plotH - (qty / maxQty) * plotH;
+      points.push({ x, y, qty, dayOffset });
     }
 
-    // Draw forecast line (daily rate × totalDays → horizontal line)
-    if (item.dailyRate && item.dailyRate > 0) {
-      const forecastDaily = item.dailyRate;
-      // Scale to monthly for display, but draw at daily rate level
+    // Area under line
+    const areaGrad = ctx.createLinearGradient(0, pad.top, 0, pad.top + plotH);
+    areaGrad.addColorStop(0, "rgba(37, 99, 235, 0.22)");
+    areaGrad.addColorStop(1, "rgba(37, 99, 235, 0.02)");
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, pad.top + plotH);
+    points.forEach((p) => ctx.lineTo(p.x, p.y));
+    ctx.lineTo(points[points.length - 1].x, pad.top + plotH);
+    ctx.closePath();
+    ctx.fillStyle = areaGrad;
+    ctx.fill();
+
+    // Smooth-ish demand line
+    ctx.beginPath();
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 2.25;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    points.forEach((p, i) => {
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    });
+    ctx.stroke();
+
+    // Gradient bars on usage days
+    const barWidth = Math.max(3, Math.min(14, plotW / (totalDays + 1) - 1.5));
+    points.forEach((p) => {
+      if (p.qty <= 0) return;
+      const barH = (p.qty / maxQty) * plotH;
+      const y = pad.top + plotH - barH;
+      const grad = ctx.createLinearGradient(0, y, 0, pad.top + plotH);
+      grad.addColorStop(0, "#3b82f6");
+      grad.addColorStop(1, "#1d4ed8");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      const radius = Math.min(4, barWidth / 2);
+      ctx.roundRect(p.x - barWidth / 2, y, barWidth, barH, [radius, radius, 0, 0]);
+      ctx.fill();
+    });
+
+    // Peak points as dots
+    points.forEach((p) => {
+      if (p.qty <= 0) return;
+      ctx.beginPath();
+      ctx.fillStyle = "#ffffff";
+      ctx.strokeStyle = "#2563eb";
+      ctx.lineWidth = 2;
+      ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    });
+
+    // Forecast reference line
+    if (forecastDaily > 0) {
       const lineY = pad.top + plotH - (forecastDaily / maxQty) * plotH;
 
-      ctx.strokeStyle = "#f97316";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([8, 4]);
+      ctx.save();
+      ctx.shadowColor = "rgba(249, 115, 22, 0.25)";
+      ctx.shadowBlur = 8;
+      ctx.strokeStyle = forecastColor;
+      ctx.lineWidth = 2.25;
+      ctx.setLineDash([7, 5]);
       ctx.beginPath();
       ctx.moveTo(pad.left, lineY);
       ctx.lineTo(pad.left + plotW, lineY);
       ctx.stroke();
+      ctx.restore();
       ctx.setLineDash([]);
 
-      // Label
-      ctx.fillStyle = "#f97316";
-      ctx.font = "bold 11px Inter, sans-serif";
-      ctx.textAlign = "left";
-      ctx.fillText(`Forecast: ${forecastDaily.toFixed(2)}/day`, pad.left + plotW - 140, lineY - 8);
-    } else if (item.method === "WMA" && item.forecast > 0) {
-      // For WMA items, show monthly forecast as daily equivalent
-      const dailyEquiv = item.forecast / 30;
-      const lineY = pad.top + plotH - (dailyEquiv / maxQty) * plotH;
+      const label = `Forecast ${forecastDaily.toFixed(2)}/day`;
+      ctx.font = `700 11px ${fontFamily}`;
+      const textW = ctx.measureText(label).width;
+      const boxW = textW + 16;
+      const boxH = 22;
+      let boxX = pad.left + plotW - boxW;
+      let boxY = lineY - boxH - 8;
+      if (boxY < pad.top) boxY = lineY + 8;
 
-      ctx.strokeStyle = "#8b5cf6";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([8, 4]);
+      ctx.fillStyle = forecastColor;
       ctx.beginPath();
-      ctx.moveTo(pad.left, lineY);
-      ctx.lineTo(pad.left + plotW, lineY);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      ctx.fillStyle = "#8b5cf6";
-      ctx.font = "bold 11px Inter, sans-serif";
+      ctx.roundRect(boxX, boxY, boxW, boxH, 6);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
       ctx.textAlign = "left";
-      ctx.fillText(`Forecast: ${dailyEquiv.toFixed(2)}/day`, pad.left + plotW - 140, lineY - 8);
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, boxX + 8, boxY + boxH / 2);
     }
 
-    // X-axis labels (date markers)
-    ctx.fillStyle = "#8896a4";
-    ctx.font = "11px Inter, sans-serif";
+    // X-axis labels
+    ctx.fillStyle = "#64748b";
+    ctx.font = `500 11px ${fontFamily}`;
     ctx.textAlign = "center";
+    ctx.textBaseline = "top";
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-    const tickInterval = Math.max(1, Math.ceil(totalDays / 7));
+    const tickInterval = Math.max(1, Math.ceil(totalDays / 6));
 
     for (let dayOffset = 0; dayOffset <= totalDays; dayOffset += tickInterval) {
       const d = new Date(minDate);
       d.setDate(d.getDate() + dayOffset);
-      
       const x = pad.left + (dayOffset / totalDays) * plotW;
       const label = `${monthNames[d.getMonth()]} ${d.getDate()}`;
-      
-      ctx.fillText(label, x, h - pad.bottom + 20);
 
-      // Tick mark
-      ctx.strokeStyle = "#ccd3dc";
+      ctx.strokeStyle = "#e2e8f0";
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(x, pad.top + plotH);
       ctx.lineTo(x, pad.top + plotH + 6);
       ctx.stroke();
+
+      ctx.fillStyle = "#64748b";
+      ctx.fillText(label, x, pad.top + plotH + 12);
     }
 
     // Y-axis title
     ctx.save();
-    ctx.fillStyle = "#8896a4";
-    ctx.font = "11px Inter, sans-serif";
-    ctx.translate(14, pad.top + plotH / 2);
+    ctx.fillStyle = "#64748b";
+    ctx.font = `600 11px ${fontFamily}`;
+    ctx.translate(16, pad.top + plotH / 2);
     ctx.rotate(-Math.PI / 2);
     ctx.textAlign = "center";
-    ctx.fillText("Quantity", 0, 0);
+    ctx.textBaseline = "middle";
+    ctx.fillText("Daily quantity", 0, 0);
     ctx.restore();
+
+    // Update HTML legend colors for method
+    const legendForecast = document.querySelector(".forecast-chart-legend__forecast");
+    if (legendForecast) {
+      legendForecast.style.setProperty("--forecast-swatch", forecastColor);
+    }
   }
 
   // ============== EXPORT ==============
 
   bindDownloadEvents() {
     const downloadBtn = document.getElementById("forecastDownloadBtn");
-    const downloadMenu = document.getElementById("forecastDownloadMenu");
 
-    if (downloadBtn && downloadMenu) {
-      downloadBtn.addEventListener("click", () => {
-        downloadMenu.classList.toggle("--hidden");
-      });
-
-      downloadMenu.addEventListener("click", async (e) => {
-        const option = e.target.closest(".forecastDownloadOption");
-        if (!option) return;
-        const format = option.dataset.format;
-        await this.exportForecast(format);
-        downloadMenu.classList.add("--hidden");
-      });
-
-      document.addEventListener("click", (e) => {
-        if (!downloadBtn.contains(e.target) && !downloadMenu.contains(e.target)) {
-          downloadMenu.classList.add("--hidden");
-        }
+    if (downloadBtn) {
+      downloadBtn.addEventListener("click", async () => {
+        await this.exportForecast();
       });
     }
   }
 
-  async exportForecast(format) {
-    if (!this.forecastData || this.forecastData.length === 0) {
-      alert("No forecast data to export. Generate a forecast first.");
-      return;
-    }
-
+  getForecastExportData() {
     let amcLabel = "AMC (Forecast)";
     if (this.amcMode === "inventory") amcLabel = "AMC (Inventory)";
     if (this.amcMode === "combined") amcLabel = "AMC (Combined)";
@@ -446,31 +545,67 @@ class ForecastingUi {
       ];
     });
 
-    const endpoint = format === "pdf" ? "/api/export/forecast/pdf" : "/api/export/forecast/excel";
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ headers, rows }),
-      });
-      if (!res.ok) {
-        alert("Export failed. Please try again.");
-        return;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      link.href = url;
-      link.download = `forecast-${stamp}.${format === "pdf" ? "pdf" : "xlsx"}`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error("Export failed:", e);
-      alert("Export failed. Please try again.");
+    return { headers, rows };
+  }
+
+  exportForecast() {
+    if (!this.forecastData || this.forecastData.length === 0) {
+      alert("No forecast data to export. Generate a forecast first.");
+      return;
     }
+
+    DownloadOptions.open(
+      { format: "pdf", paper: "A4", orientation: "landscape" },
+      async (options) => {
+        const { headers, rows } = this.getForecastExportData();
+        const endpoint = options.format === "pdf" ? "/api/export/forecast/pdf" : "/api/export/forecast/excel";
+        const payload = { headers, rows };
+        if (options.format === "pdf") {
+          payload.paper = options.paper;
+          payload.orientation = options.orientation;
+          payload.fontSize = options.fontSize;
+          payload.rowSize = options.rowSize;
+        }
+
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error("Export failed");
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        link.href = url;
+        link.download = `forecast-${stamp}.${options.format === "pdf" ? "pdf" : "xlsx"}`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      },
+      {
+        fetchPreview: async (options, signal) => {
+          const { headers, rows } = this.getForecastExportData();
+          const payload = { format: options.format, headers, rows };
+          if (options.format === "pdf") {
+            payload.paper = options.paper;
+            payload.orientation = options.orientation;
+            payload.fontSize = options.fontSize;
+            payload.rowSize = options.rowSize;
+          }
+          const res = await fetch("/api/export/forecast/preview", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+            signal,
+          });
+          if (!res.ok) throw new Error("Preview failed");
+          return res.blob();
+        },
+      }
+    );
   }
 
   // ============== COLUMN RESIZE (preserved) ==============

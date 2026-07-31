@@ -1,5 +1,7 @@
 import Storage from "./API.js";
 import Pagination from "./Pagination.js";
+import DownloadOptions from "./DownloadOptions.js";
+import confirmAction from "./ConfirmDialog.js";
 
 const mainApp = document.querySelector(".main");
 // Selecting the prodcut modal
@@ -14,8 +16,6 @@ let filterToggleBtn;
 let filterPanel;
 let filterDropdown;
 let downloadToggleBtn;
-let downloadMenu;
-let downloadDropdown;
 
 // Selecting the inputs in the add Product Modal
 let productNameInput;
@@ -26,6 +26,27 @@ let productDemandInput;
 
 // --------------------- SearchBar --------------------------------
 let searchBar;
+
+const INVENTORY_COLUMNS = [
+  { key: "no", label: "No", short: "No", required: true },
+  { key: "item", label: "Item Description", short: "Item", required: true },
+  { key: "size", label: "Size", short: "Size" },
+  { key: "stock", label: "Current Stock", short: "Stock" },
+  { key: "amc", label: "AMC", short: "AMC" },
+  { key: "cumulative", label: "Cumulative", short: "Cumul" },
+  { key: "percent", label: "%", short: "%" },
+  { key: "fsn", label: "FSN", short: "FSN" },
+  { key: "ltd", label: "LTD", short: "LTD" },
+  { key: "leadTime", label: "Lead Time (Months)", short: "LT Mo" },
+  { key: "ss", label: "SS", short: "SS" },
+  { key: "rop", label: "ROP", short: "ROP" },
+  { key: "msl", label: "MSL", short: "MSL" },
+  { key: "unitCost", label: "Unit Cost", short: "Unit" },
+  { key: "totalCost", label: "Total Cost", short: "Total" },
+  { key: "trigger", label: "Trigger Point", short: "Trigger" },
+];
+
+const DEFAULT_VISIBLE_COLUMNS = ["no", "item", "size", "stock", "amc", "fsn", "trigger"];
 
 class InventoryUi {
   constructor() {
@@ -38,6 +59,8 @@ class InventoryUi {
     this.selectedTriggerFilter = "";
     this.columnWidths = {};
     this.columnWidthStorageKey = "inventoryColumnWidths";
+    this.visibleColumnsStorageKey = "inventoryVisibleColumns";
+    this.visibleColumns = new Set(DEFAULT_VISIBLE_COLUMNS);
     this.filteredItems = [];
     this.pagination = new Pagination({
       pageSize: 10,
@@ -58,8 +81,6 @@ class InventoryUi {
     filterPanel = document.querySelector(".inventoryFilterPanel");
     filterDropdown = document.querySelector(".filterDropdown");
     downloadToggleBtn = document.querySelector(".downloadBtn");
-    downloadMenu = document.querySelector(".downloadMenu");
-    downloadDropdown = document.querySelector(".downloadDropdown");
     productNameInput = document.querySelector(".productNameInput");
     itemSizeInput = document.querySelector(".itemSizeInput");
     productQuantityInput = document.querySelector(".productQuantityInput");
@@ -69,6 +90,7 @@ class InventoryUi {
     // Ensure table starts in fit-to-screen mode.
     localStorage.removeItem(this.columnWidthStorageKey);
     this.loadColumnWidths();
+    this.loadVisibleColumns();
     this.inventoryRoot = document.querySelector(".inventory-app");
     this.pagination.setContainer(document.getElementById("inventoryPagination"));
     this.viewModal = document.getElementById("viewItemModal");
@@ -91,6 +113,7 @@ class InventoryUi {
       if (stockToggleBtn) stockToggleBtn.style.display = 'none';
     }
 
+    this.renderColumnToggleButtons();
     this.bindEvents();
     this.applyEditModeUI();
     this.applyStockModeUI();
@@ -158,10 +181,23 @@ class InventoryUi {
     }
 
     if (filterToggleBtn && filterPanel) {
-      filterToggleBtn.addEventListener("click", () => {
+      filterToggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
         filterPanel.classList.toggle("--hidden");
       });
       filterPanel.addEventListener("click", (e) => {
+        e.stopPropagation();
+
+        const linkBtn = e.target.closest(".filterLinkBtn");
+        if (linkBtn) {
+          const action = linkBtn.dataset.action;
+          if (action === "columns-default") this.setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
+          if (action === "columns-all") this.setVisibleColumns(INVENTORY_COLUMNS.map((c) => c.key));
+          this.applyFilterUI();
+          this.renderTable();
+          return;
+        }
+
         const btn = e.target.closest(".filterOptionBtn");
         if (!btn) return;
 
@@ -169,30 +205,46 @@ class InventoryUi {
         const value = btn.dataset.value;
         if (group === "fsn") {
           this.selectedFsnFilter = this.selectedFsnFilter === value ? "" : value;
+          this.applyFilterUI();
+          this.filteredItems = this.getFilteredItems(Storage.getItems());
+          this.pagination.reset();
+          this.renderTable();
+          return;
         }
         if (group === "trigger") {
           this.selectedTriggerFilter = this.selectedTriggerFilter === value ? "" : value;
+          this.applyFilterUI();
+          this.filteredItems = this.getFilteredItems(Storage.getItems());
+          this.pagination.reset();
+          this.renderTable();
+          return;
         }
-
-        this.applyFilterUI();
-        this.filteredItems = this.getFilteredItems(Storage.getItems());
-        this.pagination.reset();
-        this.renderTable();
+        if (group === "column") {
+          this.toggleColumn(value);
+          this.applyFilterUI();
+          this.renderTable();
+        }
       });
     }
 
-    if (downloadToggleBtn && downloadMenu) {
-      downloadToggleBtn.addEventListener("click", () => {
-        downloadMenu.classList.toggle("--hidden");
-      });
-      downloadMenu.addEventListener("click", async (e) => {
-        const option = e.target.closest(".downloadOptionBtn");
-        if (!option) return;
-        const format = option.dataset.format;
-        await this.exportVisibleTable(format);
-        downloadMenu.classList.add("--hidden");
+    if (downloadToggleBtn) {
+      downloadToggleBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (filterPanel) filterPanel.classList.add("--hidden");
+        await this.exportVisibleTable();
       });
     }
+
+    document.addEventListener("click", (e) => {
+      const clickedFilter =
+        (filterDropdown && filterDropdown.contains(e.target)) ||
+        (filterToggleBtn && filterToggleBtn.contains(e.target)) ||
+        (filterPanel && filterPanel.contains(e.target));
+
+      if (!clickedFilter && filterPanel) {
+        filterPanel.classList.add("--hidden");
+      }
+    });
   }
 
   getFilteredItems(allItems) {
@@ -223,21 +275,23 @@ class InventoryUi {
     this.updateDom(this.filteredItems);
   }
 
+  showActionsColumn() {
+    return this.canEdit && (this.isEditMode || this.isStockMode);
+  }
+
   updateDom(allRowMetrics) {
     const page = this.pagination.getSlice(allRowMetrics);
+    const visibleCols = this.getVisibleColumnDefs();
+    const showActions = this.showActionsColumn();
 
-    let result = `
-    <tr class="table__title">
-        <td>No</td>
-        <td>Item Description</td>
-        <td>Size</td>
-        <td>Current Stock</td>
-        <td>AMC</td>
-        <td>FSN</td>
-        <td>Trigger Point</td>
-        <td></td>
-    </tr>    
-    `;
+    let result = `<tr class="table__title">`;
+    visibleCols.forEach((col) => {
+      result += `<td>${col.label}</td>`;
+    });
+    if (showActions) {
+      result += `<td>${this.isStockMode ? "Adjust" : "Actions"}</td>`;
+    }
+    result += `</tr>`;
 
     page.items.forEach((rowMetrics) => {
       result += this.createItemHTML(rowMetrics);
@@ -252,10 +306,20 @@ class InventoryUi {
     });
     this.enableColumnResize();
 
-    // Selecting the delete and edit Icon
+    this.productSectionHTMl.querySelectorAll("tr.inventory-row").forEach((rowEl) => {
+      rowEl.addEventListener("click", (e) => {
+        if (e.target.closest(".editTableSection, .stockTableSection, button, input, a")) {
+          return;
+        }
+        const id = Number(rowEl.dataset.id);
+        if (id) this.openViewModal(id);
+      });
+    });
+
     const deleteBtns = document.querySelectorAll(".deleteIcon");
     deleteBtns.forEach((deleteBtn) =>
       deleteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
         const id = Number(e.currentTarget.dataset.id);
         this.deleteBtnLogic(id);
       })
@@ -270,19 +334,10 @@ class InventoryUi {
       })
     );
 
-    const viewBtns = document.querySelectorAll(".viewIcon");
-    viewBtns.forEach((viewBtn) =>
-      viewBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const id = Number(e.currentTarget.dataset.id);
-        this.openViewModal(id);
-      })
-    );
-
-    // Bind inline stock buttons
     const stockBtns = document.querySelectorAll(".inline-stock__btn");
     stockBtns.forEach((btn) =>
       btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
         const id = Number(e.currentTarget.dataset.id);
         const action = e.currentTarget.dataset.action;
         const input = e.currentTarget.parentElement.querySelector(".inline-stock__input");
@@ -345,57 +400,159 @@ class InventoryUi {
   }
 
   createItemHTML(row) {
-    let actionsHtml;
+    let actionsHtml = "";
     if (this.isStockMode && this.canEdit) {
       actionsHtml = `
         <td class="stockTableSection">
-          <div class="inline-stock">
-            <button type="button" class="inline-stock__btn --minus" data-id="${row.item.id}" data-action="use">−</button>
-            <input type="number" class="inline-stock__input" data-id="${row.item.id}" value="1" min="1" />
-            <button type="button" class="inline-stock__btn --plus" data-id="${row.item.id}" data-action="add">+</button>
+          <div class="inline-stock" data-id="${row.item.id}">
+            <input type="number" class="inline-stock__input" data-id="${row.item.id}" value="1" min="1" aria-label="Quantity" />
+            <button type="button" class="inline-stock__btn --use" data-id="${row.item.id}" data-action="use" title="Use stock">Use</button>
+            <button type="button" class="inline-stock__btn --add" data-id="${row.item.id}" data-action="add" title="Add stock">Add</button>
           </div>
         </td>`;
-    } else if (this.canEdit) {
+    } else if (this.isEditMode && this.canEdit) {
       actionsHtml = `
         <td class="editTableSection">
+          <div class="table__actions">
             <div class="table__icons">
-            <button type="button" class="viewIcon" data-id="${row.item.id}" title="View details">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-            <div class="editIcon" data-id=${row.item.id}>
-                <svg class="icon">
-                <use
-                    xlink:href="../assets/images/sprite.svg#editIcon"
-                ></use>
-                </svg>
+              <button type="button" class="row-action --edit editIcon" data-id="${row.item.id}" title="Edit item" aria-label="Edit item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              </button>
+              <button type="button" class="row-action --delete deleteIcon" data-id="${row.item.id}" title="Delete item" aria-label="Delete item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+              </button>
             </div>
-            <div class="deleteIcon" data-id=${row.item.id}>
-                <img src="../assets/images/deleteIcon.svg" alt="deleteIcon" />
-            </div>
-            </div>
-        </td>`;
-    } else {
-      actionsHtml = `
-        <td class="editTableSection">
-          <button type="button" class="viewIcon" data-id="${row.item.id}" title="View details">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
+          </div>
         </td>`;
     }
 
-    return `
-     <tr>
-        <td>${this.formatItemCode(row.item.itemCode)}</td>
-        <td>${row.item.title}</td>
-        <td>${row.item.size || '---'}</td>
-        <td>${row.currentStock}</td>
-        <td>${row.amc}</td>
-        <td>${row.fsn}</td>
-        <td><span class="${row.triggerClass}">${row.triggerPoint}</span></td>
-        ${actionsHtml}
-    </tr>
+    let cells = "";
+    this.getVisibleColumnDefs().forEach((col) => {
+      cells += this.renderTableCell(row, col.key);
+    });
 
-    `;
+    return `<tr class="inventory-row" data-id="${row.item.id}" title="Click to view details">${cells}${actionsHtml}</tr>`;
+  }
+
+  renderTableCell(row, key) {
+    if (key === "trigger") {
+      return `<td><span class="${row.triggerClass}">${row.triggerPoint}</span></td>`;
+    }
+    return `<td>${this.getColumnValue(row, key)}</td>`;
+  }
+
+  getColumnValue(row, key) {
+    switch (key) {
+      case "no":
+        return this.formatItemCode(row.item.itemCode);
+      case "item":
+        return row.item.title || "";
+      case "size":
+        return row.item.size || "---";
+      case "stock":
+        return String(row.currentStock);
+      case "amc":
+        return String(row.amc);
+      case "cumulative":
+        return String(row.cumulativeDemand);
+      case "percent":
+        return `${(row.cumulativePercent * 100).toFixed(2)}%`;
+      case "fsn":
+        return row.fsn;
+      case "ltd":
+        return String(row.roundedLeadTimeDemand);
+      case "leadTime":
+        return String(row.procurementLeadTimeMonths);
+      case "ss":
+        return String(row.roundedSafetyStock);
+      case "rop":
+        return String(row.reorderingPoint);
+      case "msl":
+        return String(row.displayedMinimumStockLevel);
+      case "unitCost":
+        return `₱${(Number(row.item.price) || 0).toFixed(2)}`;
+      case "totalCost":
+        return `₱${row.totalCost.toFixed(2)}`;
+      case "trigger":
+        return row.triggerPoint;
+      default:
+        return "";
+    }
+  }
+
+  getVisibleColumnDefs() {
+    return INVENTORY_COLUMNS.filter((col) => this.visibleColumns.has(col.key));
+  }
+
+  renderColumnToggleButtons() {
+    const container = document.getElementById("inventoryColumnToggles");
+    if (!container) return;
+    container.innerHTML = INVENTORY_COLUMNS.map((col) => {
+      const locked = col.required ? ' data-locked="true"' : "";
+      return `<button type="button" class="filterOptionBtn" data-group="column" data-value="${col.key}"${locked}>${col.short}</button>`;
+    }).join("");
+  }
+
+  loadVisibleColumns() {
+    try {
+      const raw = localStorage.getItem(this.visibleColumnsStorageKey);
+      if (!raw) {
+        this.visibleColumns = new Set(DEFAULT_VISIBLE_COLUMNS);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        this.visibleColumns = new Set(DEFAULT_VISIBLE_COLUMNS);
+        return;
+      }
+      const valid = parsed.filter((key) => INVENTORY_COLUMNS.some((col) => col.key === key));
+      DEFAULT_VISIBLE_COLUMNS.filter((key) =>
+        INVENTORY_COLUMNS.find((col) => col.key === key)?.required
+      ).forEach((key) => {
+        if (!valid.includes(key)) valid.push(key);
+      });
+      this.visibleColumns = new Set(valid.length ? valid : DEFAULT_VISIBLE_COLUMNS);
+    } catch (e) {
+      console.error("Failed to load inventory visible columns:", e);
+      this.visibleColumns = new Set(DEFAULT_VISIBLE_COLUMNS);
+    }
+  }
+
+  saveVisibleColumns() {
+    try {
+      localStorage.setItem(
+        this.visibleColumnsStorageKey,
+        JSON.stringify([...this.visibleColumns])
+      );
+    } catch (e) {
+      console.error("Failed to save inventory visible columns:", e);
+    }
+  }
+
+  setVisibleColumns(keys) {
+    const next = new Set(keys);
+    INVENTORY_COLUMNS.forEach((col) => {
+      if (col.required) next.add(col.key);
+    });
+    this.visibleColumns = next;
+    this.saveVisibleColumns();
+    this.applyFilterUI();
+  }
+
+  toggleColumn(key) {
+    const col = INVENTORY_COLUMNS.find((c) => c.key === key);
+    if (!col || col.required) return;
+    if (this.visibleColumns.has(key)) {
+      this.visibleColumns.delete(key);
+    } else {
+      this.visibleColumns.add(key);
+    }
+    this.saveVisibleColumns();
+  }
+
+  hasCustomColumns() {
+    if (this.visibleColumns.size !== DEFAULT_VISIBLE_COLUMNS.length) return true;
+    return DEFAULT_VISIBLE_COLUMNS.some((key) => !this.visibleColumns.has(key));
   }
 
   openViewModal(id) {
@@ -446,6 +603,24 @@ class InventoryUi {
     return sign * floor;
   }
 
+  getDefaultColumnWidths(columnCount) {
+    const defaults = {
+      0: 72,   // No
+      1: 260,  // Item Description
+      2: 90,   // Size
+      3: 120,  // Current Stock
+      4: 90,   // AMC
+      5: 72,   // FSN
+      6: 130,  // Trigger Point
+      7: 140,  // Actions / Stock
+    };
+    const widths = {};
+    for (let i = 0; i < columnCount; i += 1) {
+      widths[i] = defaults[i] || 110;
+    }
+    return widths;
+  }
+
   applyColumnWidth(colIndex, width) {
     const table = this.productSectionHTMl;
     if (!table) return;
@@ -466,16 +641,19 @@ class InventoryUi {
     const headerCells = table.querySelectorAll("tr.table__title td");
     if (!headerCells.length) return;
 
+    const defaults = this.getDefaultColumnWidths(headerCells.length);
+
     headerCells.forEach((cell, colIndex) => {
       cell.querySelectorAll(".col-resize-handle").forEach((h) => h.remove());
       cell.style.position = "relative";
 
-      if (this.columnWidths[colIndex]) {
-        this.applyColumnWidth(colIndex, this.columnWidths[colIndex]);
-      }
+      const width = this.columnWidths[colIndex] || defaults[colIndex];
+      this.applyColumnWidth(colIndex, width);
 
+      // Last actions column stays fixed-ish; still allow resize but with a clearer handle
       const handle = document.createElement("span");
       handle.className = "col-resize-handle";
+      handle.title = "Drag to resize column";
       cell.appendChild(handle);
 
       handle.addEventListener("mousedown", (e) => {
@@ -485,9 +663,12 @@ class InventoryUi {
         const startX = e.clientX;
         const startWidth = cell.getBoundingClientRect().width;
         document.body.style.userSelect = "none";
+        document.body.style.cursor = "col-resize";
+        handle.classList.add("is-dragging");
 
         const onMove = (moveEvent) => {
-          const newWidth = Math.max(70, startWidth + (moveEvent.clientX - startX));
+          const minWidth = colIndex === 1 ? 140 : 64;
+          const newWidth = Math.max(minWidth, startWidth + (moveEvent.clientX - startX));
           this.columnWidths[colIndex] = newWidth;
           this.applyColumnWidth(colIndex, newWidth);
         };
@@ -497,6 +678,8 @@ class InventoryUi {
           document.removeEventListener("mousemove", onMove);
           document.removeEventListener("mouseup", onUp);
           document.body.style.userSelect = "";
+          document.body.style.cursor = "";
+          handle.classList.remove("is-dragging");
         };
 
         document.addEventListener("mousemove", onMove);
@@ -510,7 +693,7 @@ class InventoryUi {
       this.inventoryRoot.classList.toggle("--editMode", this.isEditMode);
     }
     if (editToggleBtn) {
-      editToggleBtn.textContent = "Edit";
+      editToggleBtn.textContent = this.isEditMode ? "Done" : "Edit";
       editToggleBtn.classList.toggle("--active", this.isEditMode);
     }
   }
@@ -520,11 +703,30 @@ class InventoryUi {
       this.inventoryRoot.classList.toggle("--stockMode", this.isStockMode);
     }
     if (stockToggleBtn) {
+      stockToggleBtn.textContent = this.isStockMode ? "Done" : "Adjust Stock";
       stockToggleBtn.classList.toggle("--active", this.isStockMode);
+    }
+    const banner = document.getElementById("stockModeBanner");
+    if (banner) {
+      banner.classList.toggle("--hidden", !this.isStockMode);
     }
   }
 
   async handleStockAdjustment(itemId, action, quantity) {
+    const actionLabel = action === "use" ? "used" : "added";
+    const item = Storage.getItems().find((i) => i.id == itemId);
+    const itemName = item?.title || "this item";
+    const isUse = action === "use";
+    const ok = await confirmAction({
+      title: isUse ? "Use stock?" : "Add stock?",
+      message: isUse
+        ? `Use ${quantity} unit(s) of "${itemName}"? This will reduce current stock.`
+        : `Add ${quantity} unit(s) to "${itemName}"? This will increase current stock.`,
+      confirmLabel: isUse ? "Use stock" : "Add stock",
+      danger: isUse,
+    });
+    if (!ok) return;
+
     try {
       const res = await fetch('/api/stock', {
         method: 'POST',
@@ -537,17 +739,32 @@ class InventoryUi {
         return;
       }
       const data = await res.json();
-      // Update local cache
-      const item = Storage.getItems().find(i => i.id == itemId);
-      if (item) {
-        item.quantity = data.newQuantity;
+      const updated = Storage.getItems().find(i => i.id == itemId);
+      if (updated) {
+        updated.quantity = data.newQuantity;
       }
       this.filteredItems = this.getFilteredItems(Storage.getItems());
       this.renderTable();
+      this.showStockToast(`${quantity} ${actionLabel}. New stock: ${data.newQuantity}`);
     } catch (e) {
       console.error('Stock adjustment error:', e);
       alert('Failed to update stock. Please try again.');
     }
+  }
+
+  showStockToast(message) {
+    let toast = document.querySelector(".stock-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.className = "stock-toast";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add("--show");
+    clearTimeout(this._stockToastTimer);
+    this._stockToastTimer = setTimeout(() => {
+      toast.classList.remove("--show");
+    }, 2200);
   }
 
   applyFilterUI() {
@@ -556,15 +773,16 @@ class InventoryUi {
     optionBtns.forEach((btn) => {
       const group = btn.dataset.group;
       const value = btn.dataset.value;
-      const isActive =
-        (group === "fsn" && value === this.selectedFsnFilter) ||
-        (group === "trigger" && value === this.selectedTriggerFilter);
+      let isActive = false;
+      if (group === "fsn") isActive = value === this.selectedFsnFilter;
+      if (group === "trigger") isActive = value === this.selectedTriggerFilter;
+      if (group === "column") isActive = this.visibleColumns.has(value);
       btn.classList.toggle("--active", isActive);
     });
     if (filterToggleBtn) {
       filterToggleBtn.classList.toggle(
         "--active",
-        Boolean(this.selectedFsnFilter || this.selectedTriggerFilter)
+        Boolean(this.selectedFsnFilter || this.selectedTriggerFilter || this.hasCustomColumns())
       );
     }
   }
@@ -597,60 +815,93 @@ class InventoryUi {
   }
 
   getVisibleTableData() {
-    const fullHeaders = [
-      "No", "Item Description", "Size", "Current Stock", "AMC", "Cumulative", "%",
-      "FSN", "LTD", "Lead Time (Months)", "SS", "ROP", "MSL", "Unit Cost", "Total Cost", "Trigger Point"
-    ];
-    const rows = this.filteredItems.map((row) => [
-      this.formatItemCode(row.item.itemCode),
-      row.item.title,
-      row.item.size || "---",
-      String(row.currentStock),
-      String(row.amc),
-      String(row.cumulativeDemand),
-      `${(row.cumulativePercent * 100).toFixed(2)}%`,
-      row.fsn,
-      String(row.roundedLeadTimeDemand),
-      String(row.procurementLeadTimeMonths),
-      String(row.roundedSafetyStock),
-      String(row.reorderingPoint),
-      String(row.displayedMinimumStockLevel),
-      `₱${(Number(row.item.price) || 0).toFixed(2)}`,
-      `₱${row.totalCost.toFixed(2)}`,
-      row.triggerPoint,
-    ]);
-    return { headers: fullHeaders, rows };
+    const cols = this.getVisibleColumnDefs();
+    const headers = cols.map((col) => col.label);
+    const rows = this.filteredItems.map((row) =>
+      cols.map((col) => this.getColumnValue(row, col.key))
+    );
+    return { headers, rows };
   }
 
-  async exportVisibleTable(format) {
-    const tableData = this.getVisibleTableData();
-    if (!tableData.headers.length) {
+  exportVisibleTable() {
+    if (!this.getVisibleColumnDefs().length) {
       alert("Nothing to export.");
       return;
     }
 
-    const endpoint =
-      format === "pdf" ? "/api/export/inventory/pdf" : "/api/export/inventory/excel";
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(tableData),
-    });
-    if (!response.ok) {
-      alert("Export failed. Please try again.");
-      return;
-    }
+    DownloadOptions.open(
+      { format: "pdf", paper: "A4", orientation: "landscape" },
+      async (options) => {
+        const tableData = this.getVisibleTableData();
+        const endpoint =
+          options.format === "pdf" ? "/api/export/inventory/pdf" : "/api/export/inventory/excel";
+        const payload = { ...tableData };
+        if (options.format === "pdf") {
+          payload.paper = options.paper;
+          payload.orientation = options.orientation;
+          payload.fontSize = options.fontSize;
+          payload.rowSize = options.rowSize;
+        }
 
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    link.href = url;
-    link.download = `inventory-${stamp}.${format === "pdf" ? "pdf" : "xlsx"}`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error("Export failed");
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        link.href = url;
+        link.download = `inventory-${stamp}.${options.format === "pdf" ? "pdf" : "xlsx"}`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      },
+      {
+        fetchPreview: async (options, signal) => {
+          const tableData = this.getVisibleTableData();
+          const payload = {
+            format: options.format,
+            ...tableData,
+          };
+          if (options.format === "pdf") {
+            payload.paper = options.paper;
+            payload.orientation = options.orientation;
+            payload.fontSize = options.fontSize;
+            payload.rowSize = options.rowSize;
+          }
+          const res = await fetch("/api/export/inventory/preview", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+            signal,
+          });
+          if (!res.ok) throw new Error("Preview failed");
+          return res.blob();
+        },
+        columns: {
+          defs: INVENTORY_COLUMNS,
+          getVisible: () => [...this.visibleColumns],
+          onToggle: (key) => {
+            this.toggleColumn(key);
+            this.applyFilterUI();
+            this.renderTable();
+          },
+          onSetDefault: () => {
+            this.setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
+            this.renderTable();
+          },
+          onSetAll: () => {
+            this.setVisibleColumns(INVENTORY_COLUMNS.map((c) => c.key));
+            this.renderTable();
+          },
+        },
+      }
+    );
   }
 
   openProductModal() {
@@ -702,10 +953,21 @@ class InventoryUi {
         return -1;
       }
 
+      const isEdit = Boolean(this.id);
+      const itemName = productNameInput.value.trim();
+      const ok = await confirmAction({
+        title: isEdit ? "Save item changes?" : "Add this item?",
+        message: isEdit
+          ? `Update "${itemName}" with the details you entered?`
+          : `Add "${itemName}" to inventory?`,
+        confirmLabel: isEdit ? "Save changes" : "Add item",
+      });
+      if (!ok) return -1;
+
       // Updating Local Storage
       const isSaved = await Storage.saveItem({
         id: this.id,
-        title: productNameInput.value.trim(),
+        title: itemName,
         size: itemSizeInput.value.trim(),
         category: "",
         quantity: Number(productQuantityInput.value),
@@ -731,10 +993,18 @@ class InventoryUi {
     }
   }
 
-  deleteBtnLogic(id) {
-    // Deleting the Item
-    Storage.deleteItem(id);
-    // Update the DOM
+  async deleteBtnLogic(id) {
+    const item = Storage.getItems().find((i) => i.id == id);
+    const itemName = item?.title || "this item";
+    const ok = await confirmAction({
+      title: "Delete item?",
+      message: `Permanently delete "${itemName}"? This cannot be undone.`,
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+
+    await Storage.deleteItem(id);
     if (searchBar) searchBar.value = "";
 
     this.filteredItems = this.getFilteredItems(Storage.getItems());

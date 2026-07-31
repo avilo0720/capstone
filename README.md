@@ -51,53 +51,74 @@ It is built to:
   - Paginated alerts table
   - Downloadable reports and exports (PDF/Excel)
 
-## Additional Functional Requirements
-
-- **User Authentication**
-  - **Description:** Manages secure login validation, credential verification, and access control, restricting unauthorized users from accessing system pages and ensuring session management through automatic timeouts.
-  - **Purpose:** To protect system data and ensure that only authorized personnel (Branch Manager, Department Managers, Inventory Clerks, and Warehouse Staff) can access role-appropriate functions.
-
-- **Reporting and Alerting**
-  - **Description:** Generates inventory summary reports and automatically triggers low-stock alert notifications when item quantities fall below a defined minimum threshold.
-  - **Purpose:** To keep management and staff informed of current stock conditions and prompt timely restocking actions through automated alerts and downloadable reports.
-
 ## Tech Stack
 
-- **Backend:** Node.js, Express
-- **Frontend:** EJS, vanilla JS, CSS
+- **Backend:** PHP 8.2+, Laravel 11
+- **Frontend:** Blade templates, vanilla JS, CSS
 - **Database:** MySQL
-- **File/Export libs:** `xlsx`, `pdfkit`
+- **Export libs:** PhpSpreadsheet, DomPDF
 
 ## Requirements
 
-- Node.js 18+ recommended
+- PHP 8.2 or higher
+- Composer
 - MySQL server running locally or remotely
+- PHP extensions: `pdo_mysql`, `mbstring`, `openssl`, `tokenizer`, `xml`, `ctype`, `json`, `fileinfo`
 
 ## Setup and Run
 
-1. Install dependencies:
+1. Install PHP dependencies:
    ```bash
-   npm install
+   composer install
    ```
 
-2. Create a `.env` file in the project root:
+2. Create a `.env` file from the example:
+   ```bash
+   copy .env.example .env
+   ```
+
+3. Generate the application key:
+   ```bash
+   php artisan key:generate
+   ```
+
+4. Configure database credentials in `.env`:
    ```env
-   DB_HOST=localhost
-   DB_USER=root
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=inventory_db
+   DB_USERNAME=root
    DB_PASSWORD=your_password
-   DB_NAME=inventory_db
-   PORT=3000
    ```
 
-3. Start the app:
+5. Run migrations and seed default users (skip if you already have the database from the previous Node version):
    ```bash
-   npm start
+   php artisan migrate --seed
    ```
 
-4. Open:
-   [http://localhost:3000](http://localhost:3000)
+6. Start the development server (Windows / XAMPP):
+   ```bat
+   serve.bat
+   ```
+   This starts XAMPP MySQL if needed and uses XAMPP’s PHP (with MySQL + mbstring), then serves the app at http://127.0.0.1:8000.
 
-On startup, the app auto-creates the database/tables if they do not exist.
+   After a reboot, always use `serve.bat` — not `php artisan serve` alone. Plain `artisan serve` often fails login because MySQL is not running yet, or the system PHP is missing/blocked drivers.
+
+7. Open:
+   [http://127.0.0.1:8000](http://127.0.0.1:8000)
+
+### Default Login Accounts
+
+| Username | Password | Role |
+|----------|----------|------|
+| `admin` | `password123` | Administrator (can manage users & departments) |
+| `branch_manager` | `password123` | Branch Manager |
+| `dept_manager` | `password123` | Department Manager |
+| `inventory_clerk` | `password123` | Inventory Clerk |
+| `warehouse_staff` | `password123` | Warehouse Staff |
+
+Users store first name, last name, username, birthday, role label, password, and optional department.
+Permissions come from the department by default, or can be customized per user on the **Users** page.
 
 ## Forecasting Algorithms
 
@@ -119,11 +140,18 @@ Usage data is sourced from stock "use" transactions over the last 3 months.
   - green badge: `Sufficient`
   - red badge: `RS Needed`
 - Inventory export uses the **currently shown rows** (including active filters).
+- Sessions expire after 15 minutes of inactivity.
 
 ## Project Structure
 
-- `server.js` - Express server, API routes, export routes
-- `db.js` - MySQL initialization + query helper
-- `public/src/js/` - Frontend UI logic (`Dashboard.js`, `InventoryView.js`, `ForecastingView.js`, etc.)
+- `app/Http/Controllers/` - Page and API controllers
+- `app/Http/Middleware/` - Auth and role-based access middleware
+- `app/Services/` - Report and export business logic
+- `app/Support/PermissionCatalog.php` - Available pages and abilities
+- `app/Services/PermissionService.php` - Resolves department vs custom user permissions
+- `public/src/js/` - Frontend UI logic (`Dashboard.js`, `InventoryView.js`, etc.)
 - `public/src/css/style.css` - Main styling
-- `views/` - EJS templates and partials
+- `resources/views/` - Blade templates and partials
+- `routes/web.php` - Web pages and API routes
+- `database/migrations/` - Database schema
+- `database/seeders/` - Default user seed data

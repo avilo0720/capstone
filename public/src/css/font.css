@@ -60,5 +60,6 @@
 }
 
 body {
-  font-family: "Satoshi";
+  font-family: "Satoshi", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
 }
