@@ -3,7 +3,12 @@
 @section('content')
   <div class="reports-page">
     <div class="reports-page__header">
-      <h1>Reports & Alerts</h1>
+      <div class="page-title-group">
+        <h1>Reports & Alerts</h1>
+        @if($currentInventory)
+          <span class="inventory-context-name">{{ $currentInventory->name }}</span>
+        @endif
+      </div>
       <div class="reports-page__header__actions">
         <button type="button" class="reportDownloadBtn" id="reportDownloadBtn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

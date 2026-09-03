@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Services\ActivityLogger;
+use App\Support\ActivityChangeSet;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -31,11 +32,16 @@ class CategoryController extends Controller
         $now = now();
         $existing = Category::find($data['id']);
 
+        $after = [
+            'title' => $data['title'],
+            'description' => $data['description'] ?? null,
+        ];
+        $labels = ['title' => 'Name', 'description' => 'Description'];
+
         Category::updateOrCreate(
             ['id' => $data['id']],
             [
-                'title' => $data['title'],
-                'description' => $data['description'] ?? null,
+                ...$after,
                 'updated' => $now,
             ]
         );
@@ -45,7 +51,15 @@ class CategoryController extends Controller
             $existing ? 'updated' : 'created',
             ($existing ? 'Updated' : 'Added').' category "'.$data['title'].'"',
             'category',
-            (int) $data['id']
+            (int) $data['id'],
+            [
+                'changes' => $existing
+                    ? ActivityChangeSet::diff([
+                        'title' => $existing->title,
+                        'description' => $existing->description,
+                    ], $after, $labels)
+                    : ActivityChangeSet::snapshot($after, $labels),
+            ]
         );
 
         return response()->json(['success' => true]);
@@ -63,7 +77,13 @@ class CategoryController extends Controller
             'deleted',
             'Deleted category "'.$title.'"',
             'category',
-            $id
+            $id,
+            [
+                'changes' => ActivityChangeSet::snapshot([
+                    'title' => $category?->title,
+                    'description' => $category?->description,
+                ], ['title' => 'Name', 'description' => 'Description']),
+            ]
         );
 
         return response()->json(['success' => true]);

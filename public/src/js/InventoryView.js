@@ -965,7 +965,7 @@ class InventoryUi {
       if (!ok) return -1;
 
       // Updating Local Storage
-      const isSaved = await Storage.saveItem({
+      const saveResult = await Storage.saveItem({
         id: this.id,
         title: itemName,
         size: itemSizeInput.value.trim(),
@@ -974,8 +974,12 @@ class InventoryUi {
         price: Number(productPriceInput.value),
         monthlyDemand: Number(productDemandInput.value),
       });
-      if (!isSaved) {
-        alert("Failed to save item. Please check database/server and try again.");
+      if (!saveResult?.ok) {
+        alert(
+          saveResult?.duplicate
+            ? (saveResult.error || "Duplicate item prevented. This item already exists and was not saved.")
+            : (saveResult?.error || "Failed to save item. Please check database/server and try again.")
+        );
         return -1;
       }
 

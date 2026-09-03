@@ -36,4 +36,19 @@ class RolePermissions
         return self::canAccessPage($sessionUser, 'activity-logs')
             || self::canManageUsers($sessionUser);
     }
+
+    public static function canViewCalendarTable(?array $sessionUser): bool
+    {
+        return self::hasAbility($sessionUser, 'calendar.table');
+    }
+
+    public static function canEditProcurement(?array $sessionUser): bool
+    {
+        return self::hasAbility($sessionUser, 'procurement.edit');
+    }
+
+    public static function canReviewProcurement(?array $sessionUser): bool
+    {
+        return self::hasAbility($sessionUser, 'procurement.review');
+    }
 }

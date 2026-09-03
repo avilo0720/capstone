@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\PermissionService;
+use App\Support\ActivityChangeSet;
 use App\Support\RolePermissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -130,6 +131,12 @@ class AuthController extends Controller
 
         $changingPassword = !empty($data['password']);
         $changedPicture = false;
+        $before = [
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'username' => $user->username,
+            'birthday' => $user->birthday?->format('Y-m-d'),
+        ];
 
         if ($changingPassword) {
             if (empty($data['current_password']) || !password_verify($data['current_password'], $user->password)) {
@@ -161,11 +168,25 @@ class AuthController extends Controller
         $request->session()->put('user', $payload);
 
         $details = [];
+        $changes = ActivityChangeSet::diff($before, [
+            'first_name' => $data['first_name'],
+            'last_name' => $data['last_name'],
+            'username' => $data['username'],
+            'birthday' => $data['birthday'] ?? null,
+        ], [
+            'first_name' => 'First name',
+            'last_name' => 'Last name',
+            'username' => 'Username',
+            'birthday' => 'Birthday',
+        ]);
         if ($changingPassword) {
             $details[] = 'password changed';
+            $changes[] = ['field' => 'Password', 'to' => 'Changed'];
         }
         if ($changedPicture) {
+            $pictureLabel = $request->boolean('remove_picture') ? 'Removed' : 'Updated';
             $details[] = $request->boolean('remove_picture') ? 'picture removed' : 'picture updated';
+            $changes[] = ['field' => 'Profile picture', 'to' => $pictureLabel];
         }
 
         $this->activity->log(
@@ -173,7 +194,8 @@ class AuthController extends Controller
             'updated',
             'Updated their profile'.($details ? ' ('.implode(', ', $details).')' : ''),
             'user',
-            (int) $user->id
+            (int) $user->id,
+            ['changes' => $changes]
         );
 
         return response()->json([

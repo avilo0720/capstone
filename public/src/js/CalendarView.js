@@ -1,5 +1,7 @@
 import Pagination from "./Pagination.js";
 import confirmAction from "./ConfirmDialog.js";
+import Storage from "./API.js";
+import DownloadOptions from "./DownloadOptions.js";
 
 const NOTE_COLORS = [
   { key: "blue", label: "Blue" },
@@ -26,15 +28,25 @@ class CalendarView {
     this.monthSelect = null;
     this.yearSelect = null;
     this.grid = null;
+    this.tableBody = null;
+    this.gridView = null;
+    this.tableView = null;
     this.overlay = null;
     this.noteOverlay = null;
     this.pagination = null;
+    this.viewMode = "grid";
+    this.viewStorageKey = "calendarViewMode";
   }
 
-  setApp() {
+  async setApp() {
     this.monthSelect = document.getElementById("calMonthSelect");
     this.yearSelect = document.getElementById("calYearSelect");
     this.grid = document.getElementById("calendarGrid");
+    this.tableHead = document.getElementById("calendarTableHead");
+    this.tableBody = document.getElementById("calendarTableBody");
+    this.tableFoot = document.getElementById("calendarTableFoot");
+    this.gridView = document.getElementById("calendarGridView");
+    this.tableView = document.getElementById("calendarTableView");
     this.overlay = document.getElementById("dailyOverlayModal");
     this.noteOverlay = document.getElementById("noteModalOverlay");
     this.pagination = new Pagination({
@@ -49,8 +61,9 @@ class CalendarView {
     this.buildDropdowns();
     this.buildColorPicker();
     this.bindEvents();
-    this.loadOptions();
-    this.loadMonth().then(() => this.openDateFromQuery());
+    this.setViewMode(this.loadViewMode(), { persist: false });
+    await Promise.all([this.loadOptions(), this.loadMonth()]);
+    this.openDateFromQuery();
   }
 
   applyDateQueryParam() {
@@ -149,6 +162,12 @@ class CalendarView {
     if (yearPrev) yearPrev.addEventListener("click", () => this.setYear(this.currentYear - 1));
     if (yearNext) yearNext.addEventListener("click", () => this.setYear(this.currentYear + 1));
 
+    document.querySelectorAll('input[name="calView"]').forEach((radio) => {
+      radio.addEventListener("change", (e) => {
+        this.setViewMode(e.target.value);
+      });
+    });
+
     const closeBtn = document.getElementById("dailyOverviewClose");
     if (closeBtn) closeBtn.addEventListener("click", () => this.closeDailyModal());
     if (this.overlay) {
@@ -168,6 +187,10 @@ class CalendarView {
       addNoteBtn.addEventListener("click", () => this.openNoteModal());
     }
 
+    document.getElementById("calDownloadMonthlyBtn")?.addEventListener("click", () => {
+      this.downloadMonthlyReport();
+    });
+
     if (this.grid) {
       this.grid.addEventListener("click", (e) => {
         const addBtn = e.target.closest("[data-add-note-day]");
@@ -178,6 +201,26 @@ class CalendarView {
         if (!day) return;
         const date = this.formatDate(this.currentYear, this.currentMonth, day);
         this.openNoteModal({ note_date: date, end_date: date });
+      });
+    }
+
+    if (this.tableView) {
+      this.tableView.addEventListener("click", (e) => {
+        const addBtn = e.target.closest("[data-add-note-day]");
+        if (addBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          const day = Number(addBtn.dataset.addNoteDay);
+          if (!day) return;
+          const date = this.formatDate(this.currentYear, this.currentMonth, day);
+          this.openNoteModal({ note_date: date, end_date: date });
+          return;
+        }
+
+        const cell = e.target.closest("[data-day]");
+        if (!cell || !this.tableView.contains(cell)) return;
+        const day = Number(cell.dataset.day);
+        if (day) this.openDailyModal(day);
       });
     }
 
@@ -333,18 +376,63 @@ class CalendarView {
       this.transactions = [];
       this.notes = [];
     }
-    this.renderGrid();
+    this.renderViews();
 
     if (this.selectedDay && this.overlay && !this.overlay.classList.contains("--hidden")) {
       this.openDailyModal(this.selectedDay, { keepTab: true });
     }
   }
 
-  renderGrid() {
-    const firstDay = new Date(this.currentYear, this.currentMonth, 1).getDay();
-    const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
-    const totalBlocks = 42;
+  loadViewMode() {
+    if (!this.canUseTable()) return "grid";
+    try {
+      const saved = localStorage.getItem(this.viewStorageKey);
+      if (saved === "table" || saved === "grid") return saved;
+    } catch {
+      /* ignore */
+    }
+    return "grid";
+  }
 
+  canUseTable() {
+    return document.body?.dataset?.canCalendarTable === "true";
+  }
+
+  setViewMode(mode, { persist = true } = {}) {
+    if (!this.canUseTable()) mode = "grid";
+    this.viewMode = mode === "table" ? "table" : "grid";
+
+    const toggle = document.getElementById("calViewToggle");
+    if (toggle) toggle.classList.toggle("--hidden", !this.canUseTable());
+
+    const gridRadio = document.getElementById("calViewGrid");
+    const tableRadio = document.getElementById("calViewTable");
+    if (gridRadio) gridRadio.checked = this.viewMode === "grid";
+    if (tableRadio) tableRadio.checked = this.viewMode === "table";
+
+    if (this.gridView) this.gridView.classList.toggle("--hidden", this.viewMode !== "grid");
+    if (this.tableView) this.tableView.classList.toggle("--hidden", this.viewMode !== "table");
+
+    const downloadBtn = document.getElementById("calDownloadMonthlyBtn");
+    if (downloadBtn) {
+      downloadBtn.classList.toggle("--hidden", this.viewMode !== "table" || !this.canUseTable());
+    }
+
+    if (persist && this.canUseTable()) {
+      try {
+        localStorage.setItem(this.viewStorageKey, this.viewMode);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  renderViews() {
+    this.renderGrid();
+    this.renderTable();
+  }
+
+  collectDayMaps() {
     const txByDay = {};
     this.transactions.forEach((tx) => {
       const d = new Date(tx.transactionDate);
@@ -362,6 +450,15 @@ class CalendarView {
         notesByDay[d].push(note);
       });
     });
+
+    return { txByDay, notesByDay };
+  }
+
+  renderGrid() {
+    const { txByDay, notesByDay } = this.collectDayMaps();
+    const firstDay = new Date(this.currentYear, this.currentMonth, 1).getDay();
+    const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
+    const totalBlocks = 42;
 
     let html = "";
     const today = new Date();
@@ -422,6 +519,276 @@ class CalendarView {
         if (day) this.openDailyModal(day);
       });
     });
+  }
+
+  renderTable() {
+    if (!this.tableBody || !this.tableHead) return;
+
+    const items = this.collectTableItems();
+    const { notesByDay } = this.collectDayMaps();
+    const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
+    const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const today = new Date();
+    const isCurrentMonth = today.getMonth() === this.currentMonth && today.getFullYear() === this.currentYear;
+    const todayDay = isCurrentMonth ? today.getDate() : null;
+    const cells = this.buildItemDayCells(items);
+    const dayTotals = Array.from({ length: daysInMonth + 1 }, () => ({ added: 0, used: 0 }));
+
+    const dayHeaders = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(this.currentYear, this.currentMonth, day);
+      const noteCount = (notesByDay[day] || []).length;
+      dayHeaders.push(`
+        <th class="calendar-table__day${day === todayDay ? " --today" : ""}" data-day="${day}">
+          <span class="calendar-table__day-num">${day}</span>
+          <span class="calendar-table__day-name">${weekdayNames[date.getDay()]}</span>
+          ${noteCount ? `<span class="calendar-table__note-count">${noteCount}</span>` : ""}
+        </th>`);
+    }
+
+    this.tableHead.innerHTML = `
+      <tr>
+        <th class="calendar-table__item-col">Item</th>
+        ${dayHeaders.join("")}
+        <th class="calendar-table__total-col">Total</th>
+      </tr>`;
+
+    if (!items.length) {
+      this.tableBody.innerHTML = `
+        <tr>
+          <td class="calendar-table__empty-col" colspan="${daysInMonth + 2}">No items in this inventory</td>
+        </tr>`;
+      if (this.tableFoot) this.tableFoot.innerHTML = "";
+      return;
+    }
+
+    this.tableBody.innerHTML = items.map((item) => {
+      const rowTotal = { added: 0, used: 0 };
+      const dayCells = [];
+      for (let day = 1; day <= daysInMonth; day++) {
+        const qty = cells.get(`${day}:${item.id}`) || { added: 0, used: 0 };
+        rowTotal.added += qty.added;
+        rowTotal.used += qty.used;
+        dayTotals[day].added += qty.added;
+        dayTotals[day].used += qty.used;
+        dayCells.push(`
+          <td class="calendar-table__day-cell${day === todayDay ? " --today" : ""}" data-day="${day}">
+            ${this.qtyCell(qty.added, qty.used)}
+          </td>`);
+      }
+
+      const quiet = !rowTotal.added && !rowTotal.used;
+      return `
+        <tr class="calendar-table__row${quiet ? " --quiet" : ""}">
+          <td class="calendar-table__item-col">
+            <div class="calendar-table__item-cell">
+              ${item.code ? `<span class="calendar-table__item-code">${this.escapeHtml(item.code)}</span>` : ""}
+              <span class="calendar-table__item-name">${this.escapeHtml(item.title)}</span>
+            </div>
+          </td>
+          ${dayCells.join("")}
+          <td class="calendar-table__total-col">${this.qtyCell(rowTotal.added, rowTotal.used)}</td>
+        </tr>`;
+    }).join("");
+
+    if (this.tableFoot) {
+      this.tableFoot.innerHTML = `
+        <tr>
+          <th class="calendar-table__item-col">Total</th>
+          ${Array.from({ length: daysInMonth }, (_, i) => {
+            const day = i + 1;
+            return `<td class="calendar-table__day-cell${day === todayDay ? " --today" : ""}" data-day="${day}">${this.qtyCell(dayTotals[day].added, dayTotals[day].used)}</td>`;
+          }).join("")}
+          <td class="calendar-table__total-col">${this.qtyCell(
+            dayTotals.reduce((s, q) => s + q.added, 0),
+            dayTotals.reduce((s, q) => s + q.used, 0)
+          )}</td>
+        </tr>`;
+    }
+  }
+
+  collectTableItems() {
+    const stored = Storage.getItems() || [];
+    const source = stored.length
+      ? stored
+      : this.transactions.map((tx) => ({
+          id: tx.itemId,
+          title: tx.itemTitle,
+          itemCode: tx.itemCode,
+        }));
+
+    const map = new Map();
+    source.forEach((item) => {
+      const id = String(item.id ?? item.itemId ?? `name:${item.title || "unknown"}`);
+      if (map.has(id)) return;
+      const rawCode = String(item.itemCode || "").trim();
+      map.set(id, {
+        id,
+        title: item.title || "Unknown item",
+        code: rawCode ? `#${rawCode.replace(/^item[-_\s]*/i, "")}` : "",
+        sort: rawCode.replace(/\D/g, "") || item.title || "",
+      });
+    });
+
+    return [...map.values()].sort((a, b) => {
+      const aNum = Number.parseInt(a.sort, 10);
+      const bNum = Number.parseInt(b.sort, 10);
+      if (!Number.isNaN(aNum) && !Number.isNaN(bNum) && aNum !== bNum) return aNum - bNum;
+      return a.title.localeCompare(b.title);
+    });
+  }
+
+  buildItemDayCells(items) {
+    const cells = new Map();
+    const known = new Set(items.map((item) => item.id));
+
+    this.transactions.forEach((tx) => {
+      const id = String(tx.itemId ?? `name:${tx.itemTitle || "unknown"}`);
+      if (!known.has(id)) return;
+      const day = new Date(tx.transactionDate).getDate();
+      const key = `${day}:${id}`;
+      const current = cells.get(key) || { added: 0, used: 0 };
+      const qty = Number(tx.quantity) || 0;
+      if (tx.action === "add") current.added += qty;
+      else current.used += qty;
+      cells.set(key, current);
+    });
+
+    return cells;
+  }
+
+  qtyCell(added, used) {
+    if (!added && !used) return `<span class="calendar-table__empty">·</span>`;
+    return `<div class="calendar-table__qty">
+      ${added ? `<span class="cal-badge --add">+${added}</span>` : ""}
+      ${used ? `<span class="cal-badge --use">-${used}</span>` : ""}
+    </div>`;
+  }
+
+  qtyExportValue(added, used) {
+    if (!added && !used) return "";
+    const parts = [];
+    if (added) parts.push(`+${added}`);
+    if (used) parts.push(`-${used}`);
+    return parts.join(" / ");
+  }
+
+  monthTitle() {
+    const names = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December",
+    ];
+    return `${names[this.currentMonth]} ${this.currentYear}`;
+  }
+
+  buildMonthlyReportTable() {
+    const items = this.collectTableItems();
+    const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
+    const cells = this.buildItemDayCells(items);
+    const inventoryName = document.querySelector(".inventory-context-name")?.textContent?.trim() || "";
+    const headers = ["Item", ...Array.from({ length: daysInMonth }, (_, i) => String(i + 1)), "Added", "Used"];
+    const dayTotals = Array.from({ length: daysInMonth + 1 }, () => ({ added: 0, used: 0 }));
+    let monthAdded = 0;
+    let monthUsed = 0;
+
+    const rows = items.map((item) => {
+      const row = [`${item.code ? `${item.code} ` : ""}${item.title}`.trim()];
+      let added = 0;
+      let used = 0;
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const qty = cells.get(`${day}:${item.id}`) || { added: 0, used: 0 };
+        added += qty.added;
+        used += qty.used;
+        dayTotals[day].added += qty.added;
+        dayTotals[day].used += qty.used;
+        row.push(this.qtyExportValue(qty.added, qty.used));
+      }
+      monthAdded += added;
+      monthUsed += used;
+      row.push(added ? `+${added}` : "0");
+      row.push(used ? `-${used}` : "0");
+      return row;
+    });
+
+    if (items.length) {
+      const totalRow = ["Total"];
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        totalRow.push(this.qtyExportValue(dayTotals[day].added, dayTotals[day].used));
+      }
+      totalRow.push(monthAdded ? `+${monthAdded}` : "0");
+      totalRow.push(monthUsed ? `-${monthUsed}` : "0");
+      rows.push(totalRow);
+    }
+
+    return {
+      title: `Monthly transaction report — ${this.monthTitle()}${inventoryName ? ` (${inventoryName})` : ""}`,
+      headers,
+      rows,
+    };
+  }
+
+  downloadMonthlyReport() {
+    const table = this.buildMonthlyReportTable();
+    if (!table.headers.length) {
+      alert("Nothing to export.");
+      return;
+    }
+
+    DownloadOptions.open(
+      { format: "pdf", paper: "legal", orientation: "landscape", fontSize: "small", rowSize: "compact" },
+      async (options) => {
+        const endpoint = options.format === "pdf" ? "/api/export/calendar/pdf" : "/api/export/calendar/excel";
+        const payload = { title: table.title, headers: table.headers, rows: table.rows };
+        if (options.format === "pdf") {
+          payload.paper = options.paper;
+          payload.orientation = options.orientation;
+          payload.fontSize = options.fontSize;
+          payload.rowSize = options.rowSize;
+        }
+
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error("Export failed");
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const stamp = `${this.currentYear}-${String(this.currentMonth + 1).padStart(2, "0")}`;
+        link.href = url;
+        link.download = `monthly-report-${stamp}.${options.format === "pdf" ? "pdf" : "xlsx"}`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      },
+      {
+        fetchPreview: async (options, signal) => {
+          const payload = {
+            format: options.format,
+            title: table.title,
+            headers: table.headers,
+            rows: table.rows,
+          };
+          if (options.format === "pdf") {
+            payload.paper = options.paper;
+            payload.orientation = options.orientation;
+            payload.fontSize = options.fontSize;
+            payload.rowSize = options.rowSize;
+          }
+          const res = await fetch("/api/export/calendar/preview", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+            signal,
+          });
+          if (!res.ok) throw new Error("Preview failed");
+          return res.blob();
+        },
+      }
+    );
   }
 
   openDailyModal(day, { keepTab = false, preferNotesTab = false } = {}) {

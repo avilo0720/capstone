@@ -1,4 +1,5 @@
 import Pagination from "./Pagination.js";
+import { activityChanges, renderActivityChanges } from "./ActivityChanges.js";
 
 const ACTION_BADGES = {
   created: { label: "Added", tone: "green" },
@@ -6,6 +7,13 @@ const ACTION_BADGES = {
   deleted: { label: "Deleted", tone: "red" },
   stock_added: { label: "Stock +", tone: "green" },
   stock_used: { label: "Stock −", tone: "orange" },
+  procurement_submitted: { label: "Procure", tone: "blue" },
+  procurement_approved: { label: "Approved", tone: "green" },
+  procurement_denied: { label: "Denied", tone: "red" },
+  procurement_stock_entered: { label: "Stock in", tone: "green" },
+  procurement_edited: { label: "Edited", tone: "blue" },
+  procurement_resubmitted: { label: "Resubmitted", tone: "orange" },
+  procurement_deleted: { label: "Deleted", tone: "red" },
 };
 
 class ActivityLogsView {
@@ -27,7 +35,7 @@ class ActivityLogsView {
     });
   }
 
-  setApp() {
+  async setApp() {
     this.root = document.querySelector(".activity-logs-page");
     if (!this.root) return;
 
@@ -36,17 +44,31 @@ class ActivityLogsView {
     this.actionSelect = document.getElementById("activityLogsAction");
     this.dateFrom = document.getElementById("activityLogsDateFrom");
     this.dateTo = document.getElementById("activityLogsDateTo");
+    this.overlay = document.getElementById("activityLogDetailOverlay");
+    this.detailTitle = document.getElementById("activityLogDetailTitle");
+    this.detailBody = document.getElementById("activityLogDetailBody");
 
     this.pagination.setContainer(document.getElementById("activityLogsPagination"));
     this.bindEvents();
-    this.loadLogs();
+    await this.loadLogs();
   }
 
   bindEvents() {
-    document.getElementById("activityLogsClearBtn")?.addEventListener("click", () => {
-      this.clearFilters();
-      this.pagination.reset();
-      this.loadLogs();
+    this.tbody?.addEventListener("click", (e) => {
+      const row = e.target.closest("tr[data-log-id]");
+      if (!row) return;
+      const log = this.logs.find((item) => String(item.id) === String(row.dataset.logId));
+      if (log) this.openDetail(log);
+    });
+
+    document.getElementById("activityLogDetailClose")?.addEventListener("click", () => this.closeDetail());
+    this.overlay?.addEventListener("click", (e) => {
+      if (e.target === this.overlay) this.closeDetail();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && this.overlay && !this.overlay.classList.contains("--hidden")) {
+        this.closeDetail();
+      }
     });
 
     document.getElementById("activityLogsRefreshBtn")?.addEventListener("click", () => {
@@ -84,14 +106,6 @@ class ActivityLogsView {
       date_from: this.dateFrom?.value || "",
       date_to: this.dateTo?.value || "",
     };
-  }
-
-  clearFilters() {
-    if (this.searchInput) this.searchInput.value = "";
-    if (this.actionSelect) this.actionSelect.value = "";
-    if (this.dateFrom) this.dateFrom.value = "";
-    if (this.dateTo) this.dateTo.value = "";
-    this.readFilters();
   }
 
   async loadLogs() {
@@ -171,9 +185,10 @@ class ActivityLogsView {
     const role = this.escape(log.user?.role || "");
     const description = this.escape(log.description || "—");
     const when = this.formatWhen(log.created_at);
+    const changes = renderActivityChanges(log.meta, (value) => this.escape(value));
 
     return `
-      <tr>
+      <tr class="activity-logs-row" data-log-id="${this.escape(log.id)}" title="View details">
         <td>
           <div class="activity-logs-when">
             <strong>${when.primary}</strong>
@@ -189,8 +204,131 @@ class ActivityLogsView {
         <td>
           <span class="dashboard-activity__badge dashboard-activity__badge--${badge.tone}">${badge.label}</span>
         </td>
-        <td>${description}</td>
+        <td>
+          <div class="activity-logs-details">
+            <p class="activity-logs-details__summary">${description}</p>
+            ${changes ? `<div class="activity-changes-scroll">${changes}</div>` : ""}
+          </div>
+        </td>
       </tr>`;
+  }
+
+  openDetail(log) {
+    const badge = ACTION_BADGES[log.action] || { label: "Action", tone: "gray" };
+    const when = this.formatWhen(log.created_at);
+    const name = this.escape(log.user?.full_name || "Unknown user");
+    const role = this.escape(log.user?.role || "—");
+    const description = this.escape(log.description || "—");
+    const subject = this.escape(this.subjectLabel(log));
+    const extra = this.renderExtraMeta(log.meta);
+    const changes = activityChanges(log.meta);
+
+    if (this.detailTitle) {
+      this.detailTitle.textContent = badge.label;
+    }
+
+    if (this.detailBody) {
+      this.detailBody.innerHTML = `
+        <div class="activity-log-detail">
+          <p class="activity-log-detail__lead">${description}</p>
+          <div class="viewItemModal__grid">
+            <div class="viewItemModal__field"><span>When</span><strong>${this.escape(when.primary)}</strong></div>
+            <div class="viewItemModal__field"><span>User</span><strong>${name}</strong></div>
+            <div class="viewItemModal__field"><span>Role</span><strong>${role}</strong></div>
+            <div class="viewItemModal__field"><span>Related to</span><strong>${subject}</strong></div>
+            ${extra}
+          </div>
+          ${this.renderChangeTable(changes)}
+        </div>`;
+    }
+
+    this.overlay?.classList.remove("--hidden");
+  }
+
+  closeDetail() {
+    this.overlay?.classList.add("--hidden");
+  }
+
+  subjectLabel(log) {
+    const id = Number(log.entity_id);
+    if (log.entity_type === "procurement_request" && id) return `Procurement request #${id}`;
+    if (log.entity_type === "item" && id) return `Inventory item #${id}`;
+    if (log.entity_type === "user" && id) return `User #${id}`;
+    if (log.entity_type) return String(log.entity_type).replaceAll("_", " ");
+    return "—";
+  }
+
+  renderExtraMeta(meta) {
+    if (!meta || typeof meta !== "object") return "";
+    const fields = [
+      ["status", "Status"],
+      ["rejection_reason", "Rejection reason"],
+      ["reason", "Reason"],
+      ["original_filename", "File"],
+    ];
+    return fields
+      .filter(([key]) => meta[key] != null && String(meta[key]).trim() !== "")
+      .map(([key, label]) => {
+        const value = this.escape(String(meta[key]).replaceAll("_", " "));
+        return `<div class="viewItemModal__field"><span>${label}</span><strong>${value}</strong></div>`;
+      })
+      .join("");
+  }
+
+  renderChangeTable(changes) {
+    if (!changes.length) {
+      return `<p class="activity-log-detail__empty">No field-level changes were recorded for this action.</p>`;
+    }
+
+    const rows = changes.map((row) => {
+      const field = this.escape(row.field || "Field");
+      const hasFrom = Object.prototype.hasOwnProperty.call(row, "from");
+      const from = hasFrom ? this.escape(this.displayValue(row.from)) : "—";
+      const to = this.escape(this.displayValue(row.to));
+      const delta = this.changeDelta(row);
+      return `<tr>
+        <td><strong>${field}</strong></td>
+        <td>${from}</td>
+        <td>${to}</td>
+        <td>${delta}</td>
+      </tr>`;
+    }).join("");
+
+    return `
+      <h3 class="activity-log-detail__heading">What changed</h3>
+      <div class="activity-log-detail__table-wrap">
+        <table class="activity-log-detail__table">
+          <thead>
+            <tr>
+              <th>Item / field</th>
+              <th>Before</th>
+              <th>After</th>
+              <th>Change</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  changeDelta(row) {
+    if (!Object.prototype.hasOwnProperty.call(row, "from")) {
+      return this.escape(this.displayValue(row.to));
+    }
+    const fromNum = Number(row.from);
+    const toNum = Number(row.to);
+    if (Number.isFinite(fromNum) && Number.isFinite(toNum) && String(row.from).trim() !== "" && String(row.to).trim() !== "") {
+      const diff = toNum - fromNum;
+      if (diff === 0) return "No change";
+      const sign = diff > 0 ? "+" : "";
+      return this.escape(`${sign}${diff}`);
+    }
+    return `${this.escape(this.displayValue(row.from))} → ${this.escape(this.displayValue(row.to))}`;
+  }
+
+  displayValue(value) {
+    if (value == null || String(value).trim() === "") return "—";
+    return String(value);
   }
 
   formatWhen(iso) {

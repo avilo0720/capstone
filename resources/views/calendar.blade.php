@@ -3,8 +3,19 @@
 @section('content')
   <div class="calendar-page">
     <div class="calendar-header">
-      <h1>Transaction Calendar</h1>
+      <div class="page-title-group">
+        <h1>Transaction Calendar</h1>
+        @if($currentInventory)
+          <span class="inventory-context-name">{{ $currentInventory->name }}</span>
+        @endif
+      </div>
       <div class="calendar-nav">
+        <div class="amc-toggle calendar-view-toggle {{ empty($user['canViewCalendarTable']) ? '--hidden' : '' }}" id="calViewToggle">
+          <input type="radio" id="calViewGrid" name="calView" value="grid" checked>
+          <label for="calViewGrid">Calendar</label>
+          <input type="radio" id="calViewTable" name="calView" value="table">
+          <label for="calViewTable">Table</label>
+        </div>
         <select id="calMonthSelect" class="calendar-select"></select>
         <div class="calendar-year-control">
           <button type="button" class="calendar-year-btn" id="calYearPrev" aria-label="Previous year">‹</button>
@@ -20,7 +31,7 @@
       </div>
     </div>
 
-    <div class="calendar-grid-wrapper">
+    <div class="calendar-grid-wrapper" id="calendarGridView">
       <div class="calendar-weekdays">
         <div class="calendar-weekday">Sun</div>
         <div class="calendar-weekday">Mon</div>
@@ -33,7 +44,16 @@
       <div class="calendar-grid" id="calendarGrid"></div>
     </div>
 
+    <div class="calendar-table-wrapper --hidden" id="calendarTableView">
+      <table class="calendar-table" id="calendarTable">
+        <thead id="calendarTableHead"></thead>
+        <tbody id="calendarTableBody"></tbody>
+        <tfoot id="calendarTableFoot"></tfoot>
+      </table>
+    </div>
+
     <div class="calendar-footer">
+      <button type="button" class="downloadBtn --hidden" id="calDownloadMonthlyBtn">Download monthly report</button>
       <button type="button" class="addProBtn calendar-add-note-btn" id="calAddNoteBtn">Add Note</button>
     </div>
   </div>

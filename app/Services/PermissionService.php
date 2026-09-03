@@ -40,12 +40,22 @@ class PermissionService
         }
 
         $pageList = array_values(array_keys($pages));
+        $inventories = [];
+        foreach (PermissionCatalog::inventoryDatasetSlugs() as $slug) {
+            if (isset($pages[$slug])) {
+                $inventories[] = $slug;
+            }
+        }
 
         return [
             'pages' => $pageList,
             'abilities' => $abilityList,
+            'inventories' => $inventories,
             'canEdit' => in_array('inventory.edit', $abilityList, true),
             'canManageUsers' => $canManageUsers,
+            'canViewCalendarTable' => in_array('calendar.table', $abilityList, true),
+            'canEditProcurement' => in_array('procurement.edit', $abilityList, true),
+            'canReviewProcurement' => in_array('procurement.review', $abilityList, true),
         ];
     }
 
@@ -68,8 +78,12 @@ class PermissionService
             'useCustomPermissions' => (bool) $user->use_custom_permissions,
             'pages' => $resolved['pages'],
             'abilities' => $resolved['abilities'],
+            'inventories' => $resolved['inventories'],
             'canEdit' => $resolved['canEdit'],
             'canManageUsers' => $resolved['canManageUsers'],
+            'canViewCalendarTable' => $resolved['canViewCalendarTable'],
+            'canEditProcurement' => $resolved['canEditProcurement'],
+            'canReviewProcurement' => $resolved['canReviewProcurement'],
         ];
     }
 
@@ -102,9 +116,11 @@ class PermissionService
                 continue;
             }
 
-            $canView = !empty($flags['view']) || !empty($flags['edit']) || !empty($flags['manage']);
+            $canView = !empty($flags['view']) || !empty($flags['edit']) || !empty($flags['manage']) || !empty($flags['table']) || !empty($flags['review']);
             $canEdit = !empty($flags['edit']);
             $canManage = !empty($flags['manage']);
+            $canTable = !empty($flags['table']);
+            $canReview = !empty($flags['review']);
 
             if ($canView) {
                 $rows[] = ['page' => $page, 'ability' => 'view'];
@@ -114,6 +130,12 @@ class PermissionService
             }
             if ($canManage && in_array('manage', PermissionCatalog::PAGES[$page]['abilities'], true)) {
                 $rows[] = ['page' => $page, 'ability' => 'manage'];
+            }
+            if ($canTable && in_array('table', PermissionCatalog::PAGES[$page]['abilities'], true)) {
+                $rows[] = ['page' => $page, 'ability' => 'table'];
+            }
+            if ($canReview && in_array('review', PermissionCatalog::PAGES[$page]['abilities'], true)) {
+                $rows[] = ['page' => $page, 'ability' => 'review'];
             }
         }
 

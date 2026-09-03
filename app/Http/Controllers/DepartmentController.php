@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Department;
 use App\Services\ActivityLogger;
 use App\Services\PermissionService;
+use App\Support\ActivityChangeSet;
 use App\Support\RolePermissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -53,7 +54,13 @@ class DepartmentController extends Controller
             'created',
             'Created department "'.$department->name.'"',
             'department',
-            (int) $department->id
+            (int) $department->id,
+            [
+                'changes' => ActivityChangeSet::snapshot(
+                    $this->departmentSnapshot($department->fresh(['permissions'])),
+                    $this->departmentFieldLabels()
+                ),
+            ]
         );
 
         return response()->json($this->serialize($department->fresh(['permissions'])), 201);
@@ -72,18 +79,25 @@ class DepartmentController extends Controller
         }
 
         $data = $this->validated($request, $department->id);
+        $department->loadMissing('permissions');
+        $before = $this->departmentSnapshot($department);
+
         $department->name = $data['name'];
         $department->description = $data['description'] ?? null;
         $department->save();
 
         $this->applyPermissions($department, $data);
+        $fresh = $department->fresh(['permissions']);
 
         $this->activity->log(
             $request,
             'updated',
             'Updated department "'.$department->name.'"',
             'department',
-            (int) $department->id
+            (int) $department->id,
+            [
+                'changes' => ActivityChangeSet::diff($before, $this->departmentSnapshot($fresh), $this->departmentFieldLabels()),
+            ]
         );
 
         return response()->json($this->serialize($department->fresh(['permissions'])));
@@ -108,6 +122,8 @@ class DepartmentController extends Controller
         }
 
         $name = $department->name;
+        $department->loadMissing('permissions');
+        $snapshot = $this->departmentSnapshot($department);
         $department->delete();
 
         $this->activity->log(
@@ -115,7 +131,10 @@ class DepartmentController extends Controller
             'deleted',
             'Deleted department "'.$name.'"',
             'department',
-            $id
+            $id,
+            [
+                'changes' => ActivityChangeSet::snapshot($snapshot, $this->departmentFieldLabels()),
+            ]
         );
 
         return response()->json(['success' => true]);
@@ -168,6 +187,36 @@ class DepartmentController extends Controller
                 'page' => $p->page,
                 'ability' => $p->ability,
             ])->values(),
+        ];
+    }
+
+    private function departmentSnapshot(Department $department): array
+    {
+        return [
+            'name' => $department->name,
+            'description' => $department->description,
+            'permissions' => $this->permissionSummary($department),
+        ];
+    }
+
+    private function permissionSummary(Department $department): string
+    {
+        $pages = $department->permissions
+            ->pluck('page')
+            ->unique()
+            ->sort()
+            ->values()
+            ->implode(', ');
+
+        return $pages !== '' ? $pages : 'None';
+    }
+
+    private function departmentFieldLabels(): array
+    {
+        return [
+            'name' => 'Name',
+            'description' => 'Description',
+            'permissions' => 'Access',
         ];
     }
 }

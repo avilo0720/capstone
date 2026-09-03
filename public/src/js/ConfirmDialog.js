@@ -10,11 +10,11 @@ export default function confirmAction({
   danger = false,
 } = {}) {
   return new Promise((resolve) => {
-    const existing = document.querySelector(".confirm-modal-overlay");
+    const existing = document.querySelector(".confirm-dialog-overlay");
     if (existing) existing.remove();
 
     const overlay = document.createElement("div");
-    overlay.className = "confirm-modal-overlay";
+    overlay.className = "confirm-modal-overlay confirm-dialog-overlay";
     overlay.setAttribute("role", "dialog");
     overlay.setAttribute("aria-modal", "true");
     overlay.setAttribute("aria-labelledby", "confirmModalTitle");

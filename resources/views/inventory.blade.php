@@ -4,7 +4,7 @@
   <div class="inventory-app">
     <div class="product-section__header">
       <div class="product-section__header__title">
-        <h1>Items</h1>
+        <h1>{{ $currentInventory->name ?? 'Items' }}</h1>
         <form class="inventory-search__form" onsubmit="return false;">
           <div class="inventory-search">
             <svg class="icon">

@@ -21,6 +21,11 @@ class PageController extends Controller
         return view('forecast', ['title' => 'Forecasting']);
     }
 
+    public function procurement(): View
+    {
+        return view('procurement', ['title' => 'Procurement']);
+    }
+
     public function reports(): View
     {
         return view('reports', ['title' => 'Reports']);

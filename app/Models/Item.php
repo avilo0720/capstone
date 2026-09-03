@@ -9,6 +9,7 @@ class Item extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'inventory_id',
         'itemCode',
         'title',
         'size',

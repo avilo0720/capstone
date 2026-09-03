@@ -21,9 +21,12 @@ class DatabaseSeeder extends Seeder
                 'flags' => [
                     'dashboard' => ['view' => true],
                     'inventory' => ['view' => true, 'edit' => true],
+                    'stock-materials' => ['view' => true],
+                    'office-materials' => ['view' => true],
                     'forecast' => ['view' => true],
+                    'procurement' => ['view' => true, 'edit' => true, 'review' => true],
                     'reports' => ['view' => true],
-                    'calendar' => ['view' => true],
+                    'calendar' => ['view' => true, 'table' => true],
                     'activity-logs' => ['view' => true],
                     'users' => ['view' => true, 'manage' => true],
                 ],
@@ -33,9 +36,12 @@ class DatabaseSeeder extends Seeder
                 'flags' => [
                     'dashboard' => ['view' => true],
                     'inventory' => ['view' => true, 'edit' => true],
+                    'stock-materials' => ['view' => true],
+                    'office-materials' => ['view' => true],
                     'forecast' => ['view' => true],
+                    'procurement' => ['view' => true, 'edit' => true, 'review' => true],
                     'reports' => ['view' => true],
-                    'calendar' => ['view' => true],
+                    'calendar' => ['view' => true, 'table' => true],
                 ],
             ],
             'Department Manager' => [
@@ -43,9 +49,12 @@ class DatabaseSeeder extends Seeder
                 'flags' => [
                     'dashboard' => ['view' => true],
                     'inventory' => ['view' => true, 'edit' => true],
+                    'stock-materials' => ['view' => true],
+                    'office-materials' => ['view' => true],
                     'forecast' => ['view' => true],
+                    'procurement' => ['view' => true, 'edit' => true, 'review' => true],
                     'reports' => ['view' => true],
-                    'calendar' => ['view' => true],
+                    'calendar' => ['view' => true, 'table' => true],
                 ],
             ],
             'Inventory Clerk' => [
@@ -53,8 +62,11 @@ class DatabaseSeeder extends Seeder
                 'flags' => [
                     'dashboard' => ['view' => true],
                     'inventory' => ['view' => true, 'edit' => true],
+                    'stock-materials' => ['view' => true],
+                    'office-materials' => ['view' => true],
                     'forecast' => ['view' => true],
-                    'calendar' => ['view' => true],
+                    'procurement' => ['view' => true, 'edit' => true],
+                    'calendar' => ['view' => true, 'table' => true],
                 ],
             ],
             'Warehouse Staff' => [
@@ -62,6 +74,8 @@ class DatabaseSeeder extends Seeder
                 'flags' => [
                     'dashboard' => ['view' => true],
                     'inventory' => ['view' => true],
+                    'stock-materials' => ['view' => true],
+                    'office-materials' => ['view' => true],
                 ],
             ],
         ];
@@ -144,5 +158,7 @@ class DatabaseSeeder extends Seeder
                 ]
             );
         }
+
+        $this->call(OfficeMaterialsSeeder::class);
     }
 }

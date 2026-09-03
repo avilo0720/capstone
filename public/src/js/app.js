@@ -5,6 +5,7 @@ import ReportsView from "./ReportsView.js";
 import CalendarView from "./CalendarView.js";
 import UsersView from "./UsersView.js";
 import ActivityLogsView from "./ActivityLogsView.js";
+import ProcurementView from "./ProcurementView.js";
 import Storage from "./API.js";
 import confirmAction from "./ConfirmDialog.js";
 
@@ -23,34 +24,45 @@ const SESSION_WARNING_BEFORE = 2 * 60 * 1000; // Warn 2 minutes before expiry
 // -------------------------- Notification Refresh ---------------------------
 const NOTIF_REFRESH_INTERVAL = 5 * 60 * 1000; // Refresh every 5 minutes
 
+function hideAppLoading() {
+  const overlay = document.getElementById("appLoading");
+  if (!overlay) return;
+  overlay.classList.add("app-loading--done");
+  overlay.setAttribute("aria-busy", "false");
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
-  await Storage.init();
-  
-  const app = new App();
-  app.addEventListeners();
+  try {
+    await Storage.init();
 
-  // Initialize the specific page based on what exists in the DOM
-  if (document.querySelector(".dashboardUi")) {
-    DashboardUi.setApp();
-  } else if (document.querySelector(".inventory-app")) {
-    InventoryUi.setApp();
-  } else if (document.querySelector(".forecastUi")) {
-    ForecastingUi.setApp();
-  } else if (document.querySelector(".reports-page")) {
-    ReportsView.setApp();
-  } else if (document.querySelector(".calendar-page")) {
-    CalendarView.setApp();
-  } else if (document.querySelector(".users-page")) {
-    UsersView.setApp();
-  } else if (document.querySelector(".activity-logs-page")) {
-    ActivityLogsView.setApp();
+    const app = new App();
+    app.addEventListeners();
+
+    if (document.querySelector(".dashboardUi")) {
+      DashboardUi.setApp();
+    } else if (document.querySelector(".inventory-app")) {
+      InventoryUi.setApp();
+    } else if (document.querySelector(".forecastUi")) {
+      await ForecastingUi.setApp();
+    } else if (document.querySelector(".procurement-page")) {
+      await ProcurementView.setApp();
+    } else if (document.querySelector(".reports-page")) {
+      await ReportsView.setApp();
+    } else if (document.querySelector(".calendar-page")) {
+      await CalendarView.setApp();
+    } else if (document.querySelector(".users-page")) {
+      await UsersView.setApp();
+    } else if (document.querySelector(".activity-logs-page")) {
+      await ActivityLogsView.setApp();
+    }
+
+    app.startSessionMonitor();
+    app.initNotifications();
+  } catch (err) {
+    console.error("Failed to initialize app:", err);
+  } finally {
+    hideAppLoading();
   }
-
-  // Start session monitoring
-  app.startSessionMonitor();
-
-  // Load notifications
-  app.initNotifications();
 });
 
 class App {
@@ -86,6 +98,7 @@ class App {
       card.addEventListener("click", () => this.openProfileModal());
     });
     this.bindProfileModal();
+    this.bindInventorySwitch();
 
     // ---- Notification Bell Events ----
     document.querySelectorAll(".notif").forEach((wrapper) => {
@@ -156,6 +169,25 @@ class App {
   hideMenu() {
     sideBarOnToggle.classList.add("--hidden");
     sideBarBackdrop.classList.add("--hidden");
+  }
+
+  bindInventorySwitch() {
+    document.querySelectorAll(".inventorySwitch").forEach((select) => {
+      select.addEventListener("change", async () => {
+        try {
+          const res = await fetch("/api/inventories/current", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ slug: select.value }),
+          });
+          if (!res.ok) throw new Error("Failed to switch inventory");
+          window.location.reload();
+        } catch (err) {
+          console.error(err);
+          alert("Could not switch inventory. Please try again.");
+        }
+      });
+    });
   }
 
   bindProfileModal() {

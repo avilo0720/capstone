@@ -1,5 +1,6 @@
 const mainApp = document.querySelector(".main");
 import Storage from "./API.js";
+import { renderActivityChanges } from "./ActivityChanges.js";
 
 class DashboardUi {
   setApp() {
@@ -78,6 +79,7 @@ class DashboardUi {
     const description = this.escapeHtml(log.description || "");
     const when = this.formatActivityTime(log.created_at, isToday);
     const badge = this.activityBadge(log.action);
+    const changes = renderActivityChanges(log.meta, (value) => this.escapeHtml(value));
 
     return `
       <li class="dashboard-activity__item">
@@ -88,6 +90,7 @@ class DashboardUi {
             ${role ? `<span class="dashboard-activity__role">${role}</span>` : ""}
             ${description}
           </p>
+          ${changes}
           <time class="dashboard-activity__time" datetime="${this.escapeHtml(log.created_at || "")}">${when}</time>
         </div>
         <span class="dashboard-activity__badge dashboard-activity__badge--${badge.tone}">${badge.label}</span>

@@ -27,10 +27,16 @@
           <option value="deleted">Deleted</option>
           <option value="stock_added">Stock +</option>
           <option value="stock_used">Stock −</option>
+          <option value="procurement_submitted">Procurement submitted</option>
+          <option value="procurement_approved">Procurement approved</option>
+          <option value="procurement_denied">Procurement denied</option>
+          <option value="procurement_stock_entered">Procurement stock</option>
+          <option value="procurement_edited">Procurement edited</option>
+          <option value="procurement_resubmitted">Procurement resubmitted</option>
+          <option value="procurement_deleted">Procurement deleted</option>
         </select>
         <input type="date" class="editToggleBtn activity-logs-date" id="activityLogsDateFrom" title="From date" />
         <input type="date" class="editToggleBtn activity-logs-date" id="activityLogsDateTo" title="To date" />
-        <button type="button" class="editToggleBtn" id="activityLogsClearBtn">Clear</button>
         <button type="button" class="editToggleBtn" id="activityLogsRefreshBtn" title="Refresh">Refresh</button>
       </div>
     </div>
@@ -54,5 +60,15 @@
     </div>
 
     <div class="table-pagination-container" id="activityLogsPagination"></div>
+  </div>
+
+  <div class="viewItemSection --hidden" id="activityLogDetailOverlay">
+    <div class="viewItemModal activity-log-detail-modal">
+      <div class="viewItemModal__header">
+        <h2 class="viewItemModal__title" id="activityLogDetailTitle">Activity details</h2>
+        <button type="button" class="viewItemModal__close" id="activityLogDetailClose" title="Close">&times;</button>
+      </div>
+      <div class="viewItemModal__body" id="activityLogDetailBody"></div>
+    </div>
   </div>
 @endsection

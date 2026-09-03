@@ -3,7 +3,12 @@
 @section('content')
   <div class="dashboardUi">
     <div class="dashboardUi__header">
-      <h1>Overview</h1>
+      <div class="page-title-group">
+        <h1>Overview</h1>
+        @if($currentInventory)
+          <span class="inventory-context-name">{{ $currentInventory->name }}</span>
+        @endif
+      </div>
     </div>
 
     <div class="reports-summary dashboardUi__summary">

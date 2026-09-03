@@ -300,6 +300,14 @@ class ExportService
             $sizeWidth = '6%';
             $costWidth = '9%';
             $triggerWidth = '7%';
+        } elseif ($columnCount >= 20) {
+            $baseFont = 5.4;
+            $baseHeader = 5.0;
+            $pageMargin = '7mm 4mm';
+            $itemWidth = '12%';
+            $sizeWidth = '6%';
+            $costWidth = '7%';
+            $triggerWidth = '7%';
         } elseif ($columnCount >= 14) {
             $baseFont = 6.5;
             $baseHeader = 6.0;
@@ -413,6 +421,10 @@ class ExportService
 
     private function pdfHeaderClass(string $header): string
     {
+        if ($header === 'Item' || ctype_digit($header)) {
+            return $header === 'Item' ? 'item-col' : 'num';
+        }
+
         return match ($header) {
             'Item Description' => 'item-col',
             'Size' => 'size-col',
@@ -426,6 +438,10 @@ class ExportService
 
     private function pdfCellClass(string $header): string
     {
+        if ($header === 'Item' || $header === 'Added' || $header === 'Used' || ctype_digit($header)) {
+            return $header === 'Item' ? 'item-col' : 'num';
+        }
+
         return match ($header) {
             'Item Description' => 'item-col',
             'Size' => 'size-col nowrap',

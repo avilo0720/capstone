@@ -4,9 +4,12 @@ import confirmAction from "./ConfirmDialog.js";
 const DEFAULT_CATALOG = {
   dashboard: { label: "Dashboard", abilities: ["view"] },
   inventory: { label: "Inventory", abilities: ["view", "edit"] },
+  "stock-materials": { label: "Stock Materials", abilities: ["view"] },
+  "office-materials": { label: "Office Materials", abilities: ["view"] },
   forecast: { label: "Forecasting", abilities: ["view"] },
+  procurement: { label: "Procurement", abilities: ["view", "edit", "review"] },
   reports: { label: "Reports", abilities: ["view"] },
-  calendar: { label: "Calendar", abilities: ["view"] },
+  calendar: { label: "Calendar", abilities: ["view", "table"] },
   "activity-logs": { label: "Activity Logs", abilities: ["view"] },
   users: { label: "Users", abilities: ["view", "manage"] },
 };
@@ -14,11 +17,26 @@ const DEFAULT_CATALOG = {
 const PAGE_SHORT = {
   dashboard: "Dash",
   inventory: "Inv",
+  "stock-materials": "Stock",
+  "office-materials": "Office",
   forecast: "Forecast",
+  procurement: "Procure",
   reports: "Reports",
   calendar: "Cal",
   "activity-logs": "Activity",
   users: "Users",
+};
+
+const CHILD_PAGES = {
+  inventory: ["stock-materials", "office-materials"],
+};
+
+const ABILITY_LABELS = {
+  view: "Access",
+  edit: "Edit",
+  table: "Table",
+  review: "Review",
+  manage: "Manage",
 };
 
 const SORT_LABELS = {
@@ -386,17 +404,22 @@ class UsersView {
         .join("");
   }
 
-  pageChips(pages = [], canEdit = false) {
+  pageChips(pages = [], abilities = []) {
     if (!pages.length) {
       return `<span class="users-muted">No access</span>`;
     }
 
+    const granted = new Set(abilities);
+
     return pages
       .map((page) => {
         const label = PAGE_SHORT[page] || page;
-        const edit = page === "inventory" && canEdit ? " · edit" : "";
-        const manage = page === "users" ? " · admin" : "";
-        return `<span class="users-chip">${this.escape(label)}${edit}${manage}</span>`;
+        const extras = [];
+        if (page === "inventory" && granted.has("inventory.edit")) extras.push("edit");
+        if (page === "calendar" && granted.has("calendar.table")) extras.push("table");
+        if (page === "users") extras.push("admin");
+        const suffix = extras.length ? ` · ${extras.join(" · ")}` : "";
+        return `<span class="users-chip">${this.escape(label)}${suffix}</span>`;
       })
       .join("");
   }
@@ -444,7 +467,7 @@ class UsersView {
               </div>
             </td>
             <td>${this.escape(user.department_name || "—")}</td>
-            <td><div class="users-chips">${this.pageChips(pages, user.effective?.canEdit)}</div></td>
+            <td><div class="users-chips">${this.pageChips(pages, user.effective?.abilities || [])}</div></td>
           </tr>
         `;
       })
@@ -487,9 +510,7 @@ class UsersView {
     this.departmentsBody.innerHTML = page.items
       .map((dept) => {
         const pages = [...new Set((dept.permissions || []).map((p) => p.page))];
-        const canEdit = (dept.permissions || []).some(
-          (p) => p.page === "inventory" && p.ability === "edit"
-        );
+        const abilities = (dept.permissions || []).map((p) => `${p.page}.${p.ability}`);
         return `
           <tr class="users-row" data-open-department="${dept.id}" tabindex="0" role="button" aria-label="Edit ${this.escape(dept.name)}">
             <td>
@@ -499,7 +520,7 @@ class UsersView {
               </div>
             </td>
             <td>${dept.users_count ?? 0}</td>
-            <td><div class="users-chips">${this.pageChips(pages, canEdit)}</div></td>
+            <td><div class="users-chips">${this.pageChips(pages, abilities)}</div></td>
           </tr>
         `;
       })
@@ -592,31 +613,91 @@ class UsersView {
     if (!container) return;
 
     const granted = new Set(permissions.map((p) => `${p.page}.${p.ability}`));
+    const nestedPages = new Set(Object.values(CHILD_PAGES).flat());
 
     container.innerHTML = Object.entries(this.catalog)
+      .filter(([page]) => !nestedPages.has(page))
       .map(([page, def]) => {
-        const abilities = def.abilities
-          .map((ability) => {
-            const id = `${prefix}_${page}_${ability}`;
-            const checked = granted.has(`${page}.${ability}`) ? "checked" : "";
-            const label = ability === "view" ? "Access" : ability === "edit" ? "Edit" : "Manage";
-            return `
-              <label class="users-check">
-                <input type="checkbox" id="${id}" data-page="${page}" data-ability="${ability}" ${checked} />
-                <span>${label}</span>
-              </label>
-            `;
-          })
-          .join("");
+        const viewChecked = granted.has(`${page}.view`) ? "checked" : "";
+        const extraAbilities = (def.abilities || []).filter((ability) => ability !== "view");
+        const nested = (CHILD_PAGES[page] || []).filter((childPage) => this.catalog[childPage]);
+        const children = [
+          ...extraAbilities.map((ability) => ({
+            page,
+            ability,
+            label: ABILITY_LABELS[ability] || ability,
+          })),
+          ...nested.map((childPage) => ({
+            page: childPage,
+            ability: "view",
+            label: this.catalog[childPage]?.label || childPage,
+          })),
+        ];
+
+        const childList = children.length
+          ? `<ul class="users-perm-children">${children
+              .map(
+                (child) => `
+              <li class="users-perm-child">
+                <span class="users-perm-child__label">${this.escape(child.label)}</span>
+                <label class="users-check">
+                  <input
+                    class="users-perm-child-input"
+                    type="checkbox"
+                    id="${prefix}_${child.page}_${child.ability}"
+                    data-page="${child.page}"
+                    data-ability="${child.ability}"
+                    ${granted.has(`${child.page}.${child.ability}`) ? "checked" : ""}
+                  />
+                </label>
+              </li>`
+              )
+              .join("")}</ul>`
+          : "";
 
         return `
-          <div class="users-perm-row">
-            <span class="users-perm-row__label">${this.escape(def.label)}</span>
-            <div class="users-perm-row__abilities">${abilities}</div>
+          <div class="users-perm-group" data-parent-page="${page}">
+            <div class="users-perm-row">
+              <span class="users-perm-row__label">${this.escape(def.label)}</span>
+              <div class="users-perm-row__abilities">
+                <label class="users-check">
+                  <input
+                    class="users-perm-parent"
+                    type="checkbox"
+                    id="${prefix}_${page}_view"
+                    data-page="${page}"
+                    data-ability="view"
+                    ${viewChecked}
+                  />
+                  <span>Access</span>
+                </label>
+              </div>
+            </div>
+            ${childList}
           </div>
         `;
       })
       .join("");
+
+    this.bindPermMatrix(container);
+  }
+
+  bindPermMatrix(container) {
+    container.querySelectorAll(".users-perm-group").forEach((group) => {
+      const parent = group.querySelector(".users-perm-parent");
+      if (!parent) return;
+      parent.addEventListener("change", () => this.syncPermGroup(group));
+      this.syncPermGroup(group);
+    });
+  }
+
+  syncPermGroup(group) {
+    const enabled = !!group.querySelector(".users-perm-parent")?.checked;
+    group.querySelectorAll(".users-perm-child").forEach((child) => {
+      const input = child.querySelector(".users-perm-child-input");
+      if (input) input.disabled = !enabled;
+      child.classList.toggle("--disabled", !enabled);
+    });
   }
 
   collectPageFlags(container) {
@@ -625,7 +706,7 @@ class UsersView {
       const page = input.dataset.page;
       const ability = input.dataset.ability;
       if (!flags[page]) flags[page] = {};
-      flags[page][ability] = input.checked;
+      flags[page][ability] = input.checked && !input.disabled;
     });
     return flags;
   }

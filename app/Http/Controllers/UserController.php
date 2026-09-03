@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\PermissionService;
+use App\Support\ActivityChangeSet;
 use App\Support\PermissionCatalog;
 use App\Support\RolePermissions;
 use Illuminate\Http\JsonResponse;
@@ -56,7 +57,10 @@ class UserController extends Controller
             'Created user "'.$user->full_name.'" (@'.$user->username.')',
             'user',
             (int) $user->id,
-            ['role' => $user->role]
+            [
+                'role' => $user->role,
+                'changes' => ActivityChangeSet::snapshot($this->userSnapshot($user->fresh(['department', 'permissions'])), $this->userFieldLabels()),
+            ]
         );
 
         return response()->json($this->serialize($user->fresh(['department', 'permissions'])), 201);
@@ -75,9 +79,12 @@ class UserController extends Controller
         }
 
         $data = $this->validated($request, $user->id);
+        $user->load(['department', 'permissions']);
+        $before = $this->userSnapshot($user);
         $this->fillUser($user, $data);
 
-        if (!empty($data['password'])) {
+        $passwordChanged = !empty($data['password']);
+        if ($passwordChanged) {
             $user->password = Hash::make($data['password']);
         }
 
@@ -87,13 +94,18 @@ class UserController extends Controller
         $fresh = $user->fresh(['department', 'permissions']);
         $this->refreshSessionIfSelf($request, $fresh);
 
+        $changes = ActivityChangeSet::diff($before, $this->userSnapshot($fresh), $this->userFieldLabels());
+        if ($passwordChanged) {
+            $changes[] = ['field' => 'Password', 'to' => 'Changed'];
+        }
+
         $this->activity->log(
             $request,
             'updated',
             'Updated user "'.$fresh->full_name.'" (@'.$fresh->username.')',
             'user',
             (int) $fresh->id,
-            ['role' => $fresh->role]
+            ['role' => $fresh->role, 'changes' => $changes]
         );
 
         return response()->json($this->serialize($fresh));
@@ -117,6 +129,8 @@ class UserController extends Controller
             return response()->json(['error' => 'User not found'], 404);
         }
 
+        $user->loadMissing(['department', 'permissions']);
+        $snapshot = $this->userSnapshot($user);
         $name = $user->full_name;
         $username = $user->username;
         $user->delete();
@@ -126,7 +140,10 @@ class UserController extends Controller
             'deleted',
             'Deleted user "'.$name.'" (@'.$username.')',
             'user',
-            $id
+            $id,
+            [
+                'changes' => ActivityChangeSet::snapshot($snapshot, $this->userFieldLabels()),
+            ]
         );
 
         return response()->json(['success' => true]);
@@ -235,5 +252,47 @@ class UserController extends Controller
         }
 
         $request->session()->put('user', $this->permissions->sessionPayload($user));
+    }
+
+    private function userSnapshot(User $user): array
+    {
+        return [
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'username' => $user->username,
+            'birthday' => $user->birthday?->format('Y-m-d'),
+            'role' => $user->role,
+            'department' => $user->department?->name,
+            'permissions' => $this->permissionSummary($user),
+        ];
+    }
+
+    private function permissionSummary(User $user): string
+    {
+        if (!$user->use_custom_permissions) {
+            return 'Role default';
+        }
+
+        $pages = $user->permissions
+            ->pluck('page')
+            ->unique()
+            ->sort()
+            ->values()
+            ->implode(', ');
+
+        return $pages !== '' ? 'Custom: '.$pages : 'Custom (none)';
+    }
+
+    private function userFieldLabels(): array
+    {
+        return [
+            'first_name' => 'First name',
+            'last_name' => 'Last name',
+            'username' => 'Username',
+            'birthday' => 'Birthday',
+            'role' => 'Role',
+            'department' => 'Department',
+            'permissions' => 'Access',
+        ];
     }
 }

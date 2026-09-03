@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Item;
 use App\Models\Transaction;
 use App\Services\ActivityLogger;
+use App\Support\ActivityChangeSet;
 use App\Support\RolePermissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -70,6 +71,11 @@ class StockController extends Controller
                 'quantity' => $changeQty,
                 'previous_quantity' => $currentQty,
                 'new_quantity' => $newQuantity,
+                'changes' => ActivityChangeSet::diff(
+                    ['quantity' => $currentQty],
+                    ['quantity' => $newQuantity],
+                    ['quantity' => 'Quantity']
+                ),
             ]
         );
 

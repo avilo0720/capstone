@@ -1,0 +1,256 @@
+// Nawad Inventory Management System — Database schema (DBML)
+// Source: Laravel migrations under database/migrations/
+// Preview: https://dbdiagram.io  (paste or import this file)
+
+Project nawad_inventory {
+  database_type: 'MySQL'
+  Note: 'Nawad Inventory Management System schema'
+}
+
+// ─────────────────────────────────────────────
+// Auth / Access Control
+// ─────────────────────────────────────────────
+
+Table departments {
+  id bigint [pk, increment]
+  name varchar(100) [unique, not null]
+  description text [null]
+  created datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  Note: 'Organizational units that own default page abilities'
+}
+
+Table users {
+  id bigint [pk, increment]
+  first_name varchar(100) [not null]
+  last_name varchar(100) [not null]
+  username varchar(100) [unique, not null]
+  birthday date [null]
+  profile_picture varchar(255) [null]
+  password varchar(255) [not null]
+  role varchar(100) [not null]
+  department_id bigint [null, ref: > departments.id]
+  use_custom_permissions boolean [not null, default: false]
+  created datetime [not null, default: `CURRENT_TIMESTAMP`]
+  updated datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  Note: 'Accounts; permissions come from department and/or user_permissions'
+}
+
+Table department_permissions {
+  id bigint [pk, increment]
+  department_id bigint [not null, ref: > departments.id]
+  page varchar(50) [not null]
+  ability varchar(50) [not null]
+
+  indexes {
+    (department_id, page, ability) [unique]
+  }
+
+  Note: 'Default page/ability grants for a department'
+}
+
+Table user_permissions {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  page varchar(50) [not null]
+  ability varchar(50) [not null]
+
+  indexes {
+    (user_id, page, ability) [unique]
+  }
+
+  Note: 'Per-user overrides when use_custom_permissions is true'
+}
+
+// ─────────────────────────────────────────────
+// Inventory
+// ─────────────────────────────────────────────
+
+Table inventories {
+  id bigint [pk, increment]
+  slug varchar(255) [unique, not null]
+  name varchar(255) [not null]
+
+  Note: 'Datasets such as Stock Materials and Office Materials'
+}
+
+Table categories {
+  id bigint [pk]
+  title varchar(255) [not null]
+  description text [null]
+  updated datetime [null]
+
+  Note: 'Lookup list; items.category stores the title string (no FK)'
+}
+
+Table items {
+  id bigint [pk, increment]
+  inventory_id bigint [null, ref: > inventories.id]
+  itemCode varchar(255) [null]
+  title varchar(255) [not null]
+  size varchar(255) [null]
+  category varchar(255) [null]
+  quantity int [not null, default: 0]
+  price decimal(10,2) [not null, default: 0]
+  monthlyDemand int [not null, default: 0]
+  updated datetime [null]
+
+  indexes {
+    inventory_id
+  }
+
+  Note: 'Catalog rows scoped by inventory dataset'
+}
+
+Table transactions {
+  id bigint [pk, increment]
+  itemId bigint [not null, ref: > items.id]
+  action varchar(10) [not null, note: 'add | use']
+  quantity int [not null, default: 0]
+  transactionDate datetime [not null, default: `CURRENT_TIMESTAMP`]
+  created_at datetime [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    itemId
+    transactionDate
+  }
+
+  Note: 'Stock-in (add) and stock-out (use) history'
+}
+
+// ─────────────────────────────────────────────
+// Procurement
+// ─────────────────────────────────────────────
+
+Table procurement_requests {
+  id bigint [pk, increment]
+  inventory_id bigint [not null, ref: > inventories.id]
+  status varchar(32) [not null, default: 'pending', note: 'pending | approved | denied | stock_entered']
+  source varchar(32) [not null, default: 'upload', note: 'upload | forecast']
+  original_filename varchar(255) [null]
+  amc_mode varchar(255) [null]
+  uploaded_by bigint [null, ref: > users.id]
+  reviewed_by bigint [null, ref: > users.id]
+  reviewed_at datetime [null]
+  rejection_reason text [null]
+  previous_rejection_reason text [null]
+  stock_applied_at datetime [null]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+
+  indexes {
+    (inventory_id, status)
+  }
+
+  Note: 'Header for a procurement submission / review cycle'
+}
+
+Table procurement_request_items {
+  id bigint [pk, increment]
+  procurement_request_id bigint [not null, ref: > procurement_requests.id]
+  item_id bigint [null, ref: > items.id]
+  item_code varchar(255) [null]
+  title varchar(255) [not null]
+  size varchar(255) [null]
+  current_qty int [not null, default: 0]
+  amc decimal(12,2) [not null, default: 0]
+  need_3m int [not null, default: 0]
+  need_6m int [not null, default: 0]
+  need_1y int [not null, default: 0]
+  method varchar(255) [null]
+  requested_qty int [not null, default: 0]
+  applied_qty int [null]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+
+  indexes {
+    procurement_request_id
+    item_id
+  }
+
+  Note: 'Line items; item_id optional until matched to catalog'
+}
+
+// ─────────────────────────────────────────────
+// Calendar & Notifications
+// ─────────────────────────────────────────────
+
+Table calendar_notes {
+  id bigint [pk, increment]
+  created_by bigint [not null, ref: > users.id]
+  title varchar(150) [not null]
+  body text [null]
+  color varchar(20) [not null, default: 'blue']
+  note_date date [not null]
+  end_date date [null]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+
+  indexes {
+    note_date
+    end_date
+    (created_by, note_date)
+  }
+}
+
+Table calendar_note_departments {
+  id bigint [pk, increment]
+  calendar_note_id bigint [not null, ref: > calendar_notes.id]
+  department_id bigint [not null, ref: > departments.id]
+
+  indexes {
+    (calendar_note_id, department_id) [unique, name: 'cal_note_dept_unique']
+  }
+
+  Note: 'Share a calendar note with a department'
+}
+
+Table calendar_note_users {
+  id bigint [pk, increment]
+  calendar_note_id bigint [not null, ref: > calendar_notes.id]
+  user_id bigint [not null, ref: > users.id]
+
+  indexes {
+    (calendar_note_id, user_id) [unique, name: 'cal_note_user_unique']
+  }
+
+  Note: 'Share a calendar note with a specific user'
+}
+
+Table notification_reads {
+  id bigint [pk, increment]
+  user_id bigint [not null, ref: > users.id]
+  notification_key varchar(100) [not null]
+  read_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (user_id, notification_key) [unique]
+    user_id
+  }
+
+  Note: 'Per-user dismiss / read state for alerts'
+}
+
+// ─────────────────────────────────────────────
+// Audit
+// ─────────────────────────────────────────────
+
+Table activity_logs {
+  id bigint [pk, increment]
+  user_id bigint [null, ref: > users.id]
+  action varchar(50) [not null]
+  entity_type varchar(50) [null]
+  entity_id bigint [null]
+  description varchar(255) [not null]
+  meta json [null]
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    created_at
+    (user_id, created_at)
+  }
+
+  Note: 'Audit trail for stock, procurement, user, and related actions'
+}

@@ -5,6 +5,7 @@
 <div class="sideBar-ontoggle --hidden">
   <div class="sideBar__brand">
     @include('partials.sidebar-logo')
+    @include('partials.inventory-switcher')
   </div>
   <div class="sideBar__icons">
     <a href="/" class="sideBar__dashboard sideBar__icon {{ $title === 'Dashboard' ? '--selectedBtnUi' : '' }}" style="text-decoration: none; color: inherit;">
@@ -25,6 +26,16 @@
     <a href="/forecast" class="sideBar__forecast sideBar__icon {{ $title === 'Forecasting' ? '--selectedBtnUi' : '' }}" style="text-decoration: none; color: inherit;">
       <img src="/assets/images/Categories.svg" alt="forecast icon" />
       <p>Forecasting</p>
+    </a>
+    @endif
+    @if(in_array('procurement', $allowedPages))
+    <a href="/procurement" class="sideBar__procurement sideBar__icon {{ $title === 'Procurement' ? '--selectedBtnUi' : '' }}" style="text-decoration: none; color: inherit;">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <path d="M16 10a4 4 0 0 1-8 0"/>
+      </svg>
+      <p>Procurement</p>
     </a>
     @endif
     @if(in_array('reports', $allowedPages))
@@ -78,6 +89,7 @@
 <div class="sideBar">
   <div class="sideBar__brand">
     @include('partials.sidebar-logo')
+    @include('partials.inventory-switcher')
   </div>
 
   <div class="sideBar__icons">
@@ -99,6 +111,16 @@
     <a href="/forecast" class="sideBar__forecast sideBar__icon {{ $title === 'Forecasting' ? '--selectedBtnUi' : '' }}" style="text-decoration: none; color: inherit;">
       <img src="/assets/images/Categories.svg" alt="forecast icon" />
       <p>Forecasting</p>
+    </a>
+    @endif
+    @if(in_array('procurement', $allowedPages))
+    <a href="/procurement" class="sideBar__procurement sideBar__icon {{ $title === 'Procurement' ? '--selectedBtnUi' : '' }}" style="text-decoration: none; color: inherit;">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <path d="M16 10a4 4 0 0 1-8 0"/>
+      </svg>
+      <p>Procurement</p>
     </a>
     @endif
     @if(in_array('reports', $allowedPages))

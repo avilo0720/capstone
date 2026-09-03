@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="/src/css/font.css" />
     <link rel="stylesheet" href="/src/css/style.css" />
-    <title>Login | Water Inventory</title>
+    <title>Login | Nawad Inventory</title>
   </head>
   <body class="login-body">
     <div class="login-container">
       <div class="login-card">
         <div class="login-card__logo">
-          <img src="/assets/images/waterlogo.svg" alt="Water Inventory Logo" class="login-card__logo-img" />
-          <h1 class="login-card__title">Water Inventory</h1>
+          <img src="/assets/images/waterlogo.svg" alt="Nawad Inventory Logo" class="login-card__logo-img" />
+          <h1 class="login-card__title">Nawad Inventory</h1>
           <p class="login-card__subtitle">Sign in to your account</p>
         </div>
 

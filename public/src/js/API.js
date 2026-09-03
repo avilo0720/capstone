@@ -64,17 +64,6 @@ class Storage {
 
   async saveItem(data) {
     const existed = this.items.find((p) => p.id == data.id);
-    if (existed) {
-        existed.itemCode = data.itemCode ?? existed.itemCode;
-        existed.title = data.title;
-        existed.size = data.size;
-        existed.category = data.category;
-        existed.quantity = data.quantity;
-        existed.price = data.price;
-        existed.monthlyDemand = data.monthlyDemand || 0;
-        existed.updated = new Date().toISOString();
-        data.id = existed.id;
-    }
 
     try {
         const response = await fetch('/api/items', {
@@ -82,13 +71,22 @@ class Storage {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
+        const result = await response.json().catch(() => ({}));
         if (!response.ok) {
-            throw new Error(`Failed to save item: ${response.status}`);
+            const err = new Error(result.error || `Failed to save item: ${response.status}`);
+            err.status = response.status;
+            err.duplicate = !!result.duplicate;
+            throw err;
         }
 
-        const result = await response.json();
         if (existed) {
           existed.itemCode = result.itemCode ?? existed.itemCode;
+          existed.title = data.title;
+          existed.size = data.size;
+          existed.category = data.category;
+          existed.quantity = data.quantity;
+          existed.price = data.price;
+          existed.monthlyDemand = data.monthlyDemand || 0;
           existed.updated = new Date().toISOString();
         } else {
           data.id = result.id;
@@ -97,10 +95,14 @@ class Storage {
           this.items.push(data);
         }
         this.sortItems(this.items);
-        return true;
+        return { ok: true };
     } catch (e) {
         console.error(e);
-        return false;
+        return {
+          ok: false,
+          error: e.message || "Failed to save item.",
+          duplicate: !!e.duplicate,
+        };
     }
   }
 

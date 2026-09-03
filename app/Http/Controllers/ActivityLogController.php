@@ -17,6 +17,13 @@ class ActivityLogController extends Controller
         'deleted',
         'stock_added',
         'stock_used',
+        'procurement_submitted',
+        'procurement_approved',
+        'procurement_denied',
+        'procurement_stock_entered',
+        'procurement_edited',
+        'procurement_resubmitted',
+        'procurement_deleted',
     ];
 
     public function index(Request $request): JsonResponse

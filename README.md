@@ -1,4 +1,4 @@
-# Water Inventory Management System
+# Nawad Inventory Management System
 
 Web-based inventory and procurement planning tool for water utility materials.
 
@@ -37,6 +37,14 @@ It is built to:
   - Demand-based projection (3 months, 6 months, 1 year)
   - Per-item demand timeline chart on row click
   - Paginated forecast results table
+
+- **Procurement**
+  - Upload or send a forecast file for review
+  - Pending / approved / denied / stock-entered workflow
+  - Approval adds requested quantities to inventory
+  - Stock entry records received quantities
+  - Denied requests require a manager reason and can be edited, deleted, or returned to pending
+  - Audit trail for edits and resubmits
 
 - **User Authentication**
   - Secure login validation and credential verification

@@ -15,6 +15,8 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\CalendarNoteController;
+use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\ProcurementController;
 
 // Auth
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -30,6 +32,7 @@ Route::middleware('auth.custom')->group(function () {
     Route::get('/', [PageController::class, 'dashboard']);
     Route::get('/inventory', [PageController::class, 'inventory'])->middleware('page:inventory');
     Route::get('/forecast', [PageController::class, 'forecast'])->middleware('page:forecast');
+    Route::get('/procurement', [PageController::class, 'procurement'])->middleware('page:procurement');
     Route::get('/reports', [PageController::class, 'reports'])->middleware('page:reports');
     Route::get('/calendar', [PageController::class, 'calendar'])->middleware('page:calendar');
     Route::get('/activity-logs', [PageController::class, 'activityLogs'])->middleware('page:activity-logs');
@@ -40,6 +43,8 @@ Route::middleware('auth.custom')->group(function () {
 Route::middleware('auth.custom')->prefix('api')->group(function () {
     // Shared reads used by dashboard/notifications across pages
     Route::get('/items', [ItemController::class, 'index']);
+    Route::get('/inventories', [InventoryController::class, 'index']);
+    Route::post('/inventories/current', [InventoryController::class, 'select']);
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/forecast-data', [ForecastController::class, 'index']);
     Route::get('/reports/summary', [ReportController::class, 'summary']);
@@ -72,6 +77,22 @@ Route::middleware('auth.custom')->prefix('api')->group(function () {
     Route::post('/export/forecast/excel', [ExportController::class, 'forecastExcel'])->middleware('page:forecast');
     Route::post('/export/forecast/pdf', [ExportController::class, 'forecastPdf'])->middleware('page:forecast');
     Route::post('/export/forecast/preview', [ExportController::class, 'forecastPreview'])->middleware('page:forecast');
+    Route::post('/export/calendar/excel', [ExportController::class, 'calendarExcel'])->middleware('page:calendar');
+    Route::post('/export/calendar/pdf', [ExportController::class, 'calendarPdf'])->middleware('page:calendar');
+    Route::post('/export/calendar/preview', [ExportController::class, 'calendarPreview'])->middleware('page:calendar');
+
+    Route::middleware('page:procurement')->group(function () {
+        Route::get('/procurement-requests', [ProcurementController::class, 'index']);
+        Route::get('/procurement-requests/{id}', [ProcurementController::class, 'show']);
+        Route::post('/procurement-requests', [ProcurementController::class, 'store'])->middleware('ability:procurement.edit');
+        Route::post('/procurement-requests/upload', [ProcurementController::class, 'upload'])->middleware('ability:procurement.edit');
+        Route::put('/procurement-requests/{id}', [ProcurementController::class, 'update'])->middleware('ability:procurement.edit');
+        Route::delete('/procurement-requests/{id}', [ProcurementController::class, 'destroy'])->middleware('ability:procurement.edit');
+        Route::post('/procurement-requests/{id}/resubmit', [ProcurementController::class, 'resubmit'])->middleware('ability:procurement.edit');
+        Route::post('/procurement-requests/{id}/approve', [ProcurementController::class, 'approve'])->middleware('ability:procurement.review');
+        Route::post('/procurement-requests/{id}/deny', [ProcurementController::class, 'deny'])->middleware('ability:procurement.review');
+        Route::post('/procurement-requests/{id}/stock-entry', [ProcurementController::class, 'stockEntry'])->middleware('ability:procurement.review');
+    });
 
     Route::middleware(['page:users', 'ability:users.manage'])->group(function () {
         Route::get('/permission-catalog', [UserController::class, 'catalog']);

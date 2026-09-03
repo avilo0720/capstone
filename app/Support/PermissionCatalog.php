@@ -19,9 +19,21 @@ class PermissionCatalog
             'label' => 'Inventory',
             'abilities' => ['view', 'edit'],
         ],
+        'stock-materials' => [
+            'label' => 'Stock Materials',
+            'abilities' => ['view'],
+        ],
+        'office-materials' => [
+            'label' => 'Office Materials',
+            'abilities' => ['view'],
+        ],
         'forecast' => [
             'label' => 'Forecasting',
             'abilities' => ['view'],
+        ],
+        'procurement' => [
+            'label' => 'Procurement',
+            'abilities' => ['view', 'edit', 'review'],
         ],
         'reports' => [
             'label' => 'Reports',
@@ -29,7 +41,7 @@ class PermissionCatalog
         ],
         'calendar' => [
             'label' => 'Calendar',
-            'abilities' => ['view'],
+            'abilities' => ['view', 'table'],
         ],
         'activity-logs' => [
             'label' => 'Activity Logs',
@@ -44,6 +56,16 @@ class PermissionCatalog
     public static function pageKeys(): array
     {
         return array_keys(self::PAGES);
+    }
+
+    public const INVENTORY_DATASETS = [
+        'stock-materials' => 'Stock Materials',
+        'office-materials' => 'Office Materials',
+    ];
+
+    public static function inventoryDatasetSlugs(): array
+    {
+        return array_keys(self::INVENTORY_DATASETS);
     }
 
     public static function isValid(string $page, string $ability): bool

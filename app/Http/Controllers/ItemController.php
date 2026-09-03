@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Item;
 use App\Services\ActivityLogger;
+use App\Support\ActivityChangeSet;
+use App\Support\InventoryContext;
 use App\Support\RolePermissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,12 +17,17 @@ class ItemController extends Controller
     {
     }
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
+        $inventoryId = InventoryContext::currentId($request);
+        if (!$inventoryId) {
+            return response()->json([]);
+        }
         $rows = DB::select("
             SELECT * FROM items
+            WHERE inventory_id = ?
             ORDER BY CAST(REGEXP_SUBSTR(COALESCE(itemCode, '0'), '[0-9]+') AS UNSIGNED) ASC, id ASC
-        ");
+        ", [$inventoryId]);
 
         return response()->json($rows);
     }
@@ -46,12 +53,40 @@ class ItemController extends Controller
 
         $normalizedId = (int) ($data['id'] ?? 0);
         $now = now();
+        $inventoryId = InventoryContext::currentId($request);
+
+        if (!$inventoryId) {
+            return response()->json(['error' => 'You do not have access to this inventory'], 403);
+        }
+
+        $title = trim((string) $data['title']);
+        $size = trim((string) ($data['size'] ?? ''));
+
+        $duplicate = Item::query()
+            ->where('inventory_id', $inventoryId)
+            ->whereRaw('LOWER(TRIM(title)) = ?', [mb_strtolower($title)])
+            ->whereRaw('LOWER(TRIM(COALESCE(size, ""))) = ?', [mb_strtolower($size)])
+            ->when($normalizedId > 0, fn ($q) => $q->where('id', '!=', $normalizedId))
+            ->first();
+
+        if ($duplicate) {
+            $label = $size !== '' ? "{$title} ({$size})" : $title;
+
+            return response()->json([
+                'error' => 'Duplicate item prevented. "'.$label.'" already exists in this inventory and was not saved.',
+                'duplicate' => true,
+                'existing_id' => $duplicate->id,
+                'existing_itemCode' => $duplicate->itemCode,
+            ], 422);
+        }
+
+        $data['title'] = $title;
+        $data['size'] = $size !== '' ? $size : null;
 
         if ($normalizedId > 0) {
             $current = Item::find($normalizedId);
             $currentItemCode = $current?->itemCode;
-
-            Item::where('id', $normalizedId)->update([
+            $after = [
                 'itemCode' => $data['itemCode'] ?? $currentItemCode,
                 'title' => $data['title'],
                 'size' => $data['size'] ?? null,
@@ -59,6 +94,10 @@ class ItemController extends Controller
                 'quantity' => $data['quantity'] ?? 0,
                 'price' => $data['price'] ?? 0,
                 'monthlyDemand' => $data['monthlyDemand'] ?? 0,
+            ];
+
+            Item::where('id', $normalizedId)->update([
+                ...$after,
                 'updated' => $now,
             ]);
 
@@ -68,7 +107,18 @@ class ItemController extends Controller
                 'Updated item "'.$data['title'].'"',
                 'item',
                 $normalizedId,
-                ['itemCode' => $data['itemCode'] ?? $currentItemCode]
+                [
+                    'itemCode' => $after['itemCode'],
+                    'changes' => ActivityChangeSet::diff([
+                        'itemCode' => $current?->itemCode,
+                        'title' => $current?->title,
+                        'size' => $current?->size,
+                        'category' => $current?->category,
+                        'quantity' => $current?->quantity,
+                        'price' => $current?->price,
+                        'monthlyDemand' => $current?->monthlyDemand,
+                    ], $after, $this->itemFieldLabels()),
+                ]
             );
 
             return response()->json([
@@ -78,7 +128,9 @@ class ItemController extends Controller
             ]);
         }
 
-        $itemCodes = Item::pluck('itemCode');
+        $itemCodes = Item::query()
+            ->when($inventoryId, fn ($q) => $q->where('inventory_id', $inventoryId))
+            ->pluck('itemCode');
         $maxItemCode = 0;
 
         foreach ($itemCodes as $code) {
@@ -91,9 +143,11 @@ class ItemController extends Controller
             }
         }
 
-        $nextItemCode = (string) ($maxItemCode + 1);
+        $prefix = ($request->session()->get('inventory_slug') === 'office-materials') ? 'OFF-' : 'ITEM-';
+        $nextItemCode = $prefix.($maxItemCode + 1);
 
         $item = Item::create([
+            'inventory_id' => $inventoryId,
             'itemCode' => $nextItemCode,
             'title' => $data['title'],
             'size' => $data['size'] ?? null,
@@ -110,7 +164,19 @@ class ItemController extends Controller
             'Added item "'.$data['title'].'"',
             'item',
             (int) $item->id,
-            ['itemCode' => $nextItemCode, 'quantity' => $data['quantity'] ?? 0]
+            [
+                'itemCode' => $nextItemCode,
+                'quantity' => $data['quantity'] ?? 0,
+                'changes' => ActivityChangeSet::snapshot([
+                    'itemCode' => $nextItemCode,
+                    'title' => $data['title'],
+                    'size' => $data['size'] ?? null,
+                    'category' => $data['category'] ?? null,
+                    'quantity' => $data['quantity'] ?? 0,
+                    'price' => $data['price'] ?? 0,
+                    'monthlyDemand' => $data['monthlyDemand'] ?? 0,
+                ], $this->itemFieldLabels()),
+            ]
         );
 
         return response()->json([
@@ -138,9 +204,34 @@ class ItemController extends Controller
             'deleted',
             'Deleted item "'.$title.'"',
             'item',
-            $id
+            $id,
+            [
+                'itemCode' => $item?->itemCode,
+                'changes' => ActivityChangeSet::snapshot([
+                    'itemCode' => $item?->itemCode,
+                    'title' => $item?->title,
+                    'size' => $item?->size,
+                    'category' => $item?->category,
+                    'quantity' => $item?->quantity,
+                    'price' => $item?->price,
+                    'monthlyDemand' => $item?->monthlyDemand,
+                ], $this->itemFieldLabels()),
+            ]
         );
 
         return response()->json(['success' => true]);
+    }
+
+    private function itemFieldLabels(): array
+    {
+        return [
+            'itemCode' => 'Item code',
+            'title' => 'Name',
+            'size' => 'Size',
+            'category' => 'Category',
+            'quantity' => 'Quantity',
+            'price' => 'Unit cost',
+            'monthlyDemand' => 'Monthly demand',
+        ];
     }
 }
