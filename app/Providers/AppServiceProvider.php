@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Foundation\Console\ServeCommand;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -17,6 +18,10 @@ class AppServiceProvider extends ServiceProvider
         // Keep PHP_INI_SCAN_DIR on the built-in server child process so pdo_mysql stays loaded.
         if (! in_array('PHP_INI_SCAN_DIR', ServeCommand::$passthroughVariables, true)) {
             ServeCommand::$passthroughVariables[] = 'PHP_INI_SCAN_DIR';
+        }
+
+        if ($this->app->environment('production')) {
+            URL::forceScheme('https');
         }
     }
 }
