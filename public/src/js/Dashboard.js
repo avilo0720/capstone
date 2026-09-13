@@ -59,7 +59,7 @@ class DashboardUi {
     }
 
     try {
-      const res = await fetch("/api/activity-logs?limit=5");
+      const res = await fetch("/api/activity-logs?limit=5", { signal: AbortSignal.timeout(10000) });
       if (!res.ok) {
         list.innerHTML = `<p class="dashboard-activity__empty">Unable to load activity log.</p>`;
         return;

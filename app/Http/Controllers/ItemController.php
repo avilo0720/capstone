@@ -9,7 +9,6 @@ use App\Support\InventoryContext;
 use App\Support\RolePermissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class ItemController extends Controller
 {
@@ -23,13 +22,7 @@ class ItemController extends Controller
         if (!$inventoryId) {
             return response()->json([]);
         }
-        $rows = DB::select("
-            SELECT * FROM items
-            WHERE inventory_id = ?
-            ORDER BY CAST(REGEXP_SUBSTR(COALESCE(itemCode, '0'), '[0-9]+') AS UNSIGNED) ASC, id ASC
-        ", [$inventoryId]);
-
-        return response()->json($rows);
+        return response()->json(Item::catalogForInventory($inventoryId));
     }
 
     public function store(Request $request): JsonResponse

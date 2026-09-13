@@ -40,7 +40,11 @@ class ActivityLogController extends Controller
     {
         $sessionUser = $request->session()->get('user');
 
-        if (!RolePermissions::canViewActivityLogs($sessionUser)) {
+        $isDashboardFeed = (int) $request->query('limit', 0) > 0
+            && (int) $request->query('limit') <= 5
+            && !$request->query('page');
+
+        if (!$isDashboardFeed && !RolePermissions::canViewActivityLogs($sessionUser)) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 

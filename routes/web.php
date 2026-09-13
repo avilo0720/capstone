@@ -56,7 +56,7 @@ Route::middleware('auth.custom')->prefix('api')->group(function () {
     Route::get('/notifications/read', [NotificationController::class, 'readIds']);
     Route::post('/notifications/read', [NotificationController::class, 'markRead']);
     Route::get('/realtime/events', [RealtimeController::class, 'events']);
-    Route::get('/activity-logs', [ActivityLogController::class, 'index'])->middleware('page:activity-logs');
+    Route::get('/activity-logs', [ActivityLogController::class, 'index']);
 
     Route::post('/items', [ItemController::class, 'store'])->middleware(['page:inventory', 'ability:inventory.edit']);
     Route::delete('/items/{id}', [ItemController::class, 'destroy'])->middleware(['page:inventory', 'ability:inventory.edit']);
