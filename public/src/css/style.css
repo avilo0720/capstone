@@ -23,11 +23,15 @@
   }
 } */
 
+html, body {
+  height: 100%;
+}
+
 body {
   background-color: var(--color-background-grey);
   color: var(--color-fonts);
   -webkit-tap-highlight-color: transparent;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 button,
@@ -76,13 +80,13 @@ input {
 
 .main {
   position: relative;
-  min-height: calc(100vh - 100px);
+  min-height: 0;
 }
 
 .app-loading {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -183,10 +187,12 @@ button {
 /* ------------------------ App Layout --------------------------- */
 
 .app {
-  display: grid;
-  grid-template-columns: 1fr;
-  /* grid-template-rows: 100px 100vh; */
-  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .sideBar {
@@ -199,15 +205,17 @@ button {
 }
 
 .app {
-  height: 100%;
   width: 100%;
 }
 
 @media screen and (min-width: 1024px) {
   .app {
-    display: block;
+    display: flex;
+    flex-direction: column;
     margin-left: 280px;
-    min-height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 0;
     width: auto;
   }
 
@@ -257,7 +265,8 @@ button {
 
   .main {
     min-width: 0;
-    min-height: 100vh;
+    min-height: 0;
+    flex: 1 1 auto;
   }
 }
 
@@ -674,16 +683,51 @@ svg use {
   width: 100%;
   padding: 2rem;
   margin-bottom: 0;
-  overflow: visible;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-.inventory-app, .forecastUi, .users-page, .activity-logs-page, .procurement-page {
+.inventory-app,
+.forecastUi,
+.users-page,
+.activity-logs-page,
+.procurement-page,
+.dashboardUi,
+.reports-page,
+.calendar-page {
   padding: 1.5rem 1.25rem;
   width: 100%;
   background-color: var(--color-background);
   border-radius: 14px;
   border: 1px solid #e9edf3;
   box-shadow: 0 6px 18px rgba(16, 24, 40, 0.04);
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+.module-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+
+.product-section__header,
+.dashboardUi__header,
+.reports-page__header,
+.calendar-header {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 30;
+  background: #fff;
 }
 
 .product-section {
@@ -698,6 +742,16 @@ svg use {
   scrollbar-gutter: auto;
   scrollbar-width: thin;
   scrollbar-color: #98a2b3 #f2f4f7;
+}
+
+.inventory-app > .table-pagination-container {
+  flex: 0 0 auto;
+  margin-top: 0.75rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid #eef2f6;
+  background: #fff;
+  position: relative;
+  z-index: 20;
 }
 
 .inventory-app .product-section::-webkit-scrollbar {
@@ -1316,7 +1370,7 @@ svg use {
   height: 100%;
   background-color: rgba(0, 0, 0, 0.116);
   backdrop-filter: blur(2px);
-  z-index: 20;
+  z-index: 1200;
   pointer-events: auto;
 }
 
@@ -3265,13 +3319,14 @@ svg use {
 .session-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(16, 24, 40, 0.45);
   backdrop-filter: blur(4px);
   z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: fadeIn 0.3s ease;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease;
 }
 
 @keyframes fadeIn {
@@ -3281,49 +3336,58 @@ svg use {
 
 .session-modal {
   background: #ffffff;
-  border-radius: 16px;
-  padding: 2.5rem 2rem;
-  max-width: 380px;
-  width: 90%;
-  text-align: center;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
-  animation: slideInUp 0.35s ease;
+  border-radius: 14px;
+  border: 1px solid #e4e7ec;
+  padding: 1.5rem 1.4rem 1.25rem;
+  max-width: 400px;
+  width: min(400px, 100%);
+  text-align: left;
+  box-shadow: 0 18px 48px rgba(16, 24, 40, 0.16);
+  animation: slideInUp 0.25s ease;
 }
 
 .session-modal__icon {
-  color: #f59e0b;
-  margin-bottom: 1rem;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fffaeb;
+  color: #b54708;
+  margin-bottom: 0.85rem;
 }
 
 .session-modal__title {
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: #101828;
-  margin-bottom: 0.5rem;
+  margin: 0 0 0.4rem;
 }
 
 .session-modal__message {
   font-size: 0.9rem;
   color: #667085;
-  margin-bottom: 1.5rem;
+  margin: 0 0 1.25rem;
   line-height: 1.5;
 }
 
 .session-modal__btn {
   width: 100%;
-  padding: 0.8rem;
-  background: linear-gradient(135deg, #1e88e5, #1565c0);
-  border: none;
+  padding: 0.7rem 1rem;
+  background: #1570ef;
+  border: 1px solid #1570ef;
   border-radius: 10px;
   color: #ffffff;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .session-modal__btn:hover {
-  transform: translateY(-1px);
+  background: #175cd3;
+  border-color: #175cd3;
 }
 
 /* ======================= CONFIRM DIALOG ======================= */
@@ -3331,12 +3395,13 @@ svg use {
 .confirm-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(16, 24, 40, 0.45);
   backdrop-filter: blur(4px);
   z-index: 10000;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 1rem;
   animation: fadeIn 0.2s ease;
 }
 
@@ -3349,57 +3414,95 @@ svg use {
   display: flex !important;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(16, 24, 40, 0.45);
   backdrop-filter: blur(4px);
   z-index: 10000;
   align-items: center;
   justify-content: center;
+  padding: 1rem;
 }
 
 .confirm-modal {
   background: #ffffff;
-  border-radius: 16px;
-  padding: 2rem 1.75rem 1.5rem;
-  max-width: 400px;
-  width: 90%;
-  text-align: center;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
-  animation: slideInUp 0.25s ease;
+  border-radius: 14px;
+  border: 1px solid #e4e7ec;
+  padding: 1.25rem 1.25rem 1.1rem;
+  max-width: 420px;
+  width: min(420px, 100%);
+  text-align: left;
+  box-shadow: 0 18px 48px rgba(16, 24, 40, 0.16);
+  animation: slideInUp 0.22s ease;
+}
+
+.confirm-modal__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+}
+
+.confirm-modal__icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.confirm-modal__icon--default {
+  background: #eff8ff;
+  color: #175cd3;
+}
+
+.confirm-modal__icon--info {
+  background: #f2f4f7;
+  color: #475467;
+}
+
+.confirm-modal__icon--danger {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.confirm-modal__heading {
+  min-width: 0;
+  padding-top: 0.2rem;
 }
 
 .confirm-modal__title {
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: #101828;
-  margin: 0 0 0.5rem;
+  margin: 0;
+  line-height: 1.35;
 }
 
 .confirm-modal__message {
   font-size: 0.9rem;
   color: #667085;
-  margin: 0 0 1.5rem;
+  margin: 0 0 1.15rem;
   line-height: 1.5;
   white-space: pre-line;
 }
 
 .confirm-modal__actions {
   display: flex;
-  gap: 0.75rem;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  padding-top: 0.15rem;
 }
 
 .confirm-modal__btn {
-  flex: 1;
-  padding: 0.75rem 1rem;
-  border-radius: 10px;
-  font-size: 0.95rem;
+  min-width: 5.5rem;
+  padding: 0.6rem 0.95rem;
+  border-radius: 9px;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: background 0.15s ease, transform 0.15s ease;
-}
-
-.confirm-modal__btn:hover {
-  transform: translateY(-1px);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .confirm-modal__btn--ghost {
@@ -3410,16 +3513,18 @@ svg use {
 
 .confirm-modal__btn--ghost:hover {
   background: #f9fafb;
+  border-color: #98a2b3;
 }
 
 .confirm-modal__btn--primary {
-  background: linear-gradient(135deg, #1e88e5, #1565c0);
-  border-color: #1565c0;
+  background: #1570ef;
+  border-color: #1570ef;
   color: #fff;
 }
 
 .confirm-modal__btn--primary:hover {
-  background: linear-gradient(135deg, #1976d2, #0d47a1);
+  background: #175cd3;
+  border-color: #175cd3;
 }
 
 .confirm-modal__btn--danger {
@@ -3430,6 +3535,7 @@ svg use {
 
 .confirm-modal__btn--danger:hover {
   background: #b42318;
+  border-color: #b42318;
 }
 
 /* ======================= REPORTS PAGE ======================= */
@@ -6286,7 +6392,7 @@ svg use {
   inset: 0;
   background: rgba(16, 24, 40, 0.45);
   backdrop-filter: blur(3px);
-  z-index: 60;
+  z-index: 1200;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -8080,6 +8186,24 @@ svg use {
   border-radius: 10px;
   background: #fff;
   padding: 0.15rem 0.75rem;
+}
+
+.procurement-manual-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 0.85rem;
+  margin: 0 0 0.75rem;
+}
+
+.procurement-manual-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.procurement-manual-stock--low {
+  color: #b42318;
 }
 
 .procurement-manual-search input {

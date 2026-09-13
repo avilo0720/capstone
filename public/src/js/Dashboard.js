@@ -1,6 +1,7 @@
 const mainApp = document.querySelector(".main");
 import Storage from "./API.js";
 import { renderActivityChanges } from "./ActivityChanges.js";
+import { bindBackdropClose } from "./OverlayDismiss.js";
 
 class DashboardUi {
   setApp() {
@@ -104,6 +105,10 @@ class DashboardUi {
       deleted: { label: "Deleted", tone: "red" },
       stock_added: { label: "Stock +", tone: "green" },
       stock_used: { label: "Stock −", tone: "orange" },
+      issuance_submitted: { label: "Issuance", tone: "blue" },
+      issuance_approved: { label: "Approved", tone: "green" },
+      issuance_denied: { label: "Denied", tone: "red" },
+      issuance_stock_used: { label: "Stock −", tone: "orange" },
     };
     return map[action] || { label: "Action", tone: "gray" };
   }
@@ -154,11 +159,7 @@ class DashboardUi {
     if (closeBtn) {
       closeBtn.addEventListener("click", () => this.closeMetricExplain());
     }
-    if (overlay) {
-      overlay.addEventListener("click", (e) => {
-        if (e.target === overlay) this.closeMetricExplain();
-      });
-    }
+    bindBackdropClose(overlay, () => this.closeMetricExplain());
   }
 
   openMetricExplain(metricKey) {

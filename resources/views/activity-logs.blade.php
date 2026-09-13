@@ -34,6 +34,13 @@
           <option value="procurement_edited">Procurement edited</option>
           <option value="procurement_resubmitted">Procurement resubmitted</option>
           <option value="procurement_deleted">Procurement deleted</option>
+          <option value="issuance_submitted">Issuance submitted</option>
+          <option value="issuance_approved">Issuance approved</option>
+          <option value="issuance_denied">Issuance denied</option>
+          <option value="issuance_stock_used">Issuance stock used</option>
+          <option value="issuance_edited">Issuance edited</option>
+          <option value="issuance_resubmitted">Issuance resubmitted</option>
+          <option value="issuance_deleted">Issuance deleted</option>
         </select>
         <input type="date" class="editToggleBtn activity-logs-date" id="activityLogsDateFrom" title="From date" />
         <input type="date" class="editToggleBtn activity-logs-date" id="activityLogsDateTo" title="To date" />
@@ -41,6 +48,7 @@
       </div>
     </div>
 
+    <div class="module-body">
     <div class="product-section">
       <table class="product-section-table activity-logs-table">
         <thead>
@@ -60,6 +68,7 @@
     </div>
 
     <div class="table-pagination-container" id="activityLogsPagination"></div>
+    </div>
   </div>
 
   <div class="viewItemSection --hidden" id="activityLogDetailOverlay">

@@ -48,6 +48,7 @@
       </div>
     </div>
 
+    <div class="module-body">
     <div class="users-panel" id="usersPanel">
       <div class="product-section">
         <table class="product-section-table users-table">
@@ -80,6 +81,7 @@
     </div>
 
     <div class="table-pagination-container" id="usersPagination"></div>
+    </div>
   </div>
 
   <div class="users-modal-overlay --hidden" id="userModalOverlay">

@@ -56,6 +56,8 @@ class PermissionService
             'canViewCalendarTable' => in_array('calendar.table', $abilityList, true),
             'canEditProcurement' => in_array('procurement.edit', $abilityList, true),
             'canReviewProcurement' => in_array('procurement.review', $abilityList, true),
+            'canEditIssuance' => in_array('issuance.edit', $abilityList, true),
+            'canReviewIssuance' => in_array('issuance.review', $abilityList, true),
         ];
     }
 
@@ -84,6 +86,8 @@ class PermissionService
             'canViewCalendarTable' => $resolved['canViewCalendarTable'],
             'canEditProcurement' => $resolved['canEditProcurement'],
             'canReviewProcurement' => $resolved['canReviewProcurement'],
+            'canEditIssuance' => $resolved['canEditIssuance'],
+            'canReviewIssuance' => $resolved['canReviewIssuance'],
         ];
     }
 

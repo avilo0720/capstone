@@ -46,6 +46,12 @@ It is built to:
   - Denied requests require a manager reason and can be edited, deleted, or returned to pending
   - Audit trail for edits and resubmits
 
+- **Issuance**
+  - Request, review, and record stock usage (outgoing), parallel to Procurement
+  - Approval deducts requested quantities from on-hand stock
+  - Stock entry records the quantities actually used
+  - Cannot use more than current on-hand quantity
+
 - **User Authentication**
   - Secure login validation and credential verification
   - Role-based access control by page and action

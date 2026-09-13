@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\IssuanceRequest;
+use App\Models\IssuanceRequestItem;
 use App\Models\Item;
-use App\Models\ProcurementRequest;
-use App\Models\ProcurementRequestItem;
 use App\Services\ActivityLogger;
+use App\Services\IssuanceStockService;
 use App\Services\ProcurementFileParser;
-use App\Services\ProcurementStockService;
 use App\Support\ActivityChangeSet;
 use App\Support\InventoryContext;
 use App\Support\RolePermissions;
@@ -17,12 +17,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 
-class ProcurementController extends Controller
+class IssuanceController extends Controller
 {
     public function __construct(
         private ActivityLogger $activity,
         private ProcurementFileParser $parser,
-        private ProcurementStockService $stock,
+        private IssuanceStockService $stock,
     ) {
     }
 
@@ -34,7 +34,7 @@ class ProcurementController extends Controller
         }
 
         $status = $request->query('status');
-        $query = ProcurementRequest::query()
+        $query = IssuanceRequest::query()
             ->with(['items', 'uploader:id,first_name,last_name,username', 'reviewer:id,first_name,last_name,username'])
             ->where('inventory_id', $inventoryId)
             ->orderByDesc('id');
@@ -43,22 +43,22 @@ class ProcurementController extends Controller
             $query->where('status', $status);
         }
 
-        $rows = $query->get()->map(fn (ProcurementRequest $row) => $this->serialize($row, false));
+        $rows = $query->get()->map(fn (IssuanceRequest $row) => $this->serialize($row, false));
 
         return response()->json(['requests' => $rows]);
     }
 
     public function show(Request $request, int $id): JsonResponse
     {
-        $procurement = $this->findForInventory($request, $id);
+        $issuance = $this->findForInventory($request, $id);
 
-        return response()->json(['request' => $this->serialize($procurement, true)]);
+        return response()->json(['request' => $this->serialize($issuance, true)]);
     }
 
     public function store(Request $request): JsonResponse
     {
-        if (!RolePermissions::canEditProcurement($request->session()->get('user'))) {
-            return response()->json(['error' => 'You cannot submit procurement requests.'], 403);
+        if (!RolePermissions::canEditIssuance($request->session()->get('user'))) {
+            return response()->json(['error' => 'You cannot submit issuance requests.'], 403);
         }
 
         $data = $request->validate([
@@ -87,7 +87,7 @@ class ProcurementController extends Controller
         $source = $data['source'] ?? 'forecast';
         $defaultName = $source === 'manual' ? 'Manual entry' : 'Forecast send';
 
-        $procurement = $this->createRequest(
+        $issuance = $this->createRequest(
             $request,
             $inventoryId,
             $source,
@@ -98,14 +98,14 @@ class ProcurementController extends Controller
 
         return response()->json([
             'success' => true,
-            'request' => $this->serialize($procurement, true),
+            'request' => $this->serialize($issuance, true),
         ], 201);
     }
 
     public function upload(Request $request): JsonResponse
     {
-        if (!RolePermissions::canEditProcurement($request->session()->get('user'))) {
-            return response()->json(['error' => 'You cannot upload procurement files.'], 403);
+        if (!RolePermissions::canEditIssuance($request->session()->get('user'))) {
+            return response()->json(['error' => 'You cannot upload issuance files.'], 403);
         }
 
         $request->validate([
@@ -126,7 +126,7 @@ class ProcurementController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         }
 
-        $procurement = $this->createRequest(
+        $issuance = $this->createRequest(
             $request,
             $inventoryId,
             'upload',
@@ -137,18 +137,18 @@ class ProcurementController extends Controller
 
         return response()->json([
             'success' => true,
-            'request' => $this->serialize($procurement, true),
+            'request' => $this->serialize($issuance, true),
         ], 201);
     }
 
     public function update(Request $request, int $id): JsonResponse
     {
-        if (!RolePermissions::canEditProcurement($request->session()->get('user'))) {
+        if (!RolePermissions::canEditIssuance($request->session()->get('user'))) {
             return response()->json(['error' => 'You cannot edit this request.'], 403);
         }
 
-        $procurement = $this->findForInventory($request, $id);
-        if (!$procurement->isDenied()) {
+        $issuance = $this->findForInventory($request, $id);
+        if (!$issuance->isDenied()) {
             return response()->json(['error' => 'Only denied requests can be edited.'], 422);
         }
 
@@ -158,9 +158,9 @@ class ProcurementController extends Controller
             'items.*.requested_qty' => ['required', 'integer', 'min:0'],
         ]);
 
-        $allowedIds = $procurement->items->pluck('id')->all();
-        $before = $procurement->items->mapWithKeys(
-            fn (ProcurementRequestItem $line) => [$line->id => (int) $line->requested_qty]
+        $allowedIds = $issuance->items->pluck('id')->all();
+        $before = $issuance->items->mapWithKeys(
+            fn (IssuanceRequestItem $line) => [$line->id => (int) $line->requested_qty]
         )->all();
 
         foreach ($data['items'] as $row) {
@@ -170,22 +170,22 @@ class ProcurementController extends Controller
         }
 
         foreach ($data['items'] as $row) {
-            ProcurementRequestItem::where('id', $row['id'])
-                ->where('procurement_request_id', $procurement->id)
+            IssuanceRequestItem::where('id', $row['id'])
+                ->where('issuance_request_id', $issuance->id)
                 ->update(['requested_qty' => (int) $row['requested_qty']]);
         }
 
-        $procurement->refresh()->load('items');
-        $after = $procurement->items->mapWithKeys(
-            fn (ProcurementRequestItem $line) => [$line->id => (int) $line->requested_qty]
+        $issuance->refresh()->load('items');
+        $after = $issuance->items->mapWithKeys(
+            fn (IssuanceRequestItem $line) => [$line->id => (int) $line->requested_qty]
         )->all();
 
         $this->activity->log(
             $request,
-            'procurement_edited',
-            'Edited denied procurement request #'.$procurement->id,
-            'procurement_request',
-            (int) $procurement->id,
+            'issuance_edited',
+            'Edited denied issuance request #'.$issuance->id,
+            'issuance_request',
+            (int) $issuance->id,
             [
                 'changes' => ActivityChangeSet::diff(
                     ['qtys' => json_encode($before)],
@@ -197,32 +197,32 @@ class ProcurementController extends Controller
 
         return response()->json([
             'success' => true,
-            'request' => $this->serialize($procurement, true),
+            'request' => $this->serialize($issuance, true),
         ]);
     }
 
     public function destroy(Request $request, int $id): JsonResponse
     {
         $user = $request->session()->get('user');
-        $procurement = $this->findForInventory($request, $id);
+        $issuance = $this->findForInventory($request, $id);
 
-        if (!RolePermissions::canDeleteProcurementRequest($user, $procurement->uploaded_by !== null ? (int) $procurement->uploaded_by : null)) {
+        if (!RolePermissions::canDeleteIssuanceRequest($user, $issuance->uploaded_by !== null ? (int) $issuance->uploaded_by : null)) {
             return response()->json(['error' => 'You can only delete your own requests.'], 403);
         }
 
-        if (!$procurement->isPending() && !$procurement->isDenied()) {
+        if (!$issuance->isPending() && !$issuance->isDenied()) {
             return response()->json(['error' => 'Completed requests cannot be deleted.'], 422);
         }
 
-        $label = 'procurement request #'.$procurement->id;
-        $procurement->items()->delete();
-        $procurement->delete();
+        $label = 'issuance request #'.$issuance->id;
+        $issuance->items()->delete();
+        $issuance->delete();
 
         $this->activity->log(
             $request,
-            'procurement_deleted',
+            'issuance_deleted',
             'Deleted '.$label,
-            'procurement_request',
+            'issuance_request',
             $id
         );
 
@@ -231,20 +231,20 @@ class ProcurementController extends Controller
 
     public function approve(Request $request, int $id): JsonResponse
     {
-        if (!RolePermissions::canReviewProcurement($request->session()->get('user'))) {
-            return response()->json(['error' => 'You cannot approve procurement requests.'], 403);
+        if (!RolePermissions::canReviewIssuance($request->session()->get('user'))) {
+            return response()->json(['error' => 'You cannot approve issuance requests.'], 403);
         }
 
-        $procurement = $this->findForInventory($request, $id);
+        $issuance = $this->findForInventory($request, $id);
 
         try {
             $this->stock->apply(
                 $request,
-                $procurement,
-                $this->stock->requestedQtyMap($procurement->load('items')),
-                ProcurementRequest::STATUS_APPROVED,
-                'procurement_approved',
-                'Approved procurement request #'.$procurement->id.' and added requested quantities to inventory'
+                $issuance,
+                $this->stock->requestedQtyMap($issuance->load('items')),
+                IssuanceRequest::STATUS_APPROVED,
+                'issuance_approved',
+                'Approved issuance request #'.$issuance->id.' and deducted requested quantities from inventory'
             );
         } catch (InvalidArgumentException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
@@ -258,24 +258,24 @@ class ProcurementController extends Controller
 
     public function deny(Request $request, int $id): JsonResponse
     {
-        if (!RolePermissions::canReviewProcurement($request->session()->get('user'))) {
-            return response()->json(['error' => 'You cannot deny procurement requests.'], 403);
+        if (!RolePermissions::canReviewIssuance($request->session()->get('user'))) {
+            return response()->json(['error' => 'You cannot deny issuance requests.'], 403);
         }
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'min:3', 'max:2000'],
         ]);
 
-        $procurement = $this->findForInventory($request, $id);
-        if (!$procurement->isPending()) {
+        $issuance = $this->findForInventory($request, $id);
+        if (!$issuance->isPending()) {
             return response()->json(['error' => 'Only pending requests can be denied.'], 422);
         }
 
         $reason = trim($data['reason']);
         $sessionUser = $request->session()->get('user');
 
-        $procurement->update([
-            'status' => ProcurementRequest::STATUS_DENIED,
+        $issuance->update([
+            'status' => IssuanceRequest::STATUS_DENIED,
             'rejection_reason' => $reason,
             'reviewed_by' => $sessionUser['id'] ?? null,
             'reviewed_at' => now(),
@@ -283,10 +283,10 @@ class ProcurementController extends Controller
 
         $this->activity->log(
             $request,
-            'procurement_denied',
-            'Denied procurement request #'.$procurement->id,
-            'procurement_request',
-            (int) $procurement->id,
+            'issuance_denied',
+            'Denied issuance request #'.$issuance->id,
+            'issuance_request',
+            (int) $issuance->id,
             [
                 'changes' => ActivityChangeSet::snapshot(
                     ['reason' => $reason],
@@ -303,8 +303,8 @@ class ProcurementController extends Controller
 
     public function stockEntry(Request $request, int $id): JsonResponse
     {
-        if (!RolePermissions::canReviewProcurement($request->session()->get('user'))) {
-            return response()->json(['error' => 'You cannot enter stock for procurement requests.'], 403);
+        if (!RolePermissions::canReviewIssuance($request->session()->get('user'))) {
+            return response()->json(['error' => 'You cannot enter used stock for issuance requests.'], 403);
         }
 
         $data = $request->validate([
@@ -313,8 +313,8 @@ class ProcurementController extends Controller
             'items.*.qty' => ['required', 'integer', 'min:0'],
         ]);
 
-        $procurement = $this->findForInventory($request, $id);
-        $allowedIds = $procurement->items()->pluck('id')->all();
+        $issuance = $this->findForInventory($request, $id);
+        $allowedIds = $issuance->items()->pluck('id')->all();
         $qtyByLineId = [];
 
         foreach ($data['items'] as $row) {
@@ -328,11 +328,11 @@ class ProcurementController extends Controller
         try {
             $this->stock->apply(
                 $request,
-                $procurement->load('items'),
+                $issuance->load('items'),
                 $qtyByLineId,
-                ProcurementRequest::STATUS_STOCK_ENTERED,
-                'procurement_stock_entered',
-                'Entered received stock for procurement request #'.$procurement->id
+                IssuanceRequest::STATUS_STOCK_ENTERED,
+                'issuance_stock_used',
+                'Entered used stock for issuance request #'.$issuance->id
             );
         } catch (InvalidArgumentException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
@@ -346,23 +346,23 @@ class ProcurementController extends Controller
 
     public function resubmit(Request $request, int $id): JsonResponse
     {
-        if (!RolePermissions::canEditProcurement($request->session()->get('user'))) {
+        if (!RolePermissions::canEditIssuance($request->session()->get('user'))) {
             return response()->json(['error' => 'You cannot resubmit this request.'], 403);
         }
 
-        $procurement = $this->findForInventory($request, $id);
-        if (!$procurement->isDenied()) {
+        $issuance = $this->findForInventory($request, $id);
+        if (!$issuance->isDenied()) {
             return response()->json(['error' => 'Only denied requests can be returned to pending.'], 422);
         }
 
-        if (!trim((string) $procurement->rejection_reason)) {
+        if (!trim((string) $issuance->rejection_reason)) {
             return response()->json(['error' => 'A manager rejection reason must be on file before resubmitting.'], 422);
         }
 
-        $previous = $procurement->rejection_reason;
+        $previous = $issuance->rejection_reason;
 
-        $procurement->update([
-            'status' => ProcurementRequest::STATUS_PENDING,
+        $issuance->update([
+            'status' => IssuanceRequest::STATUS_PENDING,
             'previous_rejection_reason' => $previous,
             'rejection_reason' => null,
             'reviewed_by' => null,
@@ -371,14 +371,14 @@ class ProcurementController extends Controller
 
         $this->activity->log(
             $request,
-            'procurement_resubmitted',
-            'Resubmitted procurement request #'.$procurement->id.' to pending',
-            'procurement_request',
-            (int) $procurement->id,
+            'issuance_resubmitted',
+            'Resubmitted issuance request #'.$issuance->id.' to pending',
+            'issuance_request',
+            (int) $issuance->id,
             [
                 'changes' => ActivityChangeSet::diff(
-                    ['status' => ProcurementRequest::STATUS_DENIED],
-                    ['status' => ProcurementRequest::STATUS_PENDING],
+                    ['status' => IssuanceRequest::STATUS_DENIED],
+                    ['status' => IssuanceRequest::STATUS_PENDING],
                     ['status' => 'Status']
                 ),
             ]
@@ -397,11 +397,11 @@ class ProcurementController extends Controller
         ?string $filename,
         ?string $amcMode,
         array $rows,
-    ): ProcurementRequest {
+    ): IssuanceRequest {
         $sessionUser = $request->session()->get('user');
         $catalog = Item::query()->where('inventory_id', $inventoryId)->get();
 
-        $procurement = DB::transaction(function () use (
+        $issuance = DB::transaction(function () use (
             $inventoryId,
             $source,
             $filename,
@@ -410,9 +410,9 @@ class ProcurementController extends Controller
             $sessionUser,
             $catalog
         ) {
-            $created = ProcurementRequest::create([
+            $created = IssuanceRequest::create([
                 'inventory_id' => $inventoryId,
-                'status' => ProcurementRequest::STATUS_PENDING,
+                'status' => IssuanceRequest::STATUS_PENDING,
                 'source' => $source,
                 'original_filename' => $filename,
                 'amc_mode' => $amcMode,
@@ -427,8 +427,8 @@ class ProcurementController extends Controller
                     ? $this->parser->parseNeed($row['requested_qty'])
                     : $need3m;
 
-                ProcurementRequestItem::create([
-                    'procurement_request_id' => $created->id,
+                IssuanceRequestItem::create([
+                    'issuance_request_id' => $created->id,
                     'item_id' => $matched?->id,
                     'item_code' => $row['item_code'] ?? $matched?->itemCode,
                     'title' => $row['title'] ?? $matched?->title ?? 'Item',
@@ -447,19 +447,19 @@ class ProcurementController extends Controller
         });
 
         $sourceLabel = match ($source) {
-            'forecast' => 'Sent forecast to procurement',
-            'manual' => 'Created manual procurement request',
-            default => 'Uploaded procurement file',
+            'forecast' => 'Sent forecast to issuance',
+            'manual' => 'Created manual issuance request',
+            default => 'Uploaded issuance file',
         };
 
         $this->activity->log(
             $request,
-            'procurement_submitted',
+            'issuance_submitted',
             $sourceLabel
-                .' as request #'.$procurement->id
+                .' as request #'.$issuance->id
                 .($filename ? ' ('.$filename.')' : ''),
-            'procurement_request',
-            (int) $procurement->id,
+            'issuance_request',
+            (int) $issuance->id,
             [
                 'source' => $source,
                 'filename' => $filename,
@@ -467,7 +467,7 @@ class ProcurementController extends Controller
             ]
         );
 
-        return $this->findForInventory($request, (int) $procurement->id);
+        return $this->findForInventory($request, (int) $issuance->id);
     }
 
     private function matchItem($catalog, array $row): ?Item
@@ -502,22 +502,22 @@ class ProcurementController extends Controller
         });
     }
 
-    private function findForInventory(Request $request, int $id): ProcurementRequest
+    private function findForInventory(Request $request, int $id): IssuanceRequest
     {
         $inventoryId = InventoryContext::currentId($request);
-        $procurement = ProcurementRequest::query()
+        $issuance = IssuanceRequest::query()
             ->with(['items', 'uploader:id,first_name,last_name,username', 'reviewer:id,first_name,last_name,username'])
             ->where('inventory_id', $inventoryId)
             ->find($id);
 
-        if (!$procurement) {
-            abort(response()->json(['error' => 'Procurement request not found.'], 404));
+        if (!$issuance) {
+            abort(response()->json(['error' => 'Issuance request not found.'], 404));
         }
 
-        return $procurement;
+        return $issuance;
     }
 
-    private function serialize(ProcurementRequest $row, bool $withItems): array
+    private function serialize(IssuanceRequest $row, bool $withItems): array
     {
         $payload = [
             'id' => $row->id,
@@ -540,7 +540,7 @@ class ProcurementController extends Controller
         ];
 
         if ($withItems) {
-            $payload['items'] = $row->items->map(fn (ProcurementRequestItem $line) => [
+            $payload['items'] = $row->items->map(fn (IssuanceRequestItem $line) => [
                 'id' => $line->id,
                 'item_id' => $line->item_id,
                 'item_code' => $line->item_code,

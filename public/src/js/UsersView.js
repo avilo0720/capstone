@@ -1,5 +1,6 @@
 import Pagination from "./Pagination.js";
-import confirmAction from "./ConfirmDialog.js";
+import confirmAction, { notifyAlert } from "./ConfirmDialog.js";
+import { bindBackdropClose } from "./OverlayDismiss.js";
 
 const DEFAULT_CATALOG = {
   dashboard: { label: "Dashboard", abilities: ["view"] },
@@ -8,6 +9,7 @@ const DEFAULT_CATALOG = {
   "office-materials": { label: "Office Materials", abilities: ["view"] },
   forecast: { label: "Forecasting", abilities: ["view"] },
   procurement: { label: "Procurement", abilities: ["view", "edit", "review"] },
+  issuance: { label: "Issuance", abilities: ["view", "edit", "review"] },
   reports: { label: "Reports", abilities: ["view"] },
   calendar: { label: "Calendar", abilities: ["view", "table"] },
   "activity-logs": { label: "Activity Logs", abilities: ["view"] },
@@ -21,6 +23,7 @@ const PAGE_SHORT = {
   "office-materials": "Office",
   forecast: "Forecast",
   procurement: "Procure",
+  issuance: "Issue",
   reports: "Reports",
   calendar: "Cal",
   "activity-logs": "Activity",
@@ -146,12 +149,8 @@ class UsersView {
       btn.addEventListener("click", () => this.closeModals());
     });
 
-    this.userModal?.addEventListener("click", (e) => {
-      if (e.target === this.userModal) this.closeModals();
-    });
-    this.departmentModal?.addEventListener("click", (e) => {
-      if (e.target === this.departmentModal) this.closeModals();
-    });
+    bindBackdropClose(this.userModal, () => this.closeModals());
+    bindBackdropClose(this.departmentModal, () => this.closeModals());
 
     this.userForm?.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -751,7 +750,7 @@ class UsersView {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(err.error || this.formatValidation(err) || "Failed to save user");
+      notifyAlert(err.error || this.formatValidation(err) || "Failed to save user");
       return;
     }
 
@@ -785,7 +784,7 @@ class UsersView {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(err.error || this.formatValidation(err) || "Failed to save department");
+      notifyAlert(err.error || this.formatValidation(err) || "Failed to save department");
       return;
     }
 
@@ -808,7 +807,7 @@ class UsersView {
     const res = await fetch(`/api/users/${id}`, { method: "DELETE" });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(err.error || "Failed to delete user");
+      notifyAlert(err.error || "Failed to delete user");
       return;
     }
     this.closeModals();
@@ -828,7 +827,7 @@ class UsersView {
     const res = await fetch(`/api/departments/${id}`, { method: "DELETE" });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(err.error || "Failed to delete department");
+      notifyAlert(err.error || "Failed to delete department");
       return;
     }
     this.closeModals();

@@ -1,7 +1,7 @@
 import Storage from "./API.js";
 import Pagination from "./Pagination.js";
 import DownloadOptions from "./DownloadOptions.js";
-import confirmAction from "./ConfirmDialog.js";
+import confirmAction, { notifyAlert } from "./ConfirmDialog.js";
 import { computeForecasts } from "./ForecastEngine.js";
 
 class ForecastingUi {
@@ -994,7 +994,7 @@ class ForecastingUi {
 
   async sendToProcurement() {
     if (!this.forecastData?.length) {
-      alert("No forecast data to send. Generate a forecast first.");
+      notifyAlert("No forecast data to send. Generate a forecast first.");
       return;
     }
 
@@ -1015,22 +1015,38 @@ class ForecastingUi {
       if (!res.ok) {
         throw new Error(data.error || "Could not send this forecast to Procurement.");
       }
-      const go = await confirmAction({
+
+      const requestId = data.request?.id;
+      const wantDownload = await confirmAction({
         title: "Sent to Procurement",
-        message: "Request #" + (data.request?.id || "") + " is pending review. Open the Procurement tab now?",
+        message: `Request #${requestId || "—"} is pending review.\n\nAlso download this procurement file?`,
+        confirmLabel: "Download",
+        cancelLabel: "Not now",
+      });
+      if (wantDownload) {
+        await this.exportForecast({
+          downloadName: requestId ? `procurement-request-${requestId}` : "procurement-forecast",
+        });
+      }
+
+      const go = await confirmAction({
+        title: "Open Procurement?",
+        message: "Go to the Procurement tab to review this request now?",
         confirmLabel: "Open Procurement",
         cancelLabel: "Stay here",
       });
-      if (go) window.location.href = "/procurement";
+      if (go) {
+        window.location.href = requestId ? `/procurement?request=${requestId}` : "/procurement";
+      }
     } catch (err) {
-      alert(err.message || "Could not send this forecast to Procurement.");
+      notifyAlert(err.message || "Could not send this forecast to Procurement.");
     }
   }
 
   getForecastExportData() {
     let amcLabel = "AMC (Forecast)";
     if (this.amcMode === "inventory") amcLabel = "AMC (Inventory)";
-    if (this.amcMode === "combined") amcLabel = "AMC (Combined)";
+    if (this.amcMode === "combined") amcLabel = "ROP";
 
     const headers = ["Item Code", "Item Name", "Size", "Current Qty", amcLabel, "3 Months Need", "6 Months Need", "1 Year Need", "Method"];
     const rows = this.forecastData.map((item) => {
@@ -1052,13 +1068,15 @@ class ForecastingUi {
     return { headers, rows };
   }
 
-  exportForecast() {
+  exportForecast(exportOpts = {}) {
     if (!this.forecastData || this.forecastData.length === 0) {
-      alert("No forecast data to export. Generate a forecast first.");
-      return;
+      notifyAlert("No forecast data to export. Generate a forecast first.");
+      return Promise.resolve(false);
     }
 
-    DownloadOptions.open(
+    const downloadName = exportOpts.downloadName || "forecast";
+
+    return DownloadOptions.open(
       { format: "pdf", paper: "A4", orientation: "landscape" },
       async (options) => {
         const { headers, rows } = this.getForecastExportData();
@@ -1083,7 +1101,7 @@ class ForecastingUi {
         const link = document.createElement("a");
         const stamp = new Date().toISOString().replace(/[:.]/g, "-");
         link.href = url;
-        link.download = `forecast-${stamp}.${options.format === "pdf" ? "pdf" : "xlsx"}`;
+        link.download = `${downloadName}-${stamp}.${options.format === "pdf" ? "pdf" : "xlsx"}`;
         document.body.appendChild(link);
         link.click();
         link.remove();

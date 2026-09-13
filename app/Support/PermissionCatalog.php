@@ -35,6 +35,10 @@ class PermissionCatalog
             'label' => 'Procurement',
             'abilities' => ['view', 'edit', 'review'],
         ],
+        'issuance' => [
+            'label' => 'Issuance',
+            'abilities' => ['view', 'edit', 'review'],
+        ],
         'reports' => [
             'label' => 'Reports',
             'abilities' => ['view'],

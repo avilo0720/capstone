@@ -6,8 +6,10 @@ import CalendarView from "./CalendarView.js";
 import UsersView from "./UsersView.js";
 import ActivityLogsView from "./ActivityLogsView.js";
 import ProcurementView from "./ProcurementView.js";
+import IssuanceView from "./IssuanceView.js";
 import Storage from "./API.js";
-import confirmAction from "./ConfirmDialog.js";
+import confirmAction, { notifyAlert } from "./ConfirmDialog.js";
+import { bindBackdropClose } from "./OverlayDismiss.js";
 
 // --------------------------  Sidebar-Menu  ---------------------------------
 const menuToggle = document.querySelector(".menu-toggle");
@@ -44,6 +46,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       InventoryUi.setApp();
     } else if (document.querySelector(".forecastUi")) {
       await ForecastingUi.setApp();
+    } else if (document.querySelector(".issuance-page")) {
+      await IssuanceView.setApp();
     } else if (document.querySelector(".procurement-page")) {
       await ProcurementView.setApp();
     } else if (document.querySelector(".reports-page")) {
@@ -132,12 +136,16 @@ class App {
         notifPanelBody.addEventListener("click", async (e) => {
           const item = e.target.closest(".notif__item");
           if (!item) return;
-          const id = item.dataset.notifId;
-          const href = item.dataset.notifHref;
-          if (id) await this.markNotificationRead(id);
-          if (href) {
-            window.location.href = href;
-          }
+          e.preventDefault();
+          await this.openNotificationItem(item, notifPanel);
+        });
+
+        notifPanelBody.addEventListener("keydown", async (e) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          const item = e.target.closest(".notif__item");
+          if (!item) return;
+          e.preventDefault();
+          await this.openNotificationItem(item, notifPanel);
         });
       }
     });
@@ -184,7 +192,7 @@ class App {
           window.location.reload();
         } catch (err) {
           console.error(err);
-          alert("Could not switch inventory. Please try again.");
+          notifyAlert("Could not switch inventory. Please try again.");
         }
       });
     });
@@ -213,9 +221,7 @@ class App {
       });
       if (ok) await this.logout();
     });
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) this.closeProfileModal();
-    });
+    bindBackdropClose(overlay, () => this.closeProfileModal());
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       this.saveProfile();
@@ -272,9 +278,7 @@ class App {
     document.getElementById("profileCropRotate")?.addEventListener("click", () => {
       this.profileCropper?.rotate(90);
     });
-    document.getElementById("profileCropOverlay")?.addEventListener("click", (e) => {
-      if (e.target === e.currentTarget) this.closeProfileCropper(false);
-    });
+    bindBackdropClose(document.getElementById("profileCropOverlay"), () => this.closeProfileCropper(false));
   }
 
   openProfileCropper(imageSrc) {
@@ -744,6 +748,7 @@ class App {
         deficit: item.deficit,
         fsn: item.fsn,
         urgency: item.urgency || 'medium',
+        href: this.lowStockNotifHref(item),
       }));
 
       let calendarAlerts = [];
@@ -781,6 +786,39 @@ class App {
 
   getReadNotifIds() {
     return Array.isArray(this.notifReadIds) ? this.notifReadIds : [];
+  }
+
+  lowStockNotifHref(item) {
+    const hasReports = !!document.querySelector(".sideBar__reports");
+    const hasInventory = !!document.querySelector(".sideBar__inventory");
+    if (hasReports) return "/reports";
+    if (hasInventory) {
+      const code = item?.itemCode ? String(item.itemCode).trim() : "";
+      return code ? `/inventory?search=${encodeURIComponent(code)}` : "/inventory";
+    }
+    return "/";
+  }
+
+  notifHrefForItem(itemEl) {
+    if (!itemEl) return null;
+    if (itemEl.dataset.notifHref) return itemEl.dataset.notifHref;
+    const id = itemEl.dataset.notifId || "";
+    if (id.startsWith("note-") || itemEl.classList.contains("--calendar")) {
+      return "/calendar";
+    }
+    if (id.startsWith("lowstock-")) {
+      return this.lowStockNotifHref();
+    }
+    return null;
+  }
+
+  async openNotificationItem(item, notifPanel) {
+    const id = item?.dataset?.notifId;
+    const href = item?.dataset?.notifHref || this.notifHrefForItem(item);
+    if (id) await this.markNotificationRead(id);
+    if (!href) return;
+    notifPanel?.classList.add("--hidden");
+    window.location.assign(href);
   }
 
   async persistReadNotifIds(ids) {
@@ -881,7 +919,7 @@ class App {
         }
 
         html += `
-          <div class="notif__item ${isUnread ? '--unread' : ''} ${isCalendar ? '--calendar' : ''}" data-notif-id="${this.escapeNotifAttr(alert.id)}"${hrefAttr}>
+          <div class="notif__item ${isUnread ? '--unread' : ''} ${isCalendar ? '--calendar' : ''}${hrefAttr ? ' --link' : ''}" data-notif-id="${this.escapeNotifAttr(alert.id)}"${hrefAttr} role="link" tabindex="0" title="Open">
             <div class="notif__item-dot --${alert.urgency}${isCalendar ? ' --calendar' : ''}"></div>
             <div class="notif__item-content">
               <p class="notif__item-title">

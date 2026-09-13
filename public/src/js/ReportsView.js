@@ -1,6 +1,8 @@
 import Pagination from "./Pagination.js";
 import DownloadOptions from "./DownloadOptions.js";
 import { computeForecasts } from "./ForecastEngine.js";
+import { notifyAlert } from "./ConfirmDialog.js";
+import { bindBackdropClose } from "./OverlayDismiss.js";
 
 class ReportsView {
   constructor() {
@@ -170,9 +172,7 @@ class ReportsView {
     document.body.appendChild(overlay);
     const close = () => overlay.remove();
     overlay.querySelector(".viewItemModal__close").addEventListener("click", close);
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) close();
-    });
+    bindBackdropClose(overlay, close);
   }
 
   renderForecastCharts() {
@@ -327,7 +327,7 @@ class ReportsView {
 
   exportReport() {
     if (!this.summaryData) {
-      alert('Report data not loaded yet.');
+      notifyAlert('Report data not loaded yet.');
       return;
     }
 

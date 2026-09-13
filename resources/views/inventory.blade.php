@@ -60,12 +60,14 @@
       </div>
     </div>
 
-    <div class="stock-mode-banner --hidden" id="stockModeBanner" role="status">
-      Enter a quantity, then choose <strong>Use</strong> or <strong>Add</strong>.
-    </div>
+    <div class="module-body">
+      <div class="stock-mode-banner --hidden" id="stockModeBanner" role="status">
+        Enter a quantity, then choose <strong>Use</strong> or <strong>Add</strong>.
+      </div>
 
-    <div class="product-section">
-      <table class="product-section-table"></table>
+      <div class="product-section">
+        <table class="product-section-table"></table>
+      </div>
     </div>
     <div class="table-pagination-container" id="inventoryPagination"></div>
   </div>

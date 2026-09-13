@@ -26,6 +26,11 @@ class PageController extends Controller
         return view('procurement', ['title' => 'Procurement']);
     }
 
+    public function issuance(): View
+    {
+        return view('issuance', ['title' => 'Issuance']);
+    }
+
     public function reports(): View
     {
         return view('reports', ['title' => 'Reports']);

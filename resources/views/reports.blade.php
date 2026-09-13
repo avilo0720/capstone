@@ -21,6 +21,7 @@
       </div>
     </div>
 
+    <div class="module-body">
     <div class="reports-summary" id="reportsSummary">
       <div class="reports-summary__card">
         <div class="reports-summary__card-icon reports-summary__card-icon--items">
@@ -91,6 +92,7 @@
         <div class="reports-alerts__loading">Loading alerts...</div>
       </div>
       <div class="table-pagination-container" id="reportsPagination"></div>
+    </div>
     </div>
   </div>
 @endsection

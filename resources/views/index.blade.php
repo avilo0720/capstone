@@ -11,6 +11,7 @@
       </div>
     </div>
 
+    <div class="module-body">
     <div class="reports-summary dashboardUi__summary">
       <button type="button" class="reports-summary__card reports-summary__card--clickable" data-metric="items">
         <div class="reports-summary__card-icon reports-summary__card-icon--items">
@@ -108,6 +109,7 @@
       </div>
     </section>
     @endif
+    </div>
   </div>
 
   <div class="metric-explain-overlay --hidden" id="metricExplainOverlay">

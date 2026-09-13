@@ -1,3 +1,5 @@
+import { notifyAlert } from "./ConfirmDialog.js";
+import { bindBackdropClose } from "./OverlayDismiss.js";
 /**
  * Shared download options modal with server-rendered live preview.
  */
@@ -63,9 +65,7 @@ class DownloadOptions {
     if (closeBtn) closeBtn.addEventListener("click", () => this.close());
     if (cancelBtn) cancelBtn.addEventListener("click", () => this.close());
 
-    this.overlay.addEventListener("click", (e) => {
-      if (e.target === this.overlay) this.close();
-    });
+    bindBackdropClose(this.overlay, () => this.close());
 
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && this.overlay && !this.overlay.classList.contains("--hidden")) {
@@ -133,10 +133,10 @@ class DownloadOptions {
         this.setBusy(true);
         try {
           await this.onConfirm(result);
-          this.close();
+          this.close(true);
         } catch (err) {
           console.error("Export failed:", err);
-          alert("Export failed. Please try again.");
+          notifyAlert("Export failed. Please try again.");
         } finally {
           this.setBusy(false);
         }
@@ -313,58 +313,67 @@ class DownloadOptions {
   open(defaults = {}, onConfirm, extras = {}) {
     if (typeof onConfirm !== "function") {
       console.error("DownloadOptions.open requires an onConfirm callback");
-      return;
+      return Promise.resolve(false);
     }
 
     if (!this.ensureDom()) {
-      onConfirm({
-        format: defaults.format || "pdf",
-        paper: defaults.paper || "A4",
-        orientation: defaults.orientation || "portrait",
-        fontSize: defaults.fontSize || "medium",
-        rowSize: defaults.rowSize || "normal",
-      });
-      return;
+      return Promise.resolve().then(async () => {
+        await onConfirm({
+          format: defaults.format || "pdf",
+          paper: defaults.paper || "A4",
+          orientation: defaults.orientation || "portrait",
+          fontSize: defaults.fontSize || "medium",
+          rowSize: defaults.rowSize || "normal",
+        });
+        return true;
+      }).catch(() => false);
     }
 
-    this.onConfirm = onConfirm;
-    this.fetchPreview = typeof extras.fetchPreview === "function" ? extras.fetchPreview : null;
-    this.columnApi = extras.columns || null;
+    return new Promise((resolve) => {
+      this._openResolve = (result) => {
+        this._openResolve = null;
+        resolve(result);
+      };
 
-    this.setActiveChip("format", defaults.format || "pdf");
-    this.setActiveChip("paper", defaults.paper || "A4");
-    this.setActiveChip("orientation", defaults.orientation || "portrait");
-    this.setActiveChip("fontSize", defaults.fontSize || "medium");
-    this.setActiveChip("rowSize", defaults.rowSize || "normal");
-    this.syncPdfVisibility();
-    this.setBusy(false);
+      this.onConfirm = onConfirm;
+      this.fetchPreview = typeof extras.fetchPreview === "function" ? extras.fetchPreview : null;
+      this.columnApi = extras.columns || null;
 
-    if (this.columnsField) {
-      if (this.columnApi) {
-        this.columnsField.classList.remove("--hidden");
-        this.renderColumnChips();
-      } else {
-        this.columnsField.classList.add("--hidden");
+      this.setActiveChip("format", defaults.format || "pdf");
+      this.setActiveChip("paper", defaults.paper || "A4");
+      this.setActiveChip("orientation", defaults.orientation || "portrait");
+      this.setActiveChip("fontSize", defaults.fontSize || "medium");
+      this.setActiveChip("rowSize", defaults.rowSize || "normal");
+      this.syncPdfVisibility();
+      this.setBusy(false);
+
+      if (this.columnsField) {
+        if (this.columnApi) {
+          this.columnsField.classList.remove("--hidden");
+          this.renderColumnChips();
+        } else {
+          this.columnsField.classList.add("--hidden");
+        }
       }
-    }
 
-    if (this.previewEmpty) {
-      this.previewEmpty.innerHTML = "<p>Preview will appear here.</p>";
-    }
-    this.clearPreviewFrame();
-    this.syncPreviewVisibility();
-    this.overlay.classList.remove("--hidden");
-    this.overlay.setAttribute("aria-hidden", "false");
+      if (this.previewEmpty) {
+        this.previewEmpty.innerHTML = "<p>Preview will appear here.</p>";
+      }
+      this.clearPreviewFrame();
+      this.syncPreviewVisibility();
+      this.overlay.classList.remove("--hidden");
+      this.overlay.setAttribute("aria-hidden", "false");
 
-    if (typeof this.fetchPreview === "function" && this.options.format === "pdf") {
-      this.queuePreviewRefresh();
-    } else {
-      this.setPreviewStatus("");
-      this.setPreviewLoading(false);
-    }
+      if (typeof this.fetchPreview === "function" && this.options.format === "pdf") {
+        this.queuePreviewRefresh();
+      } else {
+        this.setPreviewStatus("");
+        this.setPreviewLoading(false);
+      }
+    });
   }
 
-  close() {
+  close(didDownload = false) {
     if (this.previewTimer) {
       clearTimeout(this.previewTimer);
       this.previewTimer = null;
@@ -385,6 +394,9 @@ class DownloadOptions {
     this.fetchPreview = null;
     this.columnApi = null;
     this.setBusy(false);
+    if (typeof this._openResolve === "function") {
+      this._openResolve(!!didDownload);
+    }
   }
 
   setBusy(busy) {

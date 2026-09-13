@@ -1,7 +1,8 @@
 import Storage from "./API.js";
 import Pagination from "./Pagination.js";
 import DownloadOptions from "./DownloadOptions.js";
-import confirmAction from "./ConfirmDialog.js";
+import confirmAction, { notifyAlert } from "./ConfirmDialog.js";
+import { bindBackdropClose } from "./OverlayDismiss.js";
 
 const mainApp = document.querySelector(".main");
 // Selecting the prodcut modal
@@ -100,9 +101,9 @@ class InventoryUi {
       viewItemClose.addEventListener("click", () => this.closeViewModal());
     }
     if (this.viewModal) {
-      this.viewModal.addEventListener("click", (e) => {
-        if (e.target.classList.contains("viewItemSection")) this.closeViewModal();
-      });
+      bindBackdropClose(this.viewModal, () => this.closeViewModal(), (e) =>
+        e.target.classList.contains("viewItemSection")
+      );
     }
 
     // Hide Add/Edit/Stock buttons for view-only roles
@@ -118,6 +119,11 @@ class InventoryUi {
     this.applyEditModeUI();
     this.applyStockModeUI();
     this.applyFilterUI();
+
+    const searchParam = new URLSearchParams(window.location.search).get("search");
+    if (searchBar && searchParam) {
+      searchBar.value = searchParam;
+    }
 
     // Selecting the products table section
     this.productSectionHTMl = document.querySelector(".product-section-table");
@@ -154,12 +160,9 @@ class InventoryUi {
     }
 
     if (addProModal) {
-      addProModal.addEventListener("click", (e) => {
-        // Checking if the user click on the empty black space behind the add modal so we can close it
-        if (e.target.classList.contains("addProSection")) {
-          this.closeProductModal(e); // Closing the Modal
-        }
-      });
+      bindBackdropClose(addProModal, () => this.closeProductModal(), (e) =>
+        e.target.classList.contains("addProSection")
+      );
     }
 
     if (editToggleBtn) {
@@ -735,7 +738,7 @@ class InventoryUi {
       });
       if (!res.ok) {
         const err = await res.json();
-        alert(err.error || 'Stock update failed');
+        notifyAlert(err.error || 'Stock update failed');
         return;
       }
       const data = await res.json();
@@ -748,7 +751,7 @@ class InventoryUi {
       this.showStockToast(`${quantity} ${actionLabel}. New stock: ${data.newQuantity}`);
     } catch (e) {
       console.error('Stock adjustment error:', e);
-      alert('Failed to update stock. Please try again.');
+      notifyAlert('Failed to update stock. Please try again.');
     }
   }
 
@@ -825,7 +828,7 @@ class InventoryUi {
 
   exportVisibleTable() {
     if (!this.getVisibleColumnDefs().length) {
-      alert("Nothing to export.");
+      notifyAlert("Nothing to export.");
       return;
     }
 
@@ -941,7 +944,7 @@ class InventoryUi {
         !productQuantityInput.value ||
         !productPriceInput.value
       ) {
-        alert("Please enter all of the fields!");
+        notifyAlert("Please enter all of the fields!");
         return -1;
       }
       if (
@@ -949,7 +952,7 @@ class InventoryUi {
         Number(productQuantityInput.value) < 0 ||
         Number(productDemandInput.value) < 0
       ) {
-        alert("Quantity, Price, and Demand should be at least 0");
+        notifyAlert("Quantity, Price, and Demand should be at least 0");
         return -1;
       }
 
@@ -975,7 +978,7 @@ class InventoryUi {
         monthlyDemand: Number(productDemandInput.value),
       });
       if (!saveResult?.ok) {
-        alert(
+        notifyAlert(
           saveResult?.duplicate
             ? (saveResult.error || "Duplicate item prevented. This item already exists and was not saved.")
             : (saveResult?.error || "Failed to save item. Please check database/server and try again.")

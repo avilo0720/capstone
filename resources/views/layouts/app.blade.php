@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="/src/css/font.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" />
-    <link rel="stylesheet" href="/src/css/style.css?v=85" />
+    <link rel="stylesheet" href="/src/css/style.css?v=93" />
     <title>{{ $title }} | Nawad Inventory</title>
   </head>
-  <body data-can-edit="{{ ($user['canEdit'] ?? false) ? 'true' : 'false' }}" data-can-calendar-table="{{ ($user['canViewCalendarTable'] ?? false) ? 'true' : 'false' }}" data-can-procurement-edit="{{ ($user['canEditProcurement'] ?? false) ? 'true' : 'false' }}" data-can-procurement-review="{{ ($user['canReviewProcurement'] ?? false) ? 'true' : 'false' }}" data-user-id="{{ $user['id'] ?? '' }}" data-inventory="{{ $currentInventory->slug ?? '' }}">
+  <body data-can-edit="{{ ($user['canEdit'] ?? false) ? 'true' : 'false' }}" data-can-calendar-table="{{ ($user['canViewCalendarTable'] ?? false) ? 'true' : 'false' }}" data-can-manage-users="{{ ($user['canManageUsers'] ?? false) ? 'true' : 'false' }}" data-can-procurement-edit="{{ ($user['canEditProcurement'] ?? false) ? 'true' : 'false' }}" data-can-procurement-review="{{ ($user['canReviewProcurement'] ?? false) ? 'true' : 'false' }}" data-can-issuance-edit="{{ ($user['canEditIssuance'] ?? false) ? 'true' : 'false' }}" data-can-issuance-review="{{ ($user['canReviewIssuance'] ?? false) ? 'true' : 'false' }}" data-user-id="{{ $user['id'] ?? '' }}" data-inventory="{{ $currentInventory->slug ?? '' }}">
     @include('partials.sidebar')
     <div class="app container">
       @include('partials.header')
@@ -27,6 +27,6 @@
     @include('partials.profile-modal')
     @include('partials.profile-crop-modal')
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
-    <script src="/src/js/app.js?v=78" type="module"></script>
+    <script src="/src/js/app.js?v=88" type="module"></script>
   </body>
 </html>

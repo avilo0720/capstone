@@ -51,4 +51,53 @@ class RolePermissions
     {
         return self::hasAbility($sessionUser, 'procurement.review');
     }
+
+    public static function canEditIssuance(?array $sessionUser): bool
+    {
+        return self::hasAbility($sessionUser, 'issuance.edit');
+    }
+
+    public static function canReviewIssuance(?array $sessionUser): bool
+    {
+        return self::hasAbility($sessionUser, 'issuance.review');
+    }
+
+    public static function canDeleteProcurementRequest(?array $sessionUser, ?int $uploadedBy): bool
+    {
+        return self::canDeleteSubmittedRequest(
+            $sessionUser,
+            $uploadedBy,
+            self::canReviewProcurement($sessionUser),
+            self::canEditProcurement($sessionUser),
+        );
+    }
+
+    public static function canDeleteIssuanceRequest(?array $sessionUser, ?int $uploadedBy): bool
+    {
+        return self::canDeleteSubmittedRequest(
+            $sessionUser,
+            $uploadedBy,
+            self::canReviewIssuance($sessionUser),
+            self::canEditIssuance($sessionUser),
+        );
+    }
+
+    private static function canDeleteSubmittedRequest(
+        ?array $sessionUser,
+        ?int $uploadedBy,
+        bool $isReviewer,
+        bool $canEdit,
+    ): bool {
+        if (self::canManageUsers($sessionUser) || $isReviewer) {
+            return true;
+        }
+
+        if (!$canEdit) {
+            return false;
+        }
+
+        $userId = (int) ($sessionUser['id'] ?? 0);
+
+        return $userId > 0 && $uploadedBy !== null && (int) $uploadedBy === $userId;
+    }
 }

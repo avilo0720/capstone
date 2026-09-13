@@ -6,10 +6,10 @@ const STATUS = {
   pending: { label: "Pending", tone: "orange" },
   approved: { label: "Approved", tone: "green" },
   denied: { label: "Denied", tone: "red" },
-  stock_entered: { label: "Stock entered", tone: "blue" },
+  stock_entered: { label: "Stock used", tone: "blue" },
 };
 
-class ProcurementView {
+class IssuanceView {
   constructor() {
     this.requests = [];
     this.selectedId = null;
@@ -21,8 +21,8 @@ class ProcurementView {
     this.manualItems = [];
     this.manualQtys = {};
     this.manualSearch = "";
-    this.canEdit = document.body.dataset.canProcurementEdit === "true";
-    this.canReview = document.body.dataset.canProcurementReview === "true";
+    this.canEdit = document.body.dataset.canIssuanceEdit === "true";
+    this.canReview = document.body.dataset.canIssuanceReview === "true";
     this.canManageUsers = document.body.dataset.canManageUsers === "true";
     this.userId = Number(document.body.dataset.userId || 0);
     this.pagination = new Pagination({
@@ -32,12 +32,12 @@ class ProcurementView {
   }
 
   async setApp() {
-    this.root = document.querySelector(".procurement-page:not(.issuance-page)");
+    this.root = document.querySelector(".issuance-page");
     if (!this.root) return;
-    this.tbody = document.getElementById("procurementTableBody");
-    this.detailEl = document.getElementById("procurementDetail");
-    this.detailOverlay = document.getElementById("procurementDetailOverlay");
-    this.pagination.setContainer(document.getElementById("procurementPagination"));
+    this.tbody = document.getElementById("issuanceTableBody");
+    this.detailEl = document.getElementById("issuanceDetail");
+    this.detailOverlay = document.getElementById("issuanceDetailOverlay");
+    this.pagination.setContainer(document.getElementById("issuancePagination"));
     this.closeDeny();
     this.closeStock();
     this.closeManual();
@@ -49,17 +49,17 @@ class ProcurementView {
   }
 
   bindEvents() {
-    document.getElementById("procurementFilters")?.addEventListener("click", (e) => {
+    document.getElementById("issuanceFilters")?.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-status]");
       if (btn) this.setStatusFilter(btn.dataset.status);
     });
 
-    document.getElementById("procurementSummary")?.addEventListener("click", (e) => {
+    document.getElementById("issuanceSummary")?.addEventListener("click", (e) => {
       const card = e.target.closest("[data-status]");
       if (card) this.setStatusFilter(card.dataset.status);
     });
 
-    document.getElementById("procurementSearch")?.addEventListener("input", (e) => {
+    document.getElementById("issuanceSearch")?.addEventListener("input", (e) => {
       clearTimeout(this.searchTimer);
       this.searchTimer = setTimeout(() => {
         this.search = e.target.value.trim().toLowerCase();
@@ -73,26 +73,25 @@ class ProcurementView {
       if (row) this.selectRequest(Number(row.dataset.id));
     });
 
-    document.getElementById("procurementDetailClose")?.addEventListener("click", () => this.hideDetail());
+    document.getElementById("issuanceDetailClose")?.addEventListener("click", () => this.hideDetail());
     bindBackdropClose(this.detailOverlay, () => this.hideDetail());
 
-    document.getElementById("procurementFileInput")?.addEventListener("change", (e) => {
+    document.getElementById("issuanceFileInput")?.addEventListener("change", (e) => {
       const file = e.target.files?.[0];
       e.target.value = "";
       if (file) this.uploadFile(file);
     });
 
-    document.getElementById("procurementManualBtn")?.addEventListener("click", () => this.openManual());
-    document.getElementById("procurementManualCancel")?.addEventListener("click", () => this.closeManual());
-    document.getElementById("procurementManualConfirm")?.addEventListener("click", () => this.submitManual());
-    document.getElementById("procurementManualFillRop")?.addEventListener("click", () => this.fillManualByMode("missing-rop"));
-    document.getElementById("procurementManualFillProcurement")?.addEventListener("click", () => this.fillManualByMode("procurement"));
-    document.getElementById("procurementManualClearAll")?.addEventListener("click", () => this.clearManualQtys());
-    document.getElementById("procurementManualSearch")?.addEventListener("input", (e) => {
+    document.getElementById("issuanceManualBtn")?.addEventListener("click", () => this.openManual());
+    document.getElementById("issuanceManualCancel")?.addEventListener("click", () => this.closeManual());
+    document.getElementById("issuanceManualConfirm")?.addEventListener("click", () => this.submitManual());
+    document.getElementById("issuanceManualFillOnHand")?.addEventListener("click", () => this.fillOnHand());
+    document.getElementById("issuanceManualClearAll")?.addEventListener("click", () => this.clearManualQtys());
+    document.getElementById("issuanceManualSearch")?.addEventListener("input", (e) => {
       this.manualSearch = e.target.value.trim().toLowerCase();
       this.renderManualLines();
     });
-    document.getElementById("procurementManualBody")?.addEventListener("input", (e) => {
+    document.getElementById("issuanceManualBody")?.addEventListener("input", (e) => {
       const input = e.target.closest("input[data-item-id]");
       if (!input) return;
       const id = Number(input.dataset.itemId);
@@ -102,26 +101,26 @@ class ProcurementView {
       this.updateManualHint();
     });
 
-    document.getElementById("procurementDenyCancel")?.addEventListener("click", () => this.closeDeny());
-    document.getElementById("procurementDenyConfirm")?.addEventListener("click", () => this.submitDeny());
-    document.getElementById("procurementStockCancel")?.addEventListener("click", () => this.closeStock());
-    document.getElementById("procurementStockConfirm")?.addEventListener("click", () => this.submitStock());
+    document.getElementById("issuanceDenyCancel")?.addEventListener("click", () => this.closeDeny());
+    document.getElementById("issuanceDenyConfirm")?.addEventListener("click", () => this.submitDeny());
+    document.getElementById("issuanceStockCancel")?.addEventListener("click", () => this.closeStock());
+    document.getElementById("issuanceStockConfirm")?.addEventListener("click", () => this.submitStock());
 
-    bindBackdropClose(document.getElementById("procurementDenyOverlay"), () => this.closeDeny());
-    bindBackdropClose(document.getElementById("procurementStockOverlay"), () => this.closeStock());
-    bindBackdropClose(document.getElementById("procurementManualOverlay"), () => this.closeManual());
+    bindBackdropClose(document.getElementById("issuanceDenyOverlay"), () => this.closeDeny());
+    bindBackdropClose(document.getElementById("issuanceStockOverlay"), () => this.closeStock());
+    bindBackdropClose(document.getElementById("issuanceManualOverlay"), () => this.closeManual());
 
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
-      if (document.getElementById("procurementDenyOverlay")?.classList.contains("is-open")) {
+      if (document.getElementById("issuanceDenyOverlay")?.classList.contains("is-open")) {
         this.closeDeny();
         return;
       }
-      if (document.getElementById("procurementStockOverlay")?.classList.contains("is-open")) {
+      if (document.getElementById("issuanceStockOverlay")?.classList.contains("is-open")) {
         this.closeStock();
         return;
       }
-      if (document.getElementById("procurementManualOverlay")?.classList.contains("is-open")) {
+      if (document.getElementById("issuanceManualOverlay")?.classList.contains("is-open")) {
         this.closeManual();
         return;
       }
@@ -131,10 +130,10 @@ class ProcurementView {
 
   setStatusFilter(status) {
     this.statusFilter = status || "all";
-    document.querySelectorAll("#procurementFilters .users-tab").forEach((el) => {
+    document.querySelectorAll("#issuanceFilters .users-tab").forEach((el) => {
       el.classList.toggle("--active", el.dataset.status === this.statusFilter);
     });
-    document.querySelectorAll("#procurementSummary [data-status]").forEach((el) => {
+    document.querySelectorAll("#issuanceSummary [data-status]").forEach((el) => {
       el.classList.toggle("is-active", el.dataset.status === this.statusFilter);
     });
     this.pagination.reset();
@@ -159,7 +158,7 @@ class ProcurementView {
 
   async loadRequests() {
     try {
-      const res = await fetch("/api/procurement-requests");
+      const res = await fetch("/api/issuance-requests");
       const data = await res.json();
       this.requests = Array.isArray(data.requests) ? data.requests : [];
       this.renderKpis();
@@ -168,7 +167,7 @@ class ProcurementView {
     } catch (err) {
       console.error(err);
       if (this.tbody) {
-        this.tbody.innerHTML = `<tr><td colspan="7" class="users-empty">Unable to load procurement requests.</td></tr>`;
+        this.tbody.innerHTML = `<tr><td colspan="7" class="users-empty">Unable to load issuance requests.</td></tr>`;
       }
     }
   }
@@ -178,18 +177,18 @@ class ProcurementView {
       const el = document.getElementById(id);
       if (el) el.textContent = String(value);
     };
-    set("procurementKpiTotal", this.requests.length);
-    set("procurementKpiPending", this.requests.filter((r) => r.status === "pending").length);
-    set("procurementKpiApproved", this.requests.filter((r) => r.status === "approved").length);
-    set("procurementKpiDenied", this.requests.filter((r) => r.status === "denied").length);
-    set("procurementKpiStockEntered", this.requests.filter((r) => r.status === "stock_entered").length);
+    set("issuanceKpiTotal", this.requests.length);
+    set("issuanceKpiPending", this.requests.filter((r) => r.status === "pending").length);
+    set("issuanceKpiApproved", this.requests.filter((r) => r.status === "approved").length);
+    set("issuanceKpiDenied", this.requests.filter((r) => r.status === "denied").length);
+    set("issuanceKpiStockEntered", this.requests.filter((r) => r.status === "stock_entered").length);
   }
 
   renderList() {
     const rows = this.filtered();
     if (!this.tbody) return;
     if (!rows.length) {
-      this.tbody.innerHTML = `<tr><td colspan="7" class="users-empty">No procurement requests match this view. Upload a forecast file or send one from Forecasting.</td></tr>`;
+      this.tbody.innerHTML = `<tr><td colspan="7" class="users-empty">No issuance requests match this view. Add a request or upload a file of quantities to use.</td></tr>`;
       this.pagination.renderControls({ totalItems: 0, totalPages: 1 });
       return;
     }
@@ -200,7 +199,7 @@ class ProcurementView {
       const selected = row.id === this.selectedId ? " is-selected" : "";
       return `<tr data-id="${row.id}" class="${selected}">
         <td><strong>#${row.id}</strong></td>
-        <td>${this.escape(row.original_filename || row.source || "Forecast")}</td>
+        <td>${this.escape(row.original_filename || row.source || "Request")}</td>
         <td><span class="dashboard-activity__badge dashboard-activity__badge--${badge.tone}">${badge.label}</span></td>
         <td>${row.line_count ?? 0}</td>
         <td>${row.total_requested ?? 0}</td>
@@ -221,13 +220,13 @@ class ProcurementView {
     this.selectedId = null;
     this.detail = null;
     this.requestedOnly = false;
-    this.toggleOverlay("procurementDetailOverlay", false);
-    const footer = document.getElementById("procurementDetailFooter");
+    this.toggleOverlay("issuanceDetailOverlay", false);
+    const footer = document.getElementById("issuanceDetailFooter");
     if (footer) {
       footer.hidden = true;
       footer.innerHTML = "";
     }
-    const badgeEl = document.getElementById("procurementDetailBadge");
+    const badgeEl = document.getElementById("issuanceDetailBadge");
     if (badgeEl) {
       badgeEl.hidden = true;
       badgeEl.textContent = "";
@@ -240,7 +239,7 @@ class ProcurementView {
     this.requestedOnly = false;
     this.renderList();
     try {
-      const detailRes = await fetch(`/api/procurement-requests/${id}`);
+      const detailRes = await fetch(`/api/issuance-requests/${id}`);
       const detailData = await detailRes.json();
       this.detail = detailData.request || null;
       this.renderDetail();
@@ -249,7 +248,7 @@ class ProcurementView {
       if (this.detailEl) {
         this.detailEl.innerHTML = `<p class="users-empty">Unable to load this request.</p>`;
       }
-      this.toggleOverlay("procurementDetailOverlay", true);
+      this.toggleOverlay("issuanceDetailOverlay", true);
     }
   }
 
@@ -277,10 +276,10 @@ class ProcurementView {
     const items = this.detailLines();
     const hiddenCount = Math.max(0, allItems.length - items.length);
 
-    const title = document.getElementById("procurementDetailTitle");
-    const meta = document.getElementById("procurementDetailMeta");
-    const badgeEl = document.getElementById("procurementDetailBadge");
-    const footer = document.getElementById("procurementDetailFooter");
+    const title = document.getElementById("issuanceDetailTitle");
+    const meta = document.getElementById("issuanceDetailMeta");
+    const badgeEl = document.getElementById("issuanceDetailBadge");
+    const footer = document.getElementById("issuanceDetailFooter");
     if (title) title.textContent = `Request #${req.id}`;
     if (badgeEl) {
       badgeEl.hidden = false;
@@ -288,7 +287,7 @@ class ProcurementView {
       badgeEl.textContent = badge.label;
     }
     if (meta) {
-      const source = this.escape(req.original_filename || req.source || "Forecast");
+      const source = this.escape(req.original_filename || req.source || "Request");
       const by = this.escape(req.uploaded_by || "Unknown");
       meta.innerHTML = `
         <span class="procurement-detail-meta__chip">${source}</span>
@@ -318,7 +317,6 @@ class ProcurementView {
         <td class="procurement-detail-code">${this.escape(line.item_code || "—")}</td>
         <td><span class="procurement-detail-item">${this.escape(line.title)}</span>${match}${size}</td>
         <td class="num">${line.current_qty}</td>
-        <td class="num">${line.need_3m}</td>
         <td class="num">${qtyControl}</td>
         <td class="num">${applied}</td>
       </tr>`;
@@ -326,7 +324,7 @@ class ProcurementView {
 
     const reviewBtns = pending && this.canReview ? `
       <button type="button" class="confirm-modal__btn confirm-modal__btn--primary" data-action="approve">Approve</button>
-      <button type="button" class="confirm-modal__btn confirm-modal__btn--ghost" data-action="stock">Stock entry</button>
+      <button type="button" class="confirm-modal__btn confirm-modal__btn--ghost" data-action="stock">Use stock</button>
       <button type="button" class="confirm-modal__btn confirm-modal__btn--danger" data-action="deny">Deny</button>
     ` : "";
 
@@ -360,7 +358,7 @@ class ProcurementView {
       <div class="procurement-detail-toolbar">
         <label class="procurement-mine-toggle" title="Show only lines with requested or applied quantity">
           <span class="procurement-mine-toggle__label">Requested / Applied</span>
-          <input type="checkbox" id="procurementRequestedOnly" ${this.requestedOnly ? "checked" : ""} />
+          <input type="checkbox" id="issuanceRequestedOnly" ${this.requestedOnly ? "checked" : ""} />
           <span class="procurement-mine-toggle__switch" aria-hidden="true"></span>
         </label>
         <span class="procurement-detail-toolbar__hint">${items.length} shown${hiddenCount ? ` · ${hiddenCount} hidden` : ""} of ${allItems.length}</span>
@@ -372,18 +370,17 @@ class ProcurementView {
               <td>Code</td>
               <td>Item</td>
               <td class="num">Stock</td>
-              <td class="num">3 mo need</td>
-              <td class="num">Requested</td>
-              <td class="num">Applied</td>
+              <td class="num">To use</td>
+              <td class="num">Used</td>
             </tr>
           </thead>
-          <tbody>${itemRows || `<tr><td colspan="6" class="users-empty">${emptyMessage}</td></tr>`}</tbody>
+          <tbody>${itemRows || `<tr><td colspan="5" class="users-empty">${emptyMessage}</td></tr>`}</tbody>
         </table>
       </div>
     `;
 
-    this.toggleOverlay("procurementDetailOverlay", true);
-    this.detailEl.querySelector("#procurementRequestedOnly")?.addEventListener("change", (e) => {
+    this.toggleOverlay("issuanceDetailOverlay", true);
+    this.detailEl.querySelector("#issuanceRequestedOnly")?.addEventListener("change", (e) => {
       this.requestedOnly = !!e.target.checked;
       this.renderDetail();
     });
@@ -409,7 +406,7 @@ class ProcurementView {
     const form = new FormData();
     form.append("file", file);
     try {
-      const res = await fetch("/api/procurement-requests/upload", { method: "POST", body: form });
+      const res = await fetch("/api/issuance-requests/upload", { method: "POST", body: form });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Upload failed");
       await this.loadRequests();
@@ -425,12 +422,12 @@ class ProcurementView {
     this.closeStock();
     this.manualQtys = {};
     this.manualSearch = "";
-    const search = document.getElementById("procurementManualSearch");
+    const search = document.getElementById("issuanceManualSearch");
     if (search) search.value = "";
-    document.getElementById("procurementManualError")?.classList.add("--hidden");
-    const body = document.getElementById("procurementManualBody");
-    if (body) body.innerHTML = `<tr><td colspan="6" class="users-empty">Loading items…</td></tr>`;
-    this.toggleOverlay("procurementManualOverlay", true);
+    document.getElementById("issuanceManualError")?.classList.add("--hidden");
+    const body = document.getElementById("issuanceManualBody");
+    if (body) body.innerHTML = `<tr><td colspan="4" class="users-empty">Loading items…</td></tr>`;
+    this.toggleOverlay("issuanceManualOverlay", true);
     this.updateManualHint();
     try {
       const res = await fetch("/api/items");
@@ -439,28 +436,35 @@ class ProcurementView {
       this.renderManualLines();
     } catch (err) {
       console.error(err);
-      if (body) body.innerHTML = `<tr><td colspan="6" class="users-empty">Unable to load inventory items.</td></tr>`;
+      if (body) body.innerHTML = `<tr><td colspan="4" class="users-empty">Unable to load inventory items.</td></tr>`;
     }
   }
 
   closeManual() {
-    this.toggleOverlay("procurementManualOverlay", false);
+    this.toggleOverlay("issuanceManualOverlay", false);
   }
 
-  roundHalfDown(value) {
-    const floored = Math.floor(value);
-    return value - floored === 0.5 ? floored : Math.round(value);
+  fillOnHand() {
+    let filled = 0;
+    this.manualItems.forEach((item) => {
+      const stock = Math.max(0, Math.floor(Number(item.quantity) || 0));
+      if (stock > 0) {
+        this.manualQtys[item.id] = stock;
+        filled += 1;
+      } else {
+        delete this.manualQtys[item.id];
+      }
+    });
+    this.renderManualLines();
+    const hint = document.getElementById("issuanceManualHint");
+    if (hint && !filled) {
+      hint.textContent = "No items currently have on-hand stock.";
+    }
   }
 
-  manualMetrics(item) {
-    const stock = Number(item.quantity) || 0;
-    const amc = Number(item.monthlyDemand) || 0;
-    const leadTimeDemand = amc * 3.495065789473684;
-    const safetyStock = (amc + leadTimeDemand) * 0.1;
-    const rop = this.roundHalfDown(leadTimeDemand) + this.roundHalfDown(safetyStock);
-    const need3m = Math.max(0, Math.ceil(amc * 3 - stock));
-    const missingRop = Math.max(0, rop - stock);
-    return { stock, amc, rop, need3m, missingRop, belowRop: stock < rop };
+  clearManualQtys() {
+    this.manualQtys = {};
+    this.renderManualLines();
   }
 
   filteredManualItems() {
@@ -471,51 +475,23 @@ class ProcurementView {
     });
   }
 
-  fillManualByMode(mode) {
-    let filled = 0;
-    this.manualItems.forEach((item) => {
-      const m = this.manualMetrics(item);
-      const qty = mode === "missing-rop" ? m.missingRop : m.need3m;
-      if (qty > 0) {
-        this.manualQtys[item.id] = qty;
-        filled += 1;
-      } else {
-        delete this.manualQtys[item.id];
-      }
-    });
-    this.renderManualLines();
-    const hint = document.getElementById("procurementManualHint");
-    if (hint && !filled) {
-      hint.textContent = mode === "missing-rop"
-        ? "No items are below ROP."
-        : "No items have a 3-month procurement need.";
-    }
-  }
-
-  clearManualQtys() {
-    this.manualQtys = {};
-    this.renderManualLines();
-  }
-
   renderManualLines() {
-    const body = document.getElementById("procurementManualBody");
+    const body = document.getElementById("issuanceManualBody");
     if (!body) return;
     const items = this.filteredManualItems();
     if (!items.length) {
-      body.innerHTML = `<tr><td colspan="6" class="users-empty">No items match this search.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="4" class="users-empty">No items match this search.</td></tr>`;
       this.updateManualHint();
       return;
     }
     body.innerHTML = items.map((item) => {
-      const m = this.manualMetrics(item);
+      const stock = Number(item.quantity) || 0;
       const qty = this.manualQtys[item.id] ?? "";
-      const stockClass = m.belowRop ? "procurement-manual-stock--low" : "";
+      const stockClass = stock <= 0 ? "procurement-manual-stock--low" : "";
       return `<tr>
         <td>${this.escape(item.itemCode || "—")}</td>
         <td><strong>${this.escape(item.title || "Item")}</strong>${item.size ? `<div class="activity-logs-when"><small>${this.escape(item.size)}</small></div>` : ""}</td>
-        <td class="${stockClass}"><strong>${m.stock}</strong></td>
-        <td>${m.rop}</td>
-        <td>${m.need3m > 0 ? `+${m.need3m}` : "OK"}</td>
+        <td class="${stockClass}"><strong>${stock}</strong></td>
         <td><input type="number" min="0" step="1" class="procurement-qty-input" data-item-id="${item.id}" value="${qty}" placeholder="0"></td>
       </tr>`;
     }).join("");
@@ -523,17 +499,17 @@ class ProcurementView {
   }
 
   updateManualHint() {
-    const hint = document.getElementById("procurementManualHint");
+    const hint = document.getElementById("issuanceManualHint");
     if (!hint) return;
     const count = Object.keys(this.manualQtys).length;
     const total = Object.values(this.manualQtys).reduce((sum, qty) => sum + Number(qty || 0), 0);
     hint.textContent = count
       ? `${count} line${count === 1 ? "" : "s"} ready · ${total} total qty`
-      : "0 lines ready — enter quantities or use Fill Missing ROP / Fill Procurement need";
+      : "0 lines ready — enter quantities or use Fill on-hand";
   }
 
   async submitManual() {
-    const error = document.getElementById("procurementManualError");
+    const error = document.getElementById("issuanceManualError");
     const items = this.manualItems
       .filter((item) => Number(this.manualQtys[item.id]) > 0)
       .map((item) => ({
@@ -552,21 +528,21 @@ class ProcurementView {
 
     if (!items.length) {
       if (error) {
-        error.textContent = "Enter at least one requested quantity greater than 0.";
+        error.textContent = "Enter at least one quantity greater than 0.";
         error.classList.remove("--hidden");
       }
       return;
     }
 
     const ok = await confirmAction({
-      title: "Submit procurement request?",
-      message: `Create a pending request with ${items.length} line item${items.length === 1 ? "" : "s"}?`,
+      title: "Submit issuance request?",
+      message: `Create a pending request to use stock for ${items.length} line item${items.length === 1 ? "" : "s"}?`,
       confirmLabel: "Submit request",
     });
     if (!ok) return;
 
     try {
-      const res = await fetch("/api/procurement-requests", {
+      const res = await fetch("/api/issuance-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -593,57 +569,57 @@ class ProcurementView {
   async approve() {
     const ok = await confirmAction({
       title: "Approve this request?",
-      message: "Requested quantities will be added to inventory automatically.",
+      message: "Requested quantities will be deducted from inventory automatically. Approval fails if any line exceeds on-hand stock.",
       confirmLabel: "Approve",
     });
     if (!ok) return;
-    await this.post(`/api/procurement-requests/${this.detail.id}/approve`);
+    await this.post(`/api/issuance-requests/${this.detail.id}/approve`);
   }
 
   openDeny() {
     this.closeStock();
-    document.getElementById("procurementDenyReason").value = "";
-    document.getElementById("procurementDenyError")?.classList.add("--hidden");
-    this.toggleOverlay("procurementDenyOverlay", true);
+    document.getElementById("issuanceDenyReason").value = "";
+    document.getElementById("issuanceDenyError")?.classList.add("--hidden");
+    this.toggleOverlay("issuanceDenyOverlay", true);
   }
 
   closeDeny() {
-    this.toggleOverlay("procurementDenyOverlay", false);
+    this.toggleOverlay("issuanceDenyOverlay", false);
   }
 
   async submitDeny() {
-    const reason = document.getElementById("procurementDenyReason").value.trim();
-    const error = document.getElementById("procurementDenyError");
+    const reason = document.getElementById("issuanceDenyReason").value.trim();
+    const error = document.getElementById("issuanceDenyError");
     if (reason.length < 3) {
       error.textContent = "Must be completed before denying this request.";
       error.classList.remove("--hidden");
       return;
     }
-    await this.post(`/api/procurement-requests/${this.detail.id}/deny`, { reason });
+    await this.post(`/api/issuance-requests/${this.detail.id}/deny`, { reason });
     this.closeDeny();
   }
 
   openStock() {
     this.closeDeny();
-    const host = document.getElementById("procurementStockLines");
+    const host = document.getElementById("issuanceStockLines");
     const items = this.detail?.items || [];
     host.innerHTML = items.length
       ? items.map((line) => `
       <label class="procurement-stock-line">
         <span>
           <strong>${this.escape(line.title)}</strong>
-          <small>${this.escape(line.item_code || "")} · requested ${line.requested_qty}</small>
+          <small>${this.escape(line.item_code || "")} · requested ${line.requested_qty} · on hand ${line.current_qty}</small>
         </span>
         <input type="number" min="0" data-line-id="${line.id}" value="${line.requested_qty}">
       </label>
     `).join("")
       : `<p class="users-empty">No item lines on this request.</p>`;
-    document.getElementById("procurementStockError")?.classList.add("--hidden");
-    this.toggleOverlay("procurementStockOverlay", true);
+    document.getElementById("issuanceStockError")?.classList.add("--hidden");
+    this.toggleOverlay("issuanceStockOverlay", true);
   }
 
   closeStock() {
-    this.toggleOverlay("procurementStockOverlay", false);
+    this.toggleOverlay("issuanceStockOverlay", false);
   }
 
   toggleOverlay(id, open) {
@@ -654,11 +630,11 @@ class ProcurementView {
   }
 
   async submitStock() {
-    const items = [...document.querySelectorAll("#procurementStockLines input")].map((input) => ({
+    const items = [...document.querySelectorAll("#issuanceStockLines input")].map((input) => ({
       id: Number(input.dataset.lineId),
       qty: Number(input.value || 0),
     }));
-    await this.post(`/api/procurement-requests/${this.detail.id}/stock-entry`, { items });
+    await this.post(`/api/issuance-requests/${this.detail.id}/stock-entry`, { items });
     this.closeStock();
   }
 
@@ -670,7 +646,7 @@ class ProcurementView {
   }
 
   async saveEdits() {
-    await this.put(`/api/procurement-requests/${this.detail.id}`, { items: this.collectQtyEdits() });
+    await this.put(`/api/issuance-requests/${this.detail.id}`, { items: this.collectQtyEdits() });
   }
 
   async resubmit() {
@@ -682,9 +658,9 @@ class ProcurementView {
     if (!ok) return;
     const edits = this.collectQtyEdits();
     if (edits.length) {
-      await this.put(`/api/procurement-requests/${this.detail.id}`, { items: edits });
+      await this.put(`/api/issuance-requests/${this.detail.id}`, { items: edits });
     }
-    await this.post(`/api/procurement-requests/${this.detail.id}/resubmit`);
+    await this.post(`/api/issuance-requests/${this.detail.id}/resubmit`);
   }
 
   async remove() {
@@ -699,7 +675,7 @@ class ProcurementView {
       danger: true,
     });
     if (!ok) return;
-    const res = await fetch(`/api/procurement-requests/${this.detail.id}`, { method: "DELETE" });
+    const res = await fetch(`/api/issuance-requests/${this.detail.id}`, { method: "DELETE" });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       notifyAlert(data.error || "Could not delete this request.");
@@ -760,4 +736,4 @@ class ProcurementView {
   }
 }
 
-export default new ProcurementView();
+export default new IssuanceView();

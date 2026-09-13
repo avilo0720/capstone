@@ -31,6 +31,7 @@
       </div>
     </div>
 
+    <div class="module-body">
     <div class="calendar-grid-wrapper" id="calendarGridView">
       <div class="calendar-weekdays">
         <div class="calendar-weekday">Sun</div>
@@ -55,6 +56,7 @@
     <div class="calendar-footer">
       <button type="button" class="downloadBtn --hidden" id="calDownloadMonthlyBtn">Download monthly report</button>
       <button type="button" class="addProBtn calendar-add-note-btn" id="calAddNoteBtn">Add Note</button>
+    </div>
     </div>
   </div>
 

@@ -58,6 +58,7 @@
       </div>
     </div>
 
+    <div class="module-body">
     <div class="forecast-visuals --hidden" id="forecastVisuals">
       <div class="reports-summary forecast-summary" id="forecastSummary">
         <div class="reports-summary__card">
@@ -184,6 +185,7 @@
           </div>
         </div>
       </div>
+    </div>
     </div>
   </div>
 @endsection

@@ -1,5 +1,6 @@
 import Pagination from "./Pagination.js";
 import { activityChanges, renderActivityChanges } from "./ActivityChanges.js";
+import { bindBackdropClose } from "./OverlayDismiss.js";
 
 const ACTION_BADGES = {
   created: { label: "Added", tone: "green" },
@@ -14,6 +15,13 @@ const ACTION_BADGES = {
   procurement_edited: { label: "Edited", tone: "blue" },
   procurement_resubmitted: { label: "Resubmitted", tone: "orange" },
   procurement_deleted: { label: "Deleted", tone: "red" },
+  issuance_submitted: { label: "Issuance", tone: "blue" },
+  issuance_approved: { label: "Approved", tone: "green" },
+  issuance_denied: { label: "Denied", tone: "red" },
+  issuance_stock_used: { label: "Stock −", tone: "orange" },
+  issuance_edited: { label: "Edited", tone: "blue" },
+  issuance_resubmitted: { label: "Resubmitted", tone: "orange" },
+  issuance_deleted: { label: "Deleted", tone: "red" },
 };
 
 class ActivityLogsView {
@@ -62,9 +70,7 @@ class ActivityLogsView {
     });
 
     document.getElementById("activityLogDetailClose")?.addEventListener("click", () => this.closeDetail());
-    this.overlay?.addEventListener("click", (e) => {
-      if (e.target === this.overlay) this.closeDetail();
-    });
+    bindBackdropClose(this.overlay, () => this.closeDetail());
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && this.overlay && !this.overlay.classList.contains("--hidden")) {
         this.closeDetail();
@@ -252,6 +258,7 @@ class ActivityLogsView {
   subjectLabel(log) {
     const id = Number(log.entity_id);
     if (log.entity_type === "procurement_request" && id) return `Procurement request #${id}`;
+    if (log.entity_type === "issuance_request" && id) return `Issuance request #${id}`;
     if (log.entity_type === "item" && id) return `Inventory item #${id}`;
     if (log.entity_type === "user" && id) return `User #${id}`;
     if (log.entity_type) return String(log.entity_type).replaceAll("_", " ");

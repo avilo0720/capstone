@@ -1,5 +1,6 @@
 import Pagination from "./Pagination.js";
-import confirmAction from "./ConfirmDialog.js";
+import confirmAction, { notifyAlert } from "./ConfirmDialog.js";
+import { bindBackdropClose } from "./OverlayDismiss.js";
 import Storage from "./API.js";
 import DownloadOptions from "./DownloadOptions.js";
 
@@ -170,11 +171,7 @@ class CalendarView {
 
     const closeBtn = document.getElementById("dailyOverviewClose");
     if (closeBtn) closeBtn.addEventListener("click", () => this.closeDailyModal());
-    if (this.overlay) {
-      this.overlay.addEventListener("click", (e) => {
-        if (e.target === this.overlay) this.closeDailyModal();
-      });
-    }
+    bindBackdropClose(this.overlay, () => this.closeDailyModal());
 
     document.querySelectorAll("[data-daily-tab]").forEach((tab) => {
       tab.addEventListener("click", () => {
@@ -228,11 +225,7 @@ class CalendarView {
     const noteCancel = document.getElementById("noteCancelBtn");
     if (noteClose) noteClose.addEventListener("click", () => this.closeNoteModal());
     if (noteCancel) noteCancel.addEventListener("click", () => this.closeNoteModal());
-    if (this.noteOverlay) {
-      this.noteOverlay.addEventListener("click", (e) => {
-        if (e.target === this.noteOverlay) this.closeNoteModal();
-      });
-    }
+    bindBackdropClose(this.noteOverlay, () => this.closeNoteModal());
 
     const colorPicker = document.getElementById("noteColorPicker");
     if (colorPicker) {
@@ -730,7 +723,7 @@ class CalendarView {
   downloadMonthlyReport() {
     const table = this.buildMonthlyReportTable();
     if (!table.headers.length) {
-      alert("Nothing to export.");
+      notifyAlert("Nothing to export.");
       return;
     }
 
@@ -1038,20 +1031,20 @@ class CalendarView {
     if (!title || !noteDate || !endDate) return;
 
     if (endDate < noteDate) {
-      alert("End date must be on or after the start date.");
+      notifyAlert("End date must be on or after the start date.");
       return;
     }
 
     if (mode === "department" && !visibility.department_ids.length) {
-      alert("Select at least one department.");
+      notifyAlert("Select at least one department.");
       return;
     }
     if (mode === "individual" && !visibility.user_ids.length) {
-      alert("Select at least one person.");
+      notifyAlert("Select at least one person.");
       return;
     }
     if ((mode === "multiple" || mode === "both") && (!visibility.department_ids.length || !visibility.user_ids.length)) {
-      alert("For Multiple selection, pick at least one department and one person.");
+      notifyAlert("For Multiple selection, pick at least one department and one person.");
       return;
     }
 
@@ -1088,7 +1081,7 @@ class CalendarView {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || err.message || "Failed to save note.");
+        notifyAlert(err.error || err.message || "Failed to save note.");
         return;
       }
 
@@ -1096,7 +1089,7 @@ class CalendarView {
       await this.loadMonth();
     } catch (e) {
       console.error("Failed to save note:", e);
-      alert("Failed to save note.");
+      notifyAlert("Failed to save note.");
     } finally {
       if (saveBtn) {
         saveBtn.disabled = false;
@@ -1120,14 +1113,14 @@ class CalendarView {
     try {
       const res = await fetch(`/api/calendar-notes/${id}`, { method: "DELETE" });
       if (!res.ok) {
-        alert("Failed to delete note.");
+        notifyAlert("Failed to delete note.");
         return;
       }
       this.closeNoteModal();
       await this.loadMonth();
     } catch (e) {
       console.error("Failed to delete note:", e);
-      alert("Failed to delete note.");
+      notifyAlert("Failed to delete note.");
     }
   }
 
