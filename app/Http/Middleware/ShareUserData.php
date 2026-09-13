@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Support\InventoryContext;
 use App\Support\PermissionCatalog;
 use App\Support\RolePermissions;
+use App\Support\UserDirectory;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
@@ -107,6 +108,7 @@ class ShareUserData
 
         View::share('user', $user);
         View::share('permissionCatalog', PermissionCatalog::PAGES);
+        View::share('assigneeDirectory', is_array($user) ? UserDirectory::assignees() : []);
 
         try {
             $inventories = InventoryContext::allowed($request);

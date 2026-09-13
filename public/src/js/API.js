@@ -1,3 +1,27 @@
+export function embeddedAssignees() {
+  const el = document.getElementById("assigneeDirectory");
+  if (!el) return [];
+  try {
+    const data = JSON.parse(el.textContent || "[]");
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchAssignees() {
+  const embedded = embeddedAssignees();
+  try {
+    const res = await fetch("/api/procurement-assignees");
+    if (!res.ok) return embedded;
+    const data = await res.json();
+    const users = Array.isArray(data.users) ? data.users : [];
+    return users.length ? users : embedded;
+  } catch {
+    return embedded;
+  }
+}
+
 class Storage {
   constructor() {
     this.items = [];
