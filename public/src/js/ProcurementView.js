@@ -1,12 +1,32 @@
-import confirmAction, { notifyAlert } from "./ConfirmDialog.js";
+import confirmAction, { notifyAlert, pickAssignee } from "./ConfirmDialog.js";
 import { bindBackdropClose } from "./OverlayDismiss.js";
 import Pagination from "./Pagination.js";
 
 const STATUS = {
-  pending: { label: "Pending", tone: "orange" },
-  approved: { label: "Approved", tone: "green" },
+  pending: { label: "Dept. head", tone: "orange" },
+  dept_noted: { label: "Procurement check", tone: "blue" },
+  procurement_checked: { label: "Branch manager", tone: "orange" },
+  approved: { label: "Approved · print RS", tone: "green" },
   denied: { label: "Denied", tone: "red" },
   stock_entered: { label: "Stock entered", tone: "blue" },
+};
+
+const NEXT_STEP = {
+  pending: {
+    action: "Note this request",
+    nextLabel: "who in procurement should check it next",
+    confirm: "Note and send",
+  },
+  dept_noted: {
+    action: "Mark this request as checked",
+    nextLabel: "which branch manager should approve it next",
+    confirm: "Check and send",
+  },
+  procurement_checked: {
+    action: "Approve this request",
+    nextLabel: "who in procurement should print the RS slip",
+    confirm: "Approve and send",
+  },
 };
 
 class ProcurementView {
@@ -21,6 +41,7 @@ class ProcurementView {
     this.manualItems = [];
     this.manualQtys = {};
     this.manualSearch = "";
+    this.people = [];
     this.canEdit = document.body.dataset.canProcurementEdit === "true";
     this.canReview = document.body.dataset.canProcurementReview === "true";
     this.canManageUsers = document.body.dataset.canManageUsers === "true";
@@ -45,7 +66,44 @@ class ProcurementView {
     const requestId = Number(new URLSearchParams(window.location.search).get("request"));
     if (requestId) this.selectedId = requestId;
     this.bindEvents();
-    await this.loadRequests();
+    await Promise.all([this.loadPeople(), this.loadRequests()]);
+  }
+
+  async loadPeople() {
+    try {
+      const res = await fetch("/api/procurement-assignees");
+      const data = await res.json();
+      this.people = Array.isArray(data.users) ? data.users : [];
+      this.fillAssigneeSelect(document.getElementById("procurementManualAssignee"));
+    } catch (err) {
+      console.error(err);
+      this.people = [];
+    }
+  }
+
+  fillAssigneeSelect(select, selectedId = "") {
+    if (!select) return;
+    const options = this.people.map((person) => {
+      const bits = [person.role, person.department].filter(Boolean).join(" · ");
+      const label = bits ? `${person.name} — ${bits}` : person.name;
+      const selected = String(person.id) === String(selectedId) ? " selected" : "";
+      return `<option value="${person.id}"${selected}>${this.escape(label)}</option>`;
+    }).join("");
+    select.innerHTML = `<option value="">Select a person…</option>${options}`;
+  }
+
+  async chooseNextPerson({ title, message, confirmLabel }) {
+    if (!this.people.length) await this.loadPeople();
+    if (!this.people.length) {
+      notifyAlert("Could not load people to send this request to.");
+      return null;
+    }
+    return pickAssignee({
+      title,
+      message,
+      people: this.people,
+      confirmLabel,
+    });
   }
 
   bindEvents() {
@@ -75,12 +133,6 @@ class ProcurementView {
 
     document.getElementById("procurementDetailClose")?.addEventListener("click", () => this.hideDetail());
     bindBackdropClose(this.detailOverlay, () => this.hideDetail());
-
-    document.getElementById("procurementFileInput")?.addEventListener("change", (e) => {
-      const file = e.target.files?.[0];
-      e.target.value = "";
-      if (file) this.uploadFile(file);
-    });
 
     document.getElementById("procurementManualBtn")?.addEventListener("click", () => this.openManual());
     document.getElementById("procurementManualCancel")?.addEventListener("click", () => this.closeManual());
@@ -148,10 +200,13 @@ class ProcurementView {
       if (!this.search) return true;
       const haystack = [
         row.id,
+        row.rs_number,
         row.original_filename,
         row.source,
         row.status,
         row.uploaded_by,
+        row.assigned_to?.name,
+        row.purpose,
       ].join(" ").toLowerCase();
       return haystack.includes(this.search);
     });
@@ -173,7 +228,7 @@ class ProcurementView {
     } catch (err) {
       console.error(err);
       if (this.tbody) {
-        this.tbody.innerHTML = `<tr><td colspan="7" class="users-empty">Unable to load procurement requests.</td></tr>`;
+        this.tbody.innerHTML = `<tr><td colspan="8" class="users-empty">Unable to load procurement requests.</td></tr>`;
       }
     }
   }
@@ -185,6 +240,8 @@ class ProcurementView {
     };
     set("procurementKpiTotal", this.requests.length);
     set("procurementKpiPending", this.requests.filter((r) => r.status === "pending").length);
+    set("procurementKpiChecked", this.requests.filter((r) => r.status === "dept_noted").length);
+    set("procurementKpiManager", this.requests.filter((r) => r.status === "procurement_checked").length);
     set("procurementKpiApproved", this.requests.filter((r) => r.status === "approved").length);
     set("procurementKpiDenied", this.requests.filter((r) => r.status === "denied").length);
     set("procurementKpiStockEntered", this.requests.filter((r) => r.status === "stock_entered").length);
@@ -194,7 +251,7 @@ class ProcurementView {
     const rows = this.filtered();
     if (!this.tbody) return;
     if (!rows.length) {
-      this.tbody.innerHTML = `<tr><td colspan="7" class="users-empty">No procurement requests match this view. Upload a forecast file or send one from Forecasting.</td></tr>`;
+      this.tbody.innerHTML = `<tr><td colspan="8" class="users-empty">No procurement requests match this view. Add a request or send one from Forecasting.</td></tr>`;
       this.pagination.renderControls({ totalItems: 0, totalPages: 1 });
       return;
     }
@@ -204,9 +261,10 @@ class ProcurementView {
       const badge = STATUS[row.status] || STATUS.pending;
       const selected = row.id === this.selectedId ? " is-selected" : "";
       return `<tr data-id="${row.id}" class="${selected}">
-        <td><strong>#${row.id}</strong></td>
+        <td><strong>${this.escape(row.rs_number || `#${row.id}`)}</strong></td>
         <td>${this.escape(row.original_filename || row.source || "Forecast")}</td>
         <td><span class="dashboard-activity__badge dashboard-activity__badge--${badge.tone}">${badge.label}</span></td>
+        <td>${this.escape(row.assigned_to?.name || "—")}</td>
         <td>${row.line_count ?? 0}</td>
         <td>${row.total_requested ?? 0}</td>
         <td>${this.escape(row.uploaded_by || "—")}</td>
@@ -277,6 +335,8 @@ class ProcurementView {
 
     const badge = STATUS[req.status] || STATUS.pending;
     const pending = req.status === "pending";
+    const inWorkflow = ["pending", "dept_noted", "procurement_checked"].includes(req.status);
+    const approved = req.status === "approved";
     const denied = req.status === "denied";
     const allItems = req.items || [];
     const items = this.detailLines();
@@ -286,7 +346,7 @@ class ProcurementView {
     const meta = document.getElementById("procurementDetailMeta");
     const badgeEl = document.getElementById("procurementDetailBadge");
     const footer = document.getElementById("procurementDetailFooter");
-    if (title) title.textContent = `Request #${req.id}`;
+    if (title) title.textContent = req.rs_number || `Request #${req.id}`;
     if (badgeEl) {
       badgeEl.hidden = false;
       badgeEl.className = `dashboard-activity__badge dashboard-activity__badge--${badge.tone}`;
@@ -295,10 +355,14 @@ class ProcurementView {
     if (meta) {
       const source = this.escape(req.original_filename || req.source || "Forecast");
       const by = this.escape(req.uploaded_by || "Unknown");
+      const waiting = req.assigned_to?.name
+        ? `<span class="procurement-detail-meta__sep">·</span><span class="procurement-detail-meta__chip">Waiting on ${this.escape(req.assigned_to.name)}</span>`
+        : "";
       meta.innerHTML = `
         <span class="procurement-detail-meta__chip">${source}</span>
         <span class="procurement-detail-meta__sep">·</span>
-        <span class="procurement-detail-meta__chip">Submitted by ${by}</span>
+        <span class="procurement-detail-meta__chip">Requested by ${by}</span>
+        ${waiting}
       `;
     }
 
@@ -311,6 +375,12 @@ class ProcurementView {
     const unmatched = req.unmatched_count
       ? `<p class="procurement-warning">${req.unmatched_count} line(s) are not linked to inventory items.</p>`
       : "";
+    const slipMeta = `
+      <div class="procurement-slip-meta">
+        <div><strong>To</strong><span>${this.escape(req.destination || "—")}</span></div>
+        <div><strong>Date needed</strong><span>${this.escape(req.date_needed || "—")}</span></div>
+        <div class="procurement-slip-meta__wide"><strong>Purpose</strong><span>${this.escape(req.purpose || "—")}</span></div>
+      </div>`;
 
     const itemRows = items.map((line) => {
       const qtyControl = denied && this.canEdit
@@ -329,15 +399,20 @@ class ProcurementView {
       </tr>`;
     }).join("");
 
-    const reviewBtns = pending && this.canReview ? `
-      <button type="button" class="confirm-modal__btn confirm-modal__btn--primary" data-action="approve">Approve</button>
-      <button type="button" class="confirm-modal__btn confirm-modal__btn--ghost" data-action="stock">Stock entry</button>
+    const step = NEXT_STEP[req.status];
+    const reviewBtns = inWorkflow && req.can_act && step ? `
+      <button type="button" class="confirm-modal__btn confirm-modal__btn--primary" data-action="approve">${this.escape(step.confirm)}</button>
       <button type="button" class="confirm-modal__btn confirm-modal__btn--danger" data-action="deny">Deny</button>
+    ` : "";
+
+    const printBtns = (approved || req.status === "stock_entered") && req.can_print ? `
+      <button type="button" class="confirm-modal__btn confirm-modal__btn--primary" data-action="print">Print RS slip</button>
+      ${approved ? `<button type="button" class="confirm-modal__btn confirm-modal__btn--ghost" data-action="stock">Stock entry</button>` : ""}
     ` : "";
 
     const deniedBtns = denied && this.canEdit ? `
       <button type="button" class="confirm-modal__btn confirm-modal__btn--primary" data-action="save-edit">Save edits</button>
-      <button type="button" class="confirm-modal__btn confirm-modal__btn--ghost" data-action="resubmit">Return to pending</button>
+      <button type="button" class="confirm-modal__btn confirm-modal__btn--ghost" data-action="resubmit">Resubmit to dept. head</button>
     ` : "";
 
     const canDelete = this.canDeleteRequest(req);
@@ -345,7 +420,7 @@ class ProcurementView {
       ? `<button type="button" class="confirm-modal__btn ${denied ? "confirm-modal__btn--danger" : "confirm-modal__btn--ghost"}" data-action="delete">Delete</button>`
       : "";
 
-    const actions = `${reviewBtns}${deniedBtns}${deleteBtn}`;
+    const actions = `${reviewBtns}${printBtns}${deniedBtns}${deleteBtn}`;
     if (footer) {
       footer.hidden = !actions;
       footer.innerHTML = actions
@@ -361,6 +436,8 @@ class ProcurementView {
       : "No lines";
 
     this.detailEl.innerHTML = `
+      ${this.renderWorkflow(req)}
+      ${slipMeta}
       ${reason}${previous}${unmatched}
       <div class="procurement-detail-toolbar">
         <label class="procurement-mine-toggle" title="Show only lines with requested or applied quantity">
@@ -394,6 +471,28 @@ class ProcurementView {
     });
   }
 
+  renderWorkflow(req) {
+    const steps = [
+      { key: "request", label: "1. Request slip", person: req.uploaded_by, done: true },
+      { key: "dept", label: "2. Department head", person: req.noted_by?.name, done: !!req.noted_at, waiting: req.status === "pending" },
+      { key: "check", label: "3. Procurement check", person: req.checked_by?.name, done: !!req.checked_at, waiting: req.status === "dept_noted" },
+      { key: "manager", label: "4. Branch manager", person: req.approved_by?.name, done: !!req.approved_at, waiting: req.status === "procurement_checked" },
+      { key: "print", label: "Print RS slip", person: req.status === "approved" || req.status === "stock_entered" ? (req.assigned_to?.name || req.checked_by?.name) : null, done: !!req.printed_at, waiting: req.status === "approved" },
+    ];
+
+    return `<ol class="procurement-workflow">
+      ${steps.map((step) => {
+        const state = step.done ? "is-done" : step.waiting ? "is-current" : "";
+        const who = step.person
+          ? this.escape(step.person)
+          : step.waiting && req.assigned_to?.name
+            ? `Waiting on ${this.escape(req.assigned_to.name)}`
+            : "—";
+        return `<li class="${state}"><strong>${step.label}</strong><span>${who}</span></li>`;
+      }).join("")}
+    </ol>`;
+  }
+
   canDeleteRequest(req) {
     if (this.canReview || this.canManageUsers) return true;
     if (!this.canEdit || !req) return false;
@@ -403,25 +502,12 @@ class ProcurementView {
   async onAction(action) {
     if (!this.detail) return;
     if (action === "approve") return this.approve();
+    if (action === "print") return this.printSlip();
     if (action === "deny") return this.openDeny();
     if (action === "stock") return this.openStock();
     if (action === "save-edit") return this.saveEdits();
     if (action === "resubmit") return this.resubmit();
     if (action === "delete") return this.remove();
-  }
-
-  async uploadFile(file) {
-    const form = new FormData();
-    form.append("file", file);
-    try {
-      const res = await fetch("/api/procurement-requests/upload", { method: "POST", body: form });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Upload failed");
-      await this.loadRequests();
-      if (data.request?.id) await this.selectRequest(data.request.id);
-    } catch (err) {
-      notifyAlert(err.message || "Upload failed");
-    }
   }
 
   async openManual() {
@@ -435,6 +521,13 @@ class ProcurementView {
     document.getElementById("procurementManualError")?.classList.add("--hidden");
     const body = document.getElementById("procurementManualBody");
     if (body) body.innerHTML = `<tr><td colspan="6" class="users-empty">Loading items…</td></tr>`;
+    this.fillAssigneeSelect(document.getElementById("procurementManualAssignee"));
+    const dest = document.getElementById("procurementManualDestination");
+    const purpose = document.getElementById("procurementManualPurpose");
+    const needed = document.getElementById("procurementManualDateNeeded");
+    if (dest) dest.value = "";
+    if (purpose) purpose.value = "";
+    if (needed) needed.value = "";
     this.toggleOverlay("procurementManualOverlay", true);
     this.updateManualHint();
     try {
@@ -555,6 +648,7 @@ class ProcurementView {
         requested_qty: Number(this.manualQtys[item.id]) || 0,
       }));
 
+    const assignedTo = Number(document.getElementById("procurementManualAssignee")?.value || 0);
     if (!items.length) {
       if (error) {
         error.textContent = "Enter at least one requested quantity greater than 0.";
@@ -562,10 +656,17 @@ class ProcurementView {
       }
       return;
     }
+    if (!assignedTo) {
+      if (error) {
+        error.textContent = "Pick who should review this request next.";
+        error.classList.remove("--hidden");
+      }
+      return;
+    }
 
     const ok = await confirmAction({
-      title: "Submit procurement request?",
-      message: `Create a pending request with ${items.length} line item${items.length === 1 ? "" : "s"}?`,
+      title: "Submit request slip?",
+      message: `Create a request slip with ${items.length} line item${items.length === 1 ? "" : "s"} and send it to the person you picked?`,
       confirmLabel: "Submit request",
     });
     if (!ok) return;
@@ -577,6 +678,10 @@ class ProcurementView {
         body: JSON.stringify({
           source: "manual",
           original_filename: "Manual entry",
+          destination: document.getElementById("procurementManualDestination")?.value.trim() || "",
+          purpose: document.getElementById("procurementManualPurpose")?.value.trim() || "",
+          date_needed: document.getElementById("procurementManualDateNeeded")?.value || null,
+          assigned_to: assignedTo,
           items,
         }),
       });
@@ -596,13 +701,20 @@ class ProcurementView {
   }
 
   async approve() {
-    const ok = await confirmAction({
-      title: "Approve this request?",
-      message: "Requested quantities will be added to inventory automatically.",
-      confirmLabel: "Approve",
+    const step = NEXT_STEP[this.detail?.status];
+    if (!step) return;
+    const assignedTo = await this.chooseNextPerson({
+      title: step.action,
+      message: `This does not add stock yet. After you continue, pick ${step.nextLabel}.`,
+      confirmLabel: step.confirm,
     });
-    if (!ok) return;
-    await this.post(`/api/procurement-requests/${this.detail.id}/approve`);
+    if (!assignedTo) return;
+    await this.post(`/api/procurement-requests/${this.detail.id}/approve`, { assigned_to: assignedTo });
+  }
+
+  printSlip() {
+    if (!this.detail?.id) return;
+    window.open(`/procurement-requests/${this.detail.id}/slip`, "_blank", "noopener");
   }
 
   openDeny() {
@@ -679,17 +791,17 @@ class ProcurementView {
   }
 
   async resubmit() {
-    const ok = await confirmAction({
-      title: "Return to pending?",
-      message: "Quantity edits will be saved, then the request goes back to pending.",
+    const assignedTo = await this.chooseNextPerson({
+      title: "Resubmit request slip?",
+      message: "Quantity edits will be saved, then pick who should note this request next.",
       confirmLabel: "Resubmit",
     });
-    if (!ok) return;
+    if (!assignedTo) return;
     const edits = this.collectQtyEdits();
     if (edits.length) {
       await this.put(`/api/procurement-requests/${this.detail.id}`, { items: edits });
     }
-    await this.post(`/api/procurement-requests/${this.detail.id}/resubmit`);
+    await this.post(`/api/procurement-requests/${this.detail.id}/resubmit`, { assigned_to: assignedTo });
   }
 
   async remove() {

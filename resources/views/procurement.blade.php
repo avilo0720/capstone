@@ -10,7 +10,9 @@
         @endif
         <div class="users-tabs" id="procurementFilters" role="tablist">
           <button type="button" class="users-tab --active" data-status="all" role="tab">All</button>
-          <button type="button" class="users-tab" data-status="pending" role="tab">Pending</button>
+          <button type="button" class="users-tab" data-status="pending" role="tab">Dept. head</button>
+          <button type="button" class="users-tab" data-status="dept_noted" role="tab">Procurement</button>
+          <button type="button" class="users-tab" data-status="procurement_checked" role="tab">Branch mgr</button>
           <button type="button" class="users-tab" data-status="approved" role="tab">Approved</button>
           <button type="button" class="users-tab" data-status="denied" role="tab">Denied</button>
           <button type="button" class="users-tab" data-status="stock_entered" role="tab">Stock entered</button>
@@ -27,8 +29,6 @@
       <div class="product-section__header__buttons">
         @if($user['canEditProcurement'] ?? false)
           <button type="button" class="addProBtn" id="procurementManualBtn">Add request</button>
-          <label class="downloadBtn" for="procurementFileInput">Upload file</label>
-          <input type="file" id="procurementFileInput" accept=".xlsx,.xls,.csv,text/csv" hidden>
         @endif
       </div>
     </div>
@@ -49,8 +49,26 @@
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </div>
         <div class="reports-summary__card-info">
-          <p class="reports-summary__card-label">Pending</p>
+          <p class="reports-summary__card-label">Dept. head</p>
           <p class="reports-summary__card-value" id="procurementKpiPending">0</p>
+        </div>
+      </button>
+      <button type="button" class="reports-summary__card reports-summary__card--clickable" data-status="dept_noted">
+        <div class="reports-summary__card-icon reports-summary__card-icon--value">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        </div>
+        <div class="reports-summary__card-info">
+          <p class="reports-summary__card-label">Procurement check</p>
+          <p class="reports-summary__card-value" id="procurementKpiChecked">0</p>
+        </div>
+      </button>
+      <button type="button" class="reports-summary__card reports-summary__card--clickable" data-status="procurement_checked">
+        <div class="reports-summary__card-icon reports-summary__card-icon--qty">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div class="reports-summary__card-info">
+          <p class="reports-summary__card-label">Branch manager</p>
+          <p class="reports-summary__card-value" id="procurementKpiManager">0</p>
         </div>
       </button>
       <button type="button" class="reports-summary__card reports-summary__card--clickable" data-status="denied">
@@ -86,18 +104,19 @@
       <table class="product-section-table">
         <thead>
           <tr class="table__title">
-            <td>Request</td>
+            <td>RS No.</td>
             <td>File</td>
             <td>Status</td>
+            <td>Next person</td>
             <td>Lines</td>
             <td>Qty</td>
-            <td>Submitted by</td>
+            <td>Requested by</td>
             <td>When</td>
           </tr>
         </thead>
         <tbody id="procurementTableBody">
           <tr>
-            <td colspan="7" class="users-empty">Loading procurement requests…</td>
+            <td colspan="8" class="users-empty">Loading procurement requests…</td>
           </tr>
         </tbody>
       </table>
@@ -130,8 +149,28 @@
 
   <div class="procurement-overlay" id="procurementManualOverlay" hidden>
     <div class="confirm-modal confirm-modal--wide procurement-manual-modal" role="dialog" aria-modal="true" aria-labelledby="procurementManualTitle">
-      <h2 class="confirm-modal__title" id="procurementManualTitle">Add procurement request</h2>
-      <p class="confirm-modal__message">Enter the quantities you need. Only lines with a requested quantity greater than 0 are submitted.</p>
+      <h2 class="confirm-modal__title" id="procurementManualTitle">Add request slip</h2>
+      <p class="confirm-modal__message">Submit a requisition slip, then pick the next person. After the branch manager approves, procurement prints the RS slip.</p>
+      <div class="procurement-manual-meta">
+        <label>
+          <span>To</span>
+          <input type="text" id="procurementManualDestination" placeholder="e.g. Technical / Procurement" />
+        </label>
+        <label>
+          <span>Date needed</span>
+          <input type="date" id="procurementManualDateNeeded" />
+        </label>
+        <label class="procurement-manual-meta__wide">
+          <span>Purpose</span>
+          <input type="text" id="procurementManualPurpose" placeholder="Why these items are needed" />
+        </label>
+        <label class="procurement-manual-meta__wide">
+          <span>Send next to</span>
+          <select id="procurementManualAssignee">
+            <option value="">Select a person…</option>
+          </select>
+        </label>
+      </div>
       <div class="procurement-manual-toolbar">
         <div class="procurement-manual-actions">
           <button type="button" class="editToggleBtn" id="procurementManualFillRop" title="Fill items below ROP with the ROP deficit">
@@ -179,8 +218,8 @@
 
   <div class="procurement-overlay" id="procurementDenyOverlay" hidden>
     <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="procurementDenyTitle">
-      <h2 class="confirm-modal__title" id="procurementDenyTitle">Manager rejection reason</h2>
-      <p class="confirm-modal__message">This reason is required. After deny, the request can be edited, deleted, or returned to pending.</p>
+      <h2 class="confirm-modal__title" id="procurementDenyTitle">Reject this request slip</h2>
+      <p class="confirm-modal__message">This reason is required. The end user can then edit quantities and resubmit from step 1.</p>
       <textarea id="procurementDenyReason" class="procurement-reason-input" rows="4" placeholder="Enter reason…"></textarea>
       <p class="procurement-modal__error --hidden" id="procurementDenyError">Must be completed before denying.</p>
       <div class="confirm-modal__actions">

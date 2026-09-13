@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Item;
 use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
+use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\ProcurementFileParser;
 use App\Services\ProcurementStockService;
@@ -35,7 +36,7 @@ class ProcurementController extends Controller
 
         $status = $request->query('status');
         $query = ProcurementRequest::query()
-            ->with(['items', 'uploader:id,first_name,last_name,username', 'reviewer:id,first_name,last_name,username'])
+            ->with($this->detailRelations())
             ->where('inventory_id', $inventoryId)
             ->orderByDesc('id');
 
@@ -43,7 +44,7 @@ class ProcurementController extends Controller
             $query->where('status', $status);
         }
 
-        $rows = $query->get()->map(fn (ProcurementRequest $row) => $this->serialize($row, false));
+        $rows = $query->get()->map(fn (ProcurementRequest $row) => $this->serialize($request, $row, false));
 
         return response()->json(['requests' => $rows]);
     }
@@ -52,7 +53,25 @@ class ProcurementController extends Controller
     {
         $procurement = $this->findForInventory($request, $id);
 
-        return response()->json(['request' => $this->serialize($procurement, true)]);
+        return response()->json(['request' => $this->serialize($request, $procurement, true)]);
+    }
+
+    public function assignees(Request $request): JsonResponse
+    {
+        $users = User::query()
+            ->with('department:id,name')
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get(['id', 'first_name', 'last_name', 'username', 'role', 'department_id'])
+            ->map(fn (User $user) => [
+                'id' => $user->id,
+                'name' => $user->full_name,
+                'role' => $user->role,
+                'department' => $user->department?->name,
+            ])
+            ->values();
+
+        return response()->json(['users' => $users]);
     }
 
     public function store(Request $request): JsonResponse
@@ -65,6 +84,10 @@ class ProcurementController extends Controller
             'original_filename' => ['nullable', 'string', 'max:255'],
             'amc_mode' => ['nullable', 'string', 'max:40'],
             'source' => ['nullable', 'string', Rule::in(['forecast', 'manual'])],
+            'destination' => ['nullable', 'string', 'max:120'],
+            'purpose' => ['nullable', 'string', 'max:2000'],
+            'date_needed' => ['nullable', 'date'],
+            'assigned_to' => ['required', 'integer', 'exists:users,id'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['nullable', 'integer'],
             'items.*.item_code' => ['nullable', 'string', 'max:80'],
@@ -93,51 +116,18 @@ class ProcurementController extends Controller
             $source,
             $data['original_filename'] ?? $defaultName,
             $data['amc_mode'] ?? null,
-            $data['items']
+            $data['items'],
+            [
+                'destination' => $data['destination'] ?? null,
+                'purpose' => $data['purpose'] ?? null,
+                'date_needed' => $data['date_needed'] ?? null,
+                'assigned_to' => (int) $data['assigned_to'],
+            ]
         );
 
         return response()->json([
             'success' => true,
-            'request' => $this->serialize($procurement, true),
-        ], 201);
-    }
-
-    public function upload(Request $request): JsonResponse
-    {
-        if (!RolePermissions::canEditProcurement($request->session()->get('user'))) {
-            return response()->json(['error' => 'You cannot upload procurement files.'], 403);
-        }
-
-        $request->validate([
-            'file' => ['required', 'file', 'max:5120', 'mimes:xlsx,xls,csv,txt'],
-            'amc_mode' => ['nullable', 'string', 'max:40'],
-        ]);
-
-        $inventoryId = InventoryContext::currentId($request);
-        if (!$inventoryId) {
-            return response()->json(['error' => 'No inventory selected.'], 422);
-        }
-
-        $file = $request->file('file');
-
-        try {
-            $rows = $this->parser->parse($file->getRealPath(), $file->getClientOriginalName());
-        } catch (InvalidArgumentException $e) {
-            return response()->json(['error' => $e->getMessage()], 422);
-        }
-
-        $procurement = $this->createRequest(
-            $request,
-            $inventoryId,
-            'upload',
-            $file->getClientOriginalName(),
-            $request->input('amc_mode'),
-            $rows
-        );
-
-        return response()->json([
-            'success' => true,
-            'request' => $this->serialize($procurement, true),
+            'request' => $this->serialize($request, $procurement, true),
         ], 201);
     }
 
@@ -197,7 +187,7 @@ class ProcurementController extends Controller
 
         return response()->json([
             'success' => true,
-            'request' => $this->serialize($procurement, true),
+            'request' => $this->serialize($request, $procurement, true),
         ]);
     }
 
@@ -231,44 +221,98 @@ class ProcurementController extends Controller
 
     public function approve(Request $request, int $id): JsonResponse
     {
-        if (!RolePermissions::canReviewProcurement($request->session()->get('user'))) {
-            return response()->json(['error' => 'You cannot approve procurement requests.'], 403);
-        }
+        return $this->advance($request, $id);
+    }
 
+    public function advance(Request $request, int $id): JsonResponse
+    {
+        $user = $request->session()->get('user');
         $procurement = $this->findForInventory($request, $id);
+        $step = $procurement->currentStep();
 
-        try {
-            $this->stock->apply(
-                $request,
-                $procurement,
-                $this->stock->requestedQtyMap($procurement->load('items')),
-                ProcurementRequest::STATUS_APPROVED,
-                'procurement_approved',
-                'Approved procurement request #'.$procurement->id.' and added requested quantities to inventory'
-            );
-        } catch (InvalidArgumentException $e) {
-            return response()->json(['error' => $e->getMessage()], 422);
+        if (!$this->canActOnRequest($user, $procurement)) {
+            return response()->json(['error' => 'Only the person assigned this step can act on it.'], 403);
         }
+
+        $data = $request->validate([
+            'assigned_to' => ['required', 'integer', 'exists:users,id'],
+        ]);
+
+        $nextAssignee = (int) $data['assigned_to'];
+        $nextStatus = $procurement->nextStatus();
+        if (!$nextStatus) {
+            return response()->json(['error' => 'This request is not waiting for approval.'], 422);
+        }
+
+        $previousStatus = $procurement->status;
+        $now = now();
+        $userId = $user['id'] ?? null;
+        $payload = [
+            'status' => $nextStatus,
+            'assigned_to' => $nextAssignee,
+            'reviewed_by' => $userId,
+            'reviewed_at' => $now,
+            'rejection_reason' => null,
+        ];
+
+        $action = 'procurement_approved';
+        $description = 'Advanced procurement request #'.$procurement->id;
+
+        if ($step === ProcurementRequest::STEP_DEPT) {
+            $payload['noted_by'] = $userId;
+            $payload['noted_at'] = $now;
+            $action = 'procurement_dept_noted';
+            $description = 'Department head noted request slip #'.$procurement->id;
+        } elseif ($step === ProcurementRequest::STEP_CHECK) {
+            $payload['checked_by'] = $userId;
+            $payload['checked_at'] = $now;
+            $action = 'procurement_checked';
+            $description = 'Procurement checked request slip #'.$procurement->id;
+        } else {
+            $payload['approved_by'] = $userId;
+            $payload['approved_at'] = $now;
+            $action = 'procurement_approved';
+            $description = 'Branch manager approved request slip #'.$procurement->id;
+        }
+
+        $procurement->update($payload);
+
+        $this->activity->log(
+            $request,
+            $action,
+            $description,
+            'procurement_request',
+            (int) $procurement->id,
+            [
+                'changes' => ActivityChangeSet::diff(
+                    ['status' => $previousStatus],
+                    ['status' => $nextStatus],
+                    ['status' => 'Status']
+                ),
+            ]
+        );
 
         return response()->json([
             'success' => true,
-            'request' => $this->serialize($this->findForInventory($request, $id), true),
+            'request' => $this->serialize($request, $this->findForInventory($request, $id), true),
         ]);
     }
 
     public function deny(Request $request, int $id): JsonResponse
     {
-        if (!RolePermissions::canReviewProcurement($request->session()->get('user'))) {
-            return response()->json(['error' => 'You cannot deny procurement requests.'], 403);
+        $user = $request->session()->get('user');
+        $procurement = $this->findForInventory($request, $id);
+
+        if (!$this->canActOnRequest($user, $procurement)) {
+            return response()->json(['error' => 'Only the person assigned this step can deny it.'], 403);
         }
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'min:3', 'max:2000'],
         ]);
 
-        $procurement = $this->findForInventory($request, $id);
-        if (!$procurement->isPending()) {
-            return response()->json(['error' => 'Only pending requests can be denied.'], 422);
+        if (!$procurement->isInWorkflow()) {
+            return response()->json(['error' => 'Only in-process request slips can be denied.'], 422);
         }
 
         $reason = trim($data['reason']);
@@ -297,14 +341,17 @@ class ProcurementController extends Controller
 
         return response()->json([
             'success' => true,
-            'request' => $this->serialize($this->findForInventory($request, $id), true),
+            'request' => $this->serialize($request, $this->findForInventory($request, $id), true),
         ]);
     }
 
     public function stockEntry(Request $request, int $id): JsonResponse
     {
-        if (!RolePermissions::canReviewProcurement($request->session()->get('user'))) {
-            return response()->json(['error' => 'You cannot enter stock for procurement requests.'], 403);
+        $user = $request->session()->get('user');
+        $procurement = $this->findForInventory($request, $id);
+
+        if (!$this->canHandleApprovedRequest($user, $procurement)) {
+            return response()->json(['error' => 'Only procurement can enter stock after approval.'], 403);
         }
 
         $data = $request->validate([
@@ -313,7 +360,6 @@ class ProcurementController extends Controller
             'items.*.qty' => ['required', 'integer', 'min:0'],
         ]);
 
-        $procurement = $this->findForInventory($request, $id);
         $allowedIds = $procurement->items()->pluck('id')->all();
         $qtyByLineId = [];
 
@@ -340,7 +386,7 @@ class ProcurementController extends Controller
 
         return response()->json([
             'success' => true,
-            'request' => $this->serialize($this->findForInventory($request, $id), true),
+            'request' => $this->serialize($request, $this->findForInventory($request, $id), true),
         ]);
     }
 
@@ -355,6 +401,10 @@ class ProcurementController extends Controller
             return response()->json(['error' => 'Only denied requests can be returned to pending.'], 422);
         }
 
+        $data = $request->validate([
+            'assigned_to' => ['required', 'integer', 'exists:users,id'],
+        ]);
+
         if (!trim((string) $procurement->rejection_reason)) {
             return response()->json(['error' => 'A manager rejection reason must be on file before resubmitting.'], 422);
         }
@@ -363,10 +413,18 @@ class ProcurementController extends Controller
 
         $procurement->update([
             'status' => ProcurementRequest::STATUS_PENDING,
+            'assigned_to' => (int) $data['assigned_to'],
             'previous_rejection_reason' => $previous,
             'rejection_reason' => null,
             'reviewed_by' => null,
             'reviewed_at' => null,
+            'noted_by' => null,
+            'noted_at' => null,
+            'checked_by' => null,
+            'checked_at' => null,
+            'approved_by' => null,
+            'approved_at' => null,
+            'printed_at' => null,
         ]);
 
         $this->activity->log(
@@ -386,7 +444,62 @@ class ProcurementController extends Controller
 
         return response()->json([
             'success' => true,
-            'request' => $this->serialize($this->findForInventory($request, $id), true),
+            'request' => $this->serialize($request, $this->findForInventory($request, $id), true),
+        ]);
+    }
+
+    public function slip(Request $request, int $id)
+    {
+        $user = $request->session()->get('user');
+        $procurement = $this->findForInventory($request, $id);
+
+        if (!in_array($procurement->status, [
+            ProcurementRequest::STATUS_APPROVED,
+            ProcurementRequest::STATUS_STOCK_ENTERED,
+        ], true)) {
+            abort(422, 'Only branch-manager-approved request slips can be printed.');
+        }
+
+        if (!$this->canHandleApprovedRequest($user, $procurement)) {
+            abort(403, 'Only the assigned procurement staff can print the approved RS slip.');
+        }
+
+        if (!$procurement->printed_at) {
+            $procurement->update(['printed_at' => now()]);
+            $this->activity->log(
+                $request,
+                'procurement_printed',
+                'Printed RS slip '.$procurement->rs_number,
+                'procurement_request',
+                (int) $procurement->id
+            );
+        }
+
+        $slip = $this->findForInventory($request, $id);
+        $slip->loadMissing('items.catalogItem');
+
+        $lines = $slip->items->map(function ($line) {
+            $price = (float) ($line->catalogItem?->price ?? 0);
+            $qty = (int) $line->requested_qty;
+
+            return [
+                'qty' => $qty,
+                'unit' => $line->size ?: '',
+                'particulars' => trim(implode(' ', array_filter([
+                    $line->title,
+                    $line->item_code ? '('.$line->item_code.')' : null,
+                ]))),
+                'price' => $price,
+                'total' => $price * $qty,
+            ];
+        });
+
+        return view('procurement-slip', [
+            'title' => 'RS '.$slip->rs_number,
+            'request' => $slip,
+            'lines' => $lines,
+            'grandTotal' => $lines->sum('total'),
+            'blankRows' => max(0, 16 - max(1, $lines->count())),
         ]);
     }
 
@@ -397,6 +510,7 @@ class ProcurementController extends Controller
         ?string $filename,
         ?string $amcMode,
         array $rows,
+        array $extras = [],
     ): ProcurementRequest {
         $sessionUser = $request->session()->get('user');
         $catalog = Item::query()->where('inventory_id', $inventoryId)->get();
@@ -408,15 +522,24 @@ class ProcurementController extends Controller
             $amcMode,
             $rows,
             $sessionUser,
-            $catalog
+            $catalog,
+            $extras
         ) {
             $created = ProcurementRequest::create([
                 'inventory_id' => $inventoryId,
+                'department_id' => $sessionUser['departmentId'] ?? null,
                 'status' => ProcurementRequest::STATUS_PENDING,
                 'source' => $source,
                 'original_filename' => $filename,
                 'amc_mode' => $amcMode,
+                'destination' => $extras['destination'] ?? null,
+                'purpose' => $extras['purpose'] ?? ($source === 'forecast' ? 'Forecast replenishment' : null),
+                'date_needed' => $extras['date_needed'] ?? null,
                 'uploaded_by' => $sessionUser['id'] ?? null,
+                'assigned_to' => $extras['assigned_to'] ?? null,
+            ]);
+            $created->update([
+                'rs_number' => ProcurementRequest::makeRsNumber((int) $created->id, $created->created_at),
             ]);
 
             foreach ($rows as $row) {
@@ -456,7 +579,7 @@ class ProcurementController extends Controller
             $request,
             'procurement_submitted',
             $sourceLabel
-                .' as request #'.$procurement->id
+                .' as request slip '.($procurement->rs_number ?: '#'.$procurement->id)
                 .($filename ? ' ('.$filename.')' : ''),
             'procurement_request',
             (int) $procurement->id,
@@ -506,7 +629,7 @@ class ProcurementController extends Controller
     {
         $inventoryId = InventoryContext::currentId($request);
         $procurement = ProcurementRequest::query()
-            ->with(['items', 'uploader:id,first_name,last_name,username', 'reviewer:id,first_name,last_name,username'])
+            ->with($this->detailRelations())
             ->where('inventory_id', $inventoryId)
             ->find($id);
 
@@ -517,18 +640,88 @@ class ProcurementController extends Controller
         return $procurement;
     }
 
-    private function serialize(ProcurementRequest $row, bool $withItems): array
+    private function detailRelations(): array
     {
+        $userCols = 'id,first_name,last_name,username,role,department_id';
+
+        return [
+            'items',
+            'department:id,name',
+            'uploader:'.$userCols,
+            'assignedToUser:'.$userCols,
+            'reviewer:'.$userCols,
+            'notedByUser:'.$userCols,
+            'checkedByUser:'.$userCols,
+            'approvedByUser:'.$userCols,
+        ];
+    }
+
+    private function personPayload(?User $user): ?array
+    {
+        if (!$user) {
+            return null;
+        }
+
+        return [
+            'id' => $user->id,
+            'name' => $user->full_name,
+            'role' => $user->role,
+        ];
+    }
+
+    private function canActOnRequest(?array $user, ProcurementRequest $row): bool
+    {
+        if (!$row->isInWorkflow()) {
+            return false;
+        }
+
+        return RolePermissions::canActOnAssignedProcurement(
+            $user,
+            $row->assigned_to !== null ? (int) $row->assigned_to : null
+        );
+    }
+
+    private function canHandleApprovedRequest(?array $user, ProcurementRequest $row): bool
+    {
+        if (!in_array($row->status, [
+            ProcurementRequest::STATUS_APPROVED,
+            ProcurementRequest::STATUS_STOCK_ENTERED,
+        ], true)) {
+            return false;
+        }
+
+        return RolePermissions::canPrintProcurementSlip(
+            $user,
+            $row->assigned_to !== null ? (int) $row->assigned_to : null,
+            $row->checked_by !== null ? (int) $row->checked_by : null
+        );
+    }
+
+    private function serialize(Request $request, ProcurementRequest $row, bool $withItems): array
+    {
+        $user = $request->session()->get('user');
         $payload = [
             'id' => $row->id,
+            'rs_number' => $row->rs_number,
             'status' => $row->status,
+            'current_step' => $row->currentStep(),
+            'can_act' => $this->canActOnRequest($user, $row),
+            'can_print' => $this->canHandleApprovedRequest($user, $row),
             'source' => $row->source,
             'original_filename' => $row->original_filename,
             'amc_mode' => $row->amc_mode,
+            'destination' => $row->destination,
+            'purpose' => $row->purpose,
+            'date_needed' => $row->date_needed?->toDateString(),
+            'department_name' => $row->department?->name,
             'rejection_reason' => $row->rejection_reason,
             'previous_rejection_reason' => $row->previous_rejection_reason,
             'stock_applied_at' => $row->stock_applied_at?->toIso8601String(),
             'reviewed_at' => $row->reviewed_at?->toIso8601String(),
+            'noted_at' => $row->noted_at?->toIso8601String(),
+            'checked_at' => $row->checked_at?->toIso8601String(),
+            'approved_at' => $row->approved_at?->toIso8601String(),
+            'printed_at' => $row->printed_at?->toIso8601String(),
             'created_at' => $row->created_at?->toIso8601String(),
             'updated_at' => $row->updated_at?->toIso8601String(),
             'line_count' => $row->items->count(),
@@ -536,7 +729,11 @@ class ProcurementController extends Controller
             'unmatched_count' => $row->items->whereNull('item_id')->count(),
             'uploaded_by_id' => $row->uploaded_by,
             'uploaded_by' => $row->uploader?->full_name,
+            'assigned_to' => $this->personPayload($row->assignedToUser),
             'reviewed_by' => $row->reviewer?->full_name,
+            'noted_by' => $this->personPayload($row->notedByUser),
+            'checked_by' => $this->personPayload($row->checkedByUser),
+            'approved_by' => $this->personPayload($row->approvedByUser),
         ];
 
         if ($withItems) {

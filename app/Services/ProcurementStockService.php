@@ -31,8 +31,8 @@ class ProcurementStockService
             throw new InvalidArgumentException('Stock for this request was already added to inventory.');
         }
 
-        if (!$procurement->isPending()) {
-            throw new InvalidArgumentException('Only pending requests can receive stock.');
+        if (!$procurement->canReceiveStock()) {
+            throw new InvalidArgumentException('Only approved requests can receive stock.');
         }
 
         DB::transaction(function () use ($http, $procurement, $qtyByLineId, $status, $action, $description) {

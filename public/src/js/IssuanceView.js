@@ -76,12 +76,6 @@ class IssuanceView {
     document.getElementById("issuanceDetailClose")?.addEventListener("click", () => this.hideDetail());
     bindBackdropClose(this.detailOverlay, () => this.hideDetail());
 
-    document.getElementById("issuanceFileInput")?.addEventListener("change", (e) => {
-      const file = e.target.files?.[0];
-      e.target.value = "";
-      if (file) this.uploadFile(file);
-    });
-
     document.getElementById("issuanceManualBtn")?.addEventListener("click", () => this.openManual());
     document.getElementById("issuanceManualCancel")?.addEventListener("click", () => this.closeManual());
     document.getElementById("issuanceManualConfirm")?.addEventListener("click", () => this.submitManual());
@@ -193,7 +187,7 @@ class IssuanceView {
     const rows = this.filtered();
     if (!this.tbody) return;
     if (!rows.length) {
-      this.tbody.innerHTML = `<tr><td colspan="7" class="users-empty">No issuance requests match this view. Add a request or upload a file of quantities to use.</td></tr>`;
+      this.tbody.innerHTML = `<tr><td colspan="7" class="users-empty">No issuance requests match this view. Add a request to get started.</td></tr>`;
       this.pagination.renderControls({ totalItems: 0, totalPages: 1 });
       return;
     }
@@ -405,20 +399,6 @@ class IssuanceView {
     if (action === "save-edit") return this.saveEdits();
     if (action === "resubmit") return this.resubmit();
     if (action === "delete") return this.remove();
-  }
-
-  async uploadFile(file) {
-    const form = new FormData();
-    form.append("file", file);
-    try {
-      const res = await fetch("/api/issuance-requests/upload", { method: "POST", body: form });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Upload failed");
-      await this.loadRequests();
-      if (data.request?.id) await this.selectRequest(data.request.id);
-    } catch (err) {
-      notifyAlert(err.message || "Upload failed");
-    }
   }
 
   async openManual() {

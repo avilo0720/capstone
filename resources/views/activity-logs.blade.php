@@ -28,7 +28,10 @@
           <option value="stock_added">Stock +</option>
           <option value="stock_used">Stock −</option>
           <option value="procurement_submitted">Procurement submitted</option>
+          <option value="procurement_dept_noted">Procurement noted</option>
+          <option value="procurement_checked">Procurement checked</option>
           <option value="procurement_approved">Procurement approved</option>
+          <option value="procurement_printed">Procurement printed</option>
           <option value="procurement_denied">Procurement denied</option>
           <option value="procurement_stock_entered">Procurement stock</option>
           <option value="procurement_edited">Procurement edited</option>

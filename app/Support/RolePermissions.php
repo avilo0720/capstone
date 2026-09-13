@@ -52,6 +52,70 @@ class RolePermissions
         return self::hasAbility($sessionUser, 'procurement.review');
     }
 
+    public static function canDeptReviewProcurement(?array $sessionUser): bool
+    {
+        return self::canReviewProcurement($sessionUser)
+            || self::hasAbility($sessionUser, 'procurement.dept_review');
+    }
+
+    public static function canCheckProcurement(?array $sessionUser): bool
+    {
+        return self::canReviewProcurement($sessionUser)
+            || self::hasAbility($sessionUser, 'procurement.check');
+    }
+
+    public static function canFinalApproveProcurement(?array $sessionUser): bool
+    {
+        return self::canReviewProcurement($sessionUser)
+            || self::hasAbility($sessionUser, 'procurement.final_approve');
+    }
+
+    public static function canActOnProcurementStep(?array $sessionUser, ?string $step): bool
+    {
+        return self::canAccessPage($sessionUser, 'procurement') && $step !== null;
+    }
+
+    public static function canActOnAssignedProcurement(?array $sessionUser, ?int $assignedTo): bool
+    {
+        if (self::canManageUsers($sessionUser)) {
+            return true;
+        }
+
+        $userId = (int) ($sessionUser['id'] ?? 0);
+        if ($userId <= 0 || !self::canAccessPage($sessionUser, 'procurement')) {
+            return false;
+        }
+
+        if ($assignedTo === null) {
+            return true;
+        }
+
+        return $userId === (int) $assignedTo;
+    }
+
+    public static function canPrintProcurementSlip(?array $sessionUser, ?int $assignedTo = null, ?int $checkedBy = null): bool
+    {
+        if (self::canManageUsers($sessionUser) || self::canEditProcurement($sessionUser)) {
+            return true;
+        }
+
+        $userId = (int) ($sessionUser['id'] ?? 0);
+        if ($userId <= 0) {
+            return false;
+        }
+
+        if ($assignedTo !== null && $userId === (int) $assignedTo) {
+            return true;
+        }
+
+        if ($checkedBy !== null && $userId === (int) $checkedBy) {
+            return true;
+        }
+
+        return self::canCheckProcurement($sessionUser)
+            || self::canReviewProcurement($sessionUser);
+    }
+
     public static function canEditIssuance(?array $sessionUser): bool
     {
         return self::hasAbility($sessionUser, 'issuance.edit');

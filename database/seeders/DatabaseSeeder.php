@@ -24,7 +24,14 @@ class DatabaseSeeder extends Seeder
                     'stock-materials' => ['view' => true],
                     'office-materials' => ['view' => true],
                     'forecast' => ['view' => true],
-                    'procurement' => ['view' => true, 'edit' => true, 'review' => true],
+                    'procurement' => [
+                        'view' => true,
+                        'edit' => true,
+                        'dept_review' => true,
+                        'check' => true,
+                        'final_approve' => true,
+                        'review' => true,
+                    ],
                     'issuance' => ['view' => true, 'edit' => true, 'review' => true],
                     'reports' => ['view' => true],
                     'calendar' => ['view' => true, 'table' => true],
@@ -33,35 +40,47 @@ class DatabaseSeeder extends Seeder
                 ],
             ],
             'Branch Manager' => [
-                'description' => 'Full inventory operations access',
+                'description' => 'Final approval of requisition slips',
                 'flags' => [
                     'dashboard' => ['view' => true],
                     'inventory' => ['view' => true, 'edit' => true],
                     'stock-materials' => ['view' => true],
                     'office-materials' => ['view' => true],
                     'forecast' => ['view' => true],
-                    'procurement' => ['view' => true, 'edit' => true, 'review' => true],
+                    'procurement' => ['view' => true, 'final_approve' => true],
                     'issuance' => ['view' => true, 'edit' => true, 'review' => true],
                     'reports' => ['view' => true],
                     'calendar' => ['view' => true, 'table' => true],
                 ],
             ],
             'Department Manager' => [
-                'description' => 'Department-level inventory operations',
+                'description' => 'Department-head review of request slips',
                 'flags' => [
                     'dashboard' => ['view' => true],
                     'inventory' => ['view' => true, 'edit' => true],
                     'stock-materials' => ['view' => true],
                     'office-materials' => ['view' => true],
                     'forecast' => ['view' => true],
-                    'procurement' => ['view' => true, 'edit' => true, 'review' => true],
+                    'procurement' => ['view' => true, 'dept_review' => true],
                     'issuance' => ['view' => true, 'edit' => true, 'review' => true],
                     'reports' => ['view' => true],
                     'calendar' => ['view' => true, 'table' => true],
                 ],
             ],
+            'Procurement Staff' => [
+                'description' => 'Checks requisition slips and prints approved RS forms',
+                'flags' => [
+                    'dashboard' => ['view' => true],
+                    'inventory' => ['view' => true],
+                    'stock-materials' => ['view' => true],
+                    'office-materials' => ['view' => true],
+                    'forecast' => ['view' => true],
+                    'procurement' => ['view' => true, 'check' => true],
+                    'calendar' => ['view' => true],
+                ],
+            ],
             'Inventory Clerk' => [
-                'description' => 'Inventory and forecasting without reports',
+                'description' => 'End user who submits request slips',
                 'flags' => [
                     'dashboard' => ['view' => true],
                     'inventory' => ['view' => true, 'edit' => true],
@@ -124,8 +143,17 @@ class DatabaseSeeder extends Seeder
                 'first_name' => 'Department',
                 'last_name' => 'Manager',
                 'birthday' => '1991-07-22',
-                'role' => 'Department Manager',
+                'role' => 'Department Head',
                 'department' => 'Department Manager',
+                'password' => 'password123',
+            ],
+            [
+                'username' => 'procurement_staff',
+                'first_name' => 'Leanna Mae',
+                'last_name' => 'Domdom',
+                'birthday' => '1994-04-12',
+                'role' => 'Procurement Staff',
+                'department' => 'Procurement Staff',
                 'password' => 'password123',
             ],
             [
@@ -163,6 +191,13 @@ class DatabaseSeeder extends Seeder
             );
         }
 
-        $this->call(OfficeMaterialsSeeder::class);
+        if ($this->seedOfficeMaterials()) {
+            $this->call(OfficeMaterialsSeeder::class);
+        }
+    }
+
+    protected function seedOfficeMaterials(): bool
+    {
+        return true;
     }
 }

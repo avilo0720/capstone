@@ -102,45 +102,6 @@ class IssuanceController extends Controller
         ], 201);
     }
 
-    public function upload(Request $request): JsonResponse
-    {
-        if (!RolePermissions::canEditIssuance($request->session()->get('user'))) {
-            return response()->json(['error' => 'You cannot upload issuance files.'], 403);
-        }
-
-        $request->validate([
-            'file' => ['required', 'file', 'max:5120', 'mimes:xlsx,xls,csv,txt'],
-            'amc_mode' => ['nullable', 'string', 'max:40'],
-        ]);
-
-        $inventoryId = InventoryContext::currentId($request);
-        if (!$inventoryId) {
-            return response()->json(['error' => 'No inventory selected.'], 422);
-        }
-
-        $file = $request->file('file');
-
-        try {
-            $rows = $this->parser->parse($file->getRealPath(), $file->getClientOriginalName());
-        } catch (InvalidArgumentException $e) {
-            return response()->json(['error' => $e->getMessage()], 422);
-        }
-
-        $issuance = $this->createRequest(
-            $request,
-            $inventoryId,
-            'upload',
-            $file->getClientOriginalName(),
-            $request->input('amc_mode'),
-            $rows
-        );
-
-        return response()->json([
-            'success' => true,
-            'request' => $this->serialize($issuance, true),
-        ], 201);
-    }
-
     public function update(Request $request, int $id): JsonResponse
     {
         if (!RolePermissions::canEditIssuance($request->session()->get('user'))) {

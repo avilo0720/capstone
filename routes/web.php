@@ -40,6 +40,7 @@ Route::middleware('auth.custom')->group(function () {
     Route::get('/calendar', [PageController::class, 'calendar'])->middleware('page:calendar');
     Route::get('/activity-logs', [PageController::class, 'activityLogs'])->middleware('page:activity-logs');
     Route::get('/users', [PageController::class, 'users'])->middleware('page:users');
+    Route::get('/procurement-requests/{id}/slip', [ProcurementController::class, 'slip'])->middleware('page:procurement');
 });
 
 // Protected API
@@ -87,22 +88,21 @@ Route::middleware('auth.custom')->prefix('api')->group(function () {
 
     Route::middleware('page:procurement')->group(function () {
         Route::get('/procurement-requests', [ProcurementController::class, 'index']);
+        Route::get('/procurement-assignees', [ProcurementController::class, 'assignees']);
         Route::get('/procurement-requests/{id}', [ProcurementController::class, 'show']);
         Route::post('/procurement-requests', [ProcurementController::class, 'store'])->middleware('ability:procurement.edit');
-        Route::post('/procurement-requests/upload', [ProcurementController::class, 'upload'])->middleware('ability:procurement.edit');
         Route::put('/procurement-requests/{id}', [ProcurementController::class, 'update'])->middleware('ability:procurement.edit');
         Route::delete('/procurement-requests/{id}', [ProcurementController::class, 'destroy']);
         Route::post('/procurement-requests/{id}/resubmit', [ProcurementController::class, 'resubmit'])->middleware('ability:procurement.edit');
-        Route::post('/procurement-requests/{id}/approve', [ProcurementController::class, 'approve'])->middleware('ability:procurement.review');
-        Route::post('/procurement-requests/{id}/deny', [ProcurementController::class, 'deny'])->middleware('ability:procurement.review');
-        Route::post('/procurement-requests/{id}/stock-entry', [ProcurementController::class, 'stockEntry'])->middleware('ability:procurement.review');
+        Route::post('/procurement-requests/{id}/approve', [ProcurementController::class, 'approve']);
+        Route::post('/procurement-requests/{id}/deny', [ProcurementController::class, 'deny']);
+        Route::post('/procurement-requests/{id}/stock-entry', [ProcurementController::class, 'stockEntry']);
     });
 
     Route::middleware('page:issuance')->group(function () {
         Route::get('/issuance-requests', [IssuanceController::class, 'index']);
         Route::get('/issuance-requests/{id}', [IssuanceController::class, 'show']);
         Route::post('/issuance-requests', [IssuanceController::class, 'store'])->middleware('ability:issuance.edit');
-        Route::post('/issuance-requests/upload', [IssuanceController::class, 'upload'])->middleware('ability:issuance.edit');
         Route::put('/issuance-requests/{id}', [IssuanceController::class, 'update'])->middleware('ability:issuance.edit');
         Route::delete('/issuance-requests/{id}', [IssuanceController::class, 'destroy']);
         Route::post('/issuance-requests/{id}/resubmit', [IssuanceController::class, 'resubmit'])->middleware('ability:issuance.edit');

@@ -8,7 +8,7 @@ const DEFAULT_CATALOG = {
   "stock-materials": { label: "Stock Materials", abilities: ["view"] },
   "office-materials": { label: "Office Materials", abilities: ["view"] },
   forecast: { label: "Forecasting", abilities: ["view"] },
-  procurement: { label: "Procurement", abilities: ["view", "edit", "review"] },
+  procurement: { label: "Procurement", abilities: ["view", "edit", "dept_review", "check", "final_approve", "review"] },
   issuance: { label: "Issuance", abilities: ["view", "edit", "review"] },
   reports: { label: "Reports", abilities: ["view"] },
   calendar: { label: "Calendar", abilities: ["view", "table"] },

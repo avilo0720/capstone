@@ -1,7 +1,7 @@
 import Storage from "./API.js";
 import Pagination from "./Pagination.js";
 import DownloadOptions from "./DownloadOptions.js";
-import confirmAction, { notifyAlert } from "./ConfirmDialog.js";
+import confirmAction, { notifyAlert, pickAssignee } from "./ConfirmDialog.js";
 import { computeForecasts } from "./ForecastEngine.js";
 
 class ForecastingUi {
@@ -983,10 +983,8 @@ class ForecastingUi {
   }
 
   procurementPayload() {
-    return {
-      original_filename: "Forecast send",
-      amc_mode: this.amcMode,
-      items: this.forecastData.map((item) => {
+    const items = this.forecastData
+      .map((item) => {
         const { demand, qty, need3m, need6m, need1y } = this.getNeeds(item);
         return {
           item_id: item.id,
@@ -1001,7 +999,13 @@ class ForecastingUi {
           method: item.method || "Static",
           requested_qty: need3m,
         };
-      }),
+      })
+      .filter((item) => Number(item.requested_qty) > 0);
+
+    return {
+      original_filename: "Forecast send",
+      amc_mode: this.amcMode,
+      items,
     };
   }
 
@@ -1011,18 +1015,41 @@ class ForecastingUi {
       return;
     }
 
-    const ok = await confirmAction({
+    const payload = this.procurementPayload();
+    if (!payload.items.length) {
+      notifyAlert("Nothing to send. Every item in this forecast has a zero procurement need.");
+      return;
+    }
+
+    let people = [];
+    try {
+      const peopleRes = await fetch("/api/procurement-assignees");
+      const peopleData = await peopleRes.json();
+      people = Array.isArray(peopleData.users) ? peopleData.users : [];
+    } catch (err) {
+      console.error(err);
+    }
+    if (!people.length) {
+      notifyAlert("Could not load people to send this request to.");
+      return;
+    }
+
+    const assignedTo = await pickAssignee({
       title: "Send to Procurement?",
-      message: "This creates a pending procurement request from the current forecast so it can be reviewed, approved, denied, or used for stock entry.",
+      message: "This creates a request slip from the current forecast. Pick who should note it next — any person, not a fixed role.",
+      people,
       confirmLabel: "Send request",
     });
-    if (!ok) return;
+    if (!assignedTo) return;
 
     try {
       const res = await fetch("/api/procurement-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(this.procurementPayload()),
+        body: JSON.stringify({
+          ...payload,
+          assigned_to: assignedTo,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1032,7 +1059,7 @@ class ForecastingUi {
       const requestId = data.request?.id;
       const wantDownload = await confirmAction({
         title: "Sent to Procurement",
-        message: `Request #${requestId || "—"} is pending review.\n\nAlso download this procurement file?`,
+        message: `Request #${requestId || "—"} was sent to the person you picked.\n\nAlso download this procurement file?`,
         confirmLabel: "Download",
         cancelLabel: "Not now",
       });

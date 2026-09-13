@@ -27,8 +27,6 @@
       <div class="product-section__header__buttons">
         @if($user['canEditIssuance'] ?? false)
           <button type="button" class="addProBtn" id="issuanceManualBtn">Add request</button>
-          <label class="downloadBtn" for="issuanceFileInput">Upload file</label>
-          <input type="file" id="issuanceFileInput" accept=".xlsx,.xls,.csv,text/csv" hidden>
         @endif
       </div>
     </div>

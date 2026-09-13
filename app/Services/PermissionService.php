@@ -56,6 +56,12 @@ class PermissionService
             'canViewCalendarTable' => in_array('calendar.table', $abilityList, true),
             'canEditProcurement' => in_array('procurement.edit', $abilityList, true),
             'canReviewProcurement' => in_array('procurement.review', $abilityList, true),
+            'canDeptReviewProcurement' => in_array('procurement.review', $abilityList, true)
+                || in_array('procurement.dept_review', $abilityList, true),
+            'canCheckProcurement' => in_array('procurement.review', $abilityList, true)
+                || in_array('procurement.check', $abilityList, true),
+            'canFinalApproveProcurement' => in_array('procurement.review', $abilityList, true)
+                || in_array('procurement.final_approve', $abilityList, true),
             'canEditIssuance' => in_array('issuance.edit', $abilityList, true),
             'canReviewIssuance' => in_array('issuance.review', $abilityList, true),
         ];
@@ -86,6 +92,9 @@ class PermissionService
             'canViewCalendarTable' => $resolved['canViewCalendarTable'],
             'canEditProcurement' => $resolved['canEditProcurement'],
             'canReviewProcurement' => $resolved['canReviewProcurement'],
+            'canDeptReviewProcurement' => $resolved['canDeptReviewProcurement'],
+            'canCheckProcurement' => $resolved['canCheckProcurement'],
+            'canFinalApproveProcurement' => $resolved['canFinalApproveProcurement'],
             'canEditIssuance' => $resolved['canEditIssuance'],
             'canReviewIssuance' => $resolved['canReviewIssuance'],
         ];
@@ -120,26 +129,17 @@ class PermissionService
                 continue;
             }
 
-            $canView = !empty($flags['view']) || !empty($flags['edit']) || !empty($flags['manage']) || !empty($flags['table']) || !empty($flags['review']);
-            $canEdit = !empty($flags['edit']);
-            $canManage = !empty($flags['manage']);
-            $canTable = !empty($flags['table']);
-            $canReview = !empty($flags['review']);
-
-            if ($canView) {
+            $allowed = PermissionCatalog::PAGES[$page]['abilities'];
+            $anyGranted = false;
+            foreach ($allowed as $ability) {
+                if (empty($flags[$ability])) {
+                    continue;
+                }
+                $anyGranted = true;
+                $rows[] = ['page' => $page, 'ability' => $ability];
+            }
+            if ($anyGranted || !empty($flags['view'])) {
                 $rows[] = ['page' => $page, 'ability' => 'view'];
-            }
-            if ($canEdit && in_array('edit', PermissionCatalog::PAGES[$page]['abilities'], true)) {
-                $rows[] = ['page' => $page, 'ability' => 'edit'];
-            }
-            if ($canManage && in_array('manage', PermissionCatalog::PAGES[$page]['abilities'], true)) {
-                $rows[] = ['page' => $page, 'ability' => 'manage'];
-            }
-            if ($canTable && in_array('table', PermissionCatalog::PAGES[$page]['abilities'], true)) {
-                $rows[] = ['page' => $page, 'ability' => 'table'];
-            }
-            if ($canReview && in_array('review', PermissionCatalog::PAGES[$page]['abilities'], true)) {
-                $rows[] = ['page' => $page, 'ability' => 'review'];
             }
         }
 
