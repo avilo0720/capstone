@@ -32,6 +32,10 @@ class ActivityLogger
             'created_at' => now(),
         ]);
 
-        $this->realtime->publishFromActivity($action, $entityType, $request);
+        try {
+            $this->realtime->publishFromActivity($action, $entityType, $request);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 }

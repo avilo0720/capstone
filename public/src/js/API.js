@@ -30,10 +30,10 @@ class Storage {
 
   async init() {
     try {
-      const prodRes = await fetch('/api/items');
+      const prodRes = await fetch('/api/items', { signal: AbortSignal.timeout(12000) });
       this.items = await prodRes.json();
       
-      const catRes = await fetch('/api/categories');
+      const catRes = await fetch('/api/categories', { signal: AbortSignal.timeout(12000) });
       this.categories = await catRes.json();
 
       this.sortItems(this.items);

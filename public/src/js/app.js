@@ -10,7 +10,6 @@ import IssuanceView from "./IssuanceView.js";
 import Storage from "./API.js";
 import confirmAction, { notifyAlert } from "./ConfirmDialog.js";
 import { bindBackdropClose } from "./OverlayDismiss.js";
-import { startRealtime } from "./Realtime.js";
 
 // --------------------------  Sidebar-Menu  ---------------------------------
 const menuToggle = document.querySelector(".menu-toggle");
@@ -63,9 +62,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     app.startSessionMonitor();
     app.initNotifications();
-    startRealtime({
-      onNotifications: () => app.fetchAndRenderNotifications(),
-    });
+    import("./Realtime.js")
+      .then(({ startRealtime }) => {
+        startRealtime({
+          onNotifications: () => app.fetchAndRenderNotifications(),
+        });
+      })
+      .catch((err) => {
+        console.error("Realtime sync unavailable:", err);
+      });
   } catch (err) {
     console.error("Failed to initialize app:", err);
   } finally {

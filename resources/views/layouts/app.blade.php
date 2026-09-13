@@ -27,6 +27,15 @@
     @include('partials.profile-modal')
     @include('partials.profile-crop-modal')
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
-    <script src="/src/js/app.js?v=91" type="module"></script>
+    <script src="/src/js/app.js?v=92" type="module"></script>
+    <script>
+      setTimeout(function () {
+        var overlay = document.getElementById("appLoading");
+        if (overlay) {
+          overlay.classList.add("app-loading--done");
+          overlay.setAttribute("aria-busy", "false");
+        }
+      }, 8000);
+    </script>
   </body>
 </html>

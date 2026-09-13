@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Support\InventoryContext;
 use Illuminate\Http\Request;
+use Throwable;
 
 class RealtimePublisher
 {
@@ -34,29 +35,27 @@ class RealtimePublisher
             : (InventoryContext::current($request)?->slug ?? self::GLOBAL_CHANNEL);
         $user = $request->session()->get('user');
 
-        $event = [];
-        $this->mutate($channel, function (array $state) use ($type, $payload, $channel, $user, &$event) {
-            $id = ((int) ($state['lastId'] ?? 0)) + 1;
-            $event = [
-                'id' => $id,
-                'type' => $type,
-                'channel' => $channel,
-                'actorId' => isset($user['id']) ? (int) $user['id'] : null,
-                'payload' => $payload,
-                'at' => now()->timestamp,
-            ];
+        $state = $this->read($channel);
+        $id = ((int) ($state['lastId'] ?? 0)) + 1;
+        $event = [
+            'id' => $id,
+            'type' => $type,
+            'channel' => $channel,
+            'actorId' => isset($user['id']) ? (int) $user['id'] : null,
+            'payload' => $payload,
+            'at' => now()->timestamp,
+        ];
 
-            $events = $state['events'] ?? [];
-            $events[] = $event;
-            if (count($events) > self::MAX_EVENTS) {
-                $events = array_slice($events, -self::MAX_EVENTS);
-            }
+        $events = $state['events'] ?? [];
+        $events[] = $event;
+        if (count($events) > self::MAX_EVENTS) {
+            $events = array_slice($events, -self::MAX_EVENTS);
+        }
 
-            return [
-                'lastId' => $id,
-                'events' => array_values($events),
-            ];
-        });
+        $this->write($channel, [
+            'lastId' => $id,
+            'events' => array_values($events),
+        ]);
 
         return $event;
     }
@@ -110,50 +109,27 @@ class RealtimePublisher
             return ['lastId' => 0, 'events' => []];
         }
 
-        $handle = fopen($path, 'rb');
-        if (!$handle) {
-            return ['lastId' => 0, 'events' => []];
-        }
-
-        flock($handle, LOCK_SH);
-        $raw = stream_get_contents($handle);
-        flock($handle, LOCK_UN);
-        fclose($handle);
-
+        $raw = @file_get_contents($path);
         $decoded = json_decode((string) $raw, true);
 
         return is_array($decoded) ? $decoded : ['lastId' => 0, 'events' => []];
     }
 
-    private function mutate(string $channel, callable $callback): array
+    private function write(string $channel, array $state): void
     {
         $path = $this->path($channel);
         $dir = dirname($path);
         if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
+            @mkdir($dir, 0755, true);
         }
 
-        $handle = fopen($path, 'c+');
-        if (!$handle) {
-            return ['lastId' => 0, 'events' => []];
+        $tmp = $path.'.'.getmypid().'.tmp';
+        try {
+            file_put_contents($tmp, json_encode($state));
+            @rename($tmp, $path);
+        } catch (Throwable $e) {
+            @unlink($tmp);
         }
-
-        flock($handle, LOCK_EX);
-        $raw = stream_get_contents($handle);
-        $state = $raw ? (json_decode($raw, true) ?: []) : [];
-        if (!isset($state['lastId'], $state['events'])) {
-            $state = ['lastId' => (int) ($state['lastId'] ?? 0), 'events' => $state['events'] ?? []];
-        }
-
-        $next = $callback($state);
-        rewind($handle);
-        ftruncate($handle, 0);
-        fwrite($handle, json_encode($next));
-        fflush($handle);
-        flock($handle, LOCK_UN);
-        fclose($handle);
-
-        return $next;
     }
 
     private function path(string $channel): string
