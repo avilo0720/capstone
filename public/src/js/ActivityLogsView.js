@@ -114,13 +114,20 @@ class ActivityLogsView {
     };
   }
 
-  async loadLogs() {
+  async refreshLive() {
+    if (!this.root) return;
+    await this.loadLogs({ silent: true });
+  }
+
+  async loadLogs({ silent = false } = {}) {
     if (!this.tbody) return;
     const requestId = ++this.requestId;
-    this.tbody.innerHTML = `
+    if (!silent) {
+      this.tbody.innerHTML = `
       <tr>
         <td colspan="4" class="users-empty">Loading activity…</td>
       </tr>`;
+    }
 
     try {
       const params = new URLSearchParams({

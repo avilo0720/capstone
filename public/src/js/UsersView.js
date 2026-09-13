@@ -371,6 +371,22 @@ class UsersView {
     }
   }
 
+  async refreshLive() {
+    if (!this.root) return;
+    const [usersRes, departmentsRes] = await Promise.all([
+      fetch("/api/users"),
+      fetch("/api/departments"),
+    ]);
+    if (!usersRes.ok || !departmentsRes.ok) return;
+    this.users = await usersRes.json();
+    this.departments = await departmentsRes.json();
+    this.renderActiveList();
+    const modalOpen = this.userModal && !this.userModal.classList.contains("--hidden");
+    if (!modalOpen) {
+      this.fillDepartmentSelect();
+    }
+  }
+
   async reload() {
     const [usersRes, departmentsRes] = await Promise.all([
       fetch("/api/users"),

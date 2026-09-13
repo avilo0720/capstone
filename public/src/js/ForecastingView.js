@@ -118,6 +118,19 @@ class ForecastingUi {
     }
   }
 
+  async refreshLive() {
+    if (!document.querySelector(".forecastUi")) return;
+    try {
+      const usageRes = await fetch("/api/forecast-data");
+      this.usageData = await usageRes.json();
+      this.forecastData = computeForecasts(Storage.getItems(), this.usageData);
+      this.renderVisuals();
+      if (this.forecastSectionHTML) this.renderTable();
+    } catch (err) {
+      console.error("Failed to refresh forecast:", err);
+    }
+  }
+
   getDemand(item) {
     const forecastAmc = item.forecast || 0;
     const inventoryAmc = Number(item.monthlyDemand) || 0;

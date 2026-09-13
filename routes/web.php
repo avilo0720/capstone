@@ -18,6 +18,7 @@ use App\Http\Controllers\CalendarNoteController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\ProcurementController;
 use App\Http\Controllers\IssuanceController;
+use App\Http\Controllers\RealtimeController;
 
 // Auth
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -53,6 +54,7 @@ Route::middleware('auth.custom')->prefix('api')->group(function () {
     Route::get('/notifications/alerts', [NotificationController::class, 'alerts']);
     Route::get('/notifications/read', [NotificationController::class, 'readIds']);
     Route::post('/notifications/read', [NotificationController::class, 'markRead']);
+    Route::get('/realtime/events', [RealtimeController::class, 'events']);
     Route::get('/activity-logs', [ActivityLogController::class, 'index'])->middleware('page:activity-logs');
 
     Route::post('/items', [ItemController::class, 'store'])->middleware(['page:inventory', 'ability:inventory.edit']);

@@ -5,6 +5,20 @@ import { bindBackdropClose } from "./OverlayDismiss.js";
 
 class DashboardUi {
   setApp() {
+    this.renderMetrics();
+    this.renderLowStockAlerts();
+    this.bindMetricCards();
+    this.initActivityLog();
+  }
+
+  refreshLive() {
+    if (!document.querySelector(".dashboardUi")) return;
+    this.renderMetrics();
+    this.renderLowStockAlerts();
+    return this.loadActivityLogs({ silent: true });
+  }
+
+  renderMetrics() {
     const qtyElem = document.querySelector('#dashboardItems');
     const totalQtyElem = document.querySelector('#dashboardQty');
     const salesElem = document.querySelector('#dashboardSales');
@@ -23,10 +37,6 @@ class DashboardUi {
     if (subtotalRestockCostElem) subtotalRestockCostElem.textContent = `₱${this.metrics.subtotalRestockCost.toLocaleString()}`;
     if (restockPerLeadTimeElem) restockPerLeadTimeElem.textContent = `₱${this.metrics.restockPerLeadTime.toLocaleString()}`;
     if (halfRestockCostElem) halfRestockCostElem.textContent = `₱${this.metrics.halfRestockCost.toLocaleString()}`;
-
-    this.renderLowStockAlerts();
-    this.bindMetricCards();
-    this.initActivityLog();
   }
 
   initActivityLog() {
@@ -40,11 +50,13 @@ class DashboardUi {
     this.loadActivityLogs();
   }
 
-  async loadActivityLogs() {
+  async loadActivityLogs({ silent = false } = {}) {
     const list = document.getElementById("activityLogList");
     if (!list) return;
 
-    list.innerHTML = `<p class="dashboard-activity__loading">Loading activity…</p>`;
+    if (!silent) {
+      list.innerHTML = `<p class="dashboard-activity__loading">Loading activity…</p>`;
+    }
 
     try {
       const res = await fetch("/api/activity-logs?limit=5");

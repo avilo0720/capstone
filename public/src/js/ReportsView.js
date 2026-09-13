@@ -22,6 +22,12 @@ class ReportsView {
     this.bindEvents();
   }
 
+  async refreshLive() {
+    if (!document.querySelector(".reports-page")) return;
+    await this.loadSummary();
+    await this.loadForecastCharts();
+  }
+
   async loadSummary() {
     try {
       const res = await fetch('/api/reports/summary');

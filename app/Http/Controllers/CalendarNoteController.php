@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CalendarNote;
 use App\Models\Department;
 use App\Models\User;
+use App\Services\RealtimePublisher;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,6 +14,10 @@ use Illuminate\Validation\ValidationException;
 
 class CalendarNoteController extends Controller
 {
+    public function __construct(private RealtimePublisher $realtime)
+    {
+    }
+
     public function options(Request $request): JsonResponse
     {
         if (!$this->sessionUser($request)) {
@@ -101,6 +106,7 @@ class CalendarNoteController extends Controller
         $note->save();
 
         $this->syncVisibility($note, $data);
+        $this->realtime->publish('calendar', ['action' => 'created', 'id' => $note->id], $request, true);
 
         return response()->json(
             $this->serialize(
@@ -138,6 +144,7 @@ class CalendarNoteController extends Controller
         $note->save();
 
         $this->syncVisibility($note, $data);
+        $this->realtime->publish('calendar', ['action' => 'updated', 'id' => $note->id], $request, true);
 
         return response()->json(
             $this->serialize(
@@ -164,6 +171,7 @@ class CalendarNoteController extends Controller
         }
 
         $note->delete();
+        $this->realtime->publish('calendar', ['action' => 'deleted', 'id' => $id], $request, true);
 
         return response()->json(['success' => true]);
     }

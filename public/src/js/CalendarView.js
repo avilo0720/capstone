@@ -67,6 +67,11 @@ class CalendarView {
     this.openDateFromQuery();
   }
 
+  async refreshLive() {
+    if (!this.grid) return;
+    await this.loadMonth();
+  }
+
   applyDateQueryParam() {
     const params = new URLSearchParams(window.location.search);
     const raw = params.get("date");

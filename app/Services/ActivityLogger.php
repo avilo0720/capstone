@@ -5,8 +5,13 @@ namespace App\Services;
 use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 
+
 class ActivityLogger
 {
+    public function __construct(private RealtimePublisher $realtime)
+    {
+    }
+
     public function log(
         Request $request,
         string $action,
@@ -26,5 +31,7 @@ class ActivityLogger
             'meta' => $meta,
             'created_at' => now(),
         ]);
+
+        $this->realtime->publishFromActivity($action, $entityType, $request);
     }
 }

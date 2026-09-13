@@ -157,6 +157,11 @@ class ProcurementView {
     });
   }
 
+  async refreshLive() {
+    if (!document.querySelector(".procurement-page")) return;
+    await this.loadRequests();
+  }
+
   async loadRequests() {
     try {
       const res = await fetch("/api/procurement-requests");

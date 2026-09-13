@@ -156,6 +156,11 @@ class IssuanceView {
     });
   }
 
+  async refreshLive() {
+    if (!document.querySelector(".issuance-page")) return;
+    await this.loadRequests();
+  }
+
   async loadRequests() {
     try {
       const res = await fetch("/api/issuance-requests");

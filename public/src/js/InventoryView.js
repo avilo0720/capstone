@@ -133,6 +133,22 @@ class InventoryUi {
     }
   }
 
+  refreshLive() {
+    if (!this.productSectionHTMl) return;
+    const searchValue = searchBar?.value?.trim() || "";
+    if (searchValue) {
+      const allItems = Storage.getItems();
+      const searchedItems = allItems.filter((item) =>
+        item.title.toLowerCase().trim().includes(searchValue.toLowerCase()) ||
+        (item.itemCode && item.itemCode.toLowerCase().trim().includes(searchValue.toLowerCase()))
+      );
+      this.filteredItems = this.getFilteredItems(searchedItems);
+    } else {
+      this.filteredItems = this.getFilteredItems(Storage.getItems());
+    }
+    this.renderTable();
+  }
+
   bindEvents() {
     // Submit item form from button click or Enter key.
     if (productForm) {
