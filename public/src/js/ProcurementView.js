@@ -1,6 +1,7 @@
 import confirmAction, { notifyAlert, pickAssignee } from "./ConfirmDialog.js";
 import { bindBackdropClose } from "./OverlayDismiss.js";
 import Pagination from "./Pagination.js";
+import { fetchAssignees } from "./API.js";
 
 const STATUS = {
   pending: { label: "Dept. head", tone: "orange" },
@@ -70,15 +71,8 @@ class ProcurementView {
   }
 
   async loadPeople() {
-    try {
-      const res = await fetch("/api/procurement-assignees");
-      const data = await res.json();
-      this.people = Array.isArray(data.users) ? data.users : [];
-      this.fillAssigneeSelect(document.getElementById("procurementManualAssignee"));
-    } catch (err) {
-      console.error(err);
-      this.people = [];
-    }
+    this.people = await fetchAssignees();
+    this.fillAssigneeSelect(document.getElementById("procurementManualAssignee"));
   }
 
   fillAssigneeSelect(select, selectedId = "") {
@@ -530,10 +524,19 @@ class ProcurementView {
     if (needed) needed.value = "";
     this.toggleOverlay("procurementManualOverlay", true);
     this.updateManualHint();
+    if (!this.people.length) await this.loadPeople();
+    else this.fillAssigneeSelect(document.getElementById("procurementManualAssignee"));
     try {
       const res = await fetch("/api/items");
       const data = await res.json();
-      this.manualItems = Array.isArray(data) ? data : [];
+      this.manualItems = (Array.isArray(data) ? data : []).map((item) => ({
+        ...item,
+        itemCode: item.itemCode ?? item.item_code ?? "",
+        title: item.title || item.name || "",
+        size: item.size || "",
+        quantity: item.quantity ?? item.stock ?? 0,
+        monthlyDemand: item.monthlyDemand ?? item.monthly_demand ?? 0,
+      }));
       this.renderManualLines();
     } catch (err) {
       console.error(err);
@@ -608,9 +611,11 @@ class ProcurementView {
       const m = this.manualMetrics(item);
       const qty = this.manualQtys[item.id] ?? "";
       const stockClass = m.belowRop ? "procurement-manual-stock--low" : "";
+      const title = item.title || item.size || "Item";
+      const size = item.size && item.size !== title ? item.size : "";
       return `<tr>
         <td>${this.escape(item.itemCode || "—")}</td>
-        <td><strong>${this.escape(item.title || "Item")}</strong>${item.size ? `<div class="activity-logs-when"><small>${this.escape(item.size)}</small></div>` : ""}</td>
+        <td><strong>${this.escape(title)}</strong>${size ? `<div class="activity-logs-when"><small>${this.escape(size)}</small></div>` : ""}</td>
         <td class="${stockClass}"><strong>${m.stock}</strong></td>
         <td>${m.rop}</td>
         <td>${m.need3m > 0 ? `+${m.need3m}` : "OK"}</td>

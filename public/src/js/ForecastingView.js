@@ -1,4 +1,4 @@
-import Storage from "./API.js";
+import Storage, { fetchAssignees } from "./API.js";
 import Pagination from "./Pagination.js";
 import DownloadOptions from "./DownloadOptions.js";
 import confirmAction, { notifyAlert, pickAssignee } from "./ConfirmDialog.js";
@@ -1021,14 +1021,7 @@ class ForecastingUi {
       return;
     }
 
-    let people = [];
-    try {
-      const peopleRes = await fetch("/api/procurement-assignees");
-      const peopleData = await peopleRes.json();
-      people = Array.isArray(peopleData.users) ? peopleData.users : [];
-    } catch (err) {
-      console.error(err);
-    }
+    const people = await fetchAssignees();
     if (!people.length) {
       notifyAlert("Could not load people to send this request to.");
       return;

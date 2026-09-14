@@ -472,7 +472,7 @@ svg use {
 }
 
 .sideBar__logo-text {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: #1570ef;
   line-height: 1.25;
@@ -2861,6 +2861,41 @@ svg use {
   color: rgba(255, 255, 255, 0.35);
 }
 
+.login-card__input-wrapper--password input {
+  padding-right: 0.4rem;
+}
+
+.login-card__toggle-password {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+  margin-right: 0.35rem;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+}
+
+.login-card__toggle-password:hover,
+.login-card__toggle-password:focus-visible {
+  color: #ffffff;
+  outline: none;
+}
+
+.login-card__toggle-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.login-card__toggle-icon.--hidden {
+  display: none;
+}
+
 .login-card__error {
   display: flex;
   align-items: center;
@@ -3417,9 +3452,11 @@ svg use {
   background: rgba(16, 24, 40, 0.45);
   backdrop-filter: blur(4px);
   z-index: 10000;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 1rem;
+  padding: 1.25rem 1rem;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .confirm-modal {
@@ -8167,17 +8204,33 @@ svg use {
 .procurement-manual-modal {
   max-width: 860px;
   width: min(860px, 96vw);
+  max-height: calc(100vh - 2.5rem);
+  max-height: calc(100dvh - 2.5rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.procurement-manual-modal .confirm-modal__title,
+.procurement-manual-modal .confirm-modal__message,
+.procurement-manual-meta,
+.procurement-manual-toolbar,
+.procurement-manual-search,
+.procurement-manual-hint,
+.procurement-manual-modal .procurement-modal__error,
+.procurement-manual-modal .confirm-modal__actions {
+  flex-shrink: 0;
 }
 
 .procurement-manual-modal .confirm-modal__title {
-  font-size: 1.45rem;
+  font-size: 1.2rem;
   color: #101828;
 }
 
 .procurement-manual-modal .confirm-modal__message {
-  font-size: 1rem;
+  font-size: 0.88rem;
   color: #344054;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .procurement-manual-search {
@@ -8217,7 +8270,9 @@ svg use {
 }
 
 .procurement-manual-table-wrap {
-  max-height: min(58vh, 520px);
+  flex: 1 1 auto;
+  min-height: 10rem;
+  max-height: none;
   overflow: auto;
   border: 1.5px solid #98a2b3;
   border-radius: 10px;
@@ -8236,12 +8291,13 @@ svg use {
   z-index: 2;
   background: #d0d5dd !important;
   color: #101828;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 0.75rem 0.85rem;
+  letter-spacing: 0.02em;
+  padding: 0.65rem 0.75rem;
   border-bottom: 1px solid #98a2b3;
+  white-space: nowrap;
 }
 
 .procurement-manual-table tbody tr:nth-child(odd) td {
@@ -8419,9 +8475,17 @@ svg use {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  min-width: 0;
   font-size: 0.8rem;
   font-weight: 600;
   color: #475467;
+}
+
+.procurement-manual-meta__label {
+  display: block;
+  line-height: 1.25;
+  color: #344054;
+  font-weight: 700;
 }
 
 .procurement-manual-meta input,

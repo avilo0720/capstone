@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'name' => env('APP_NAME', 'Nawad Inventory'),
+    'name' => env('APP_NAME', 'Nabua Water Inventory'),
     'env' => env('APP_ENV', 'production'),
     'debug' => (bool) env('APP_DEBUG', false),
     'url' => env('APP_URL', 'http://localhost'),

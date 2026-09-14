@@ -153,19 +153,19 @@
       <p class="confirm-modal__message">Submit a requisition slip, then pick the next person. After the branch manager approves, procurement prints the RS slip.</p>
       <div class="procurement-manual-meta">
         <label>
-          <span>To</span>
+          <span class="procurement-manual-meta__label">To</span>
           <input type="text" id="procurementManualDestination" placeholder="e.g. Technical / Procurement" />
         </label>
         <label>
-          <span>Date needed</span>
+          <span class="procurement-manual-meta__label">Date needed</span>
           <input type="date" id="procurementManualDateNeeded" />
         </label>
         <label class="procurement-manual-meta__wide">
-          <span>Purpose</span>
+          <span class="procurement-manual-meta__label">Purpose</span>
           <input type="text" id="procurementManualPurpose" placeholder="Why these items are needed" />
         </label>
         <label class="procurement-manual-meta__wide">
-          <span>Send next to</span>
+          <span class="procurement-manual-meta__label">Send next to</span>
           <select id="procurementManualAssignee">
             <option value="">Select a person…</option>
           </select>
