@@ -57,6 +57,7 @@ class ProcurementView {
     this.manualItems = [];
     this.manualQtys = {};
     this.manualSearch = "";
+    this.manualAttachmentDataUrl = null;
     this.people = [];
     this.canEdit = document.body.dataset.canProcurementEdit === "true";
     this.canReview = document.body.dataset.canProcurementReview === "true";
@@ -149,6 +150,8 @@ class ProcurementView {
     document.getElementById("procurementManualBtn")?.addEventListener("click", () => this.openManual());
     document.getElementById("procurementManualCancel")?.addEventListener("click", () => this.closeManual());
     document.getElementById("procurementManualConfirm")?.addEventListener("click", () => this.submitManual());
+    document.getElementById("procurementManualAttachment")?.addEventListener("change", (e) => this.onManualAttachmentChange(e));
+    document.getElementById("procurementManualAttachmentClear")?.addEventListener("click", () => this.clearManualAttachment());
     document.getElementById("procurementManualFillRop")?.addEventListener("click", () => this.fillManualByMode("missing-rop"));
     document.getElementById("procurementManualFillProcurement")?.addEventListener("click", () => this.fillManualByMode("procurement"));
     document.getElementById("procurementManualClearAll")?.addEventListener("click", () => this.clearManualQtys());
@@ -454,6 +457,15 @@ class ProcurementView {
       ? "No lines with requested or applied quantity."
       : "No lines";
 
+    const attachmentBlock = req.attachment_url
+      ? `<div class="procurement-detail-attachment">
+          <strong>Attachment</strong>
+          <a href="${this.escape(req.attachment_url)}" target="_blank" rel="noopener">
+            <img src="${this.escape(req.attachment_url)}" alt="Request attachment" />
+          </a>
+        </div>`
+      : "";
+
     this.detailEl.innerHTML = `
       ${this.renderWorkflow(req)}
       ${slipMeta}
@@ -478,9 +490,12 @@ class ProcurementView {
               <td class="num">Applied</td>
             </tr>
           </thead>
-          <tbody>${itemRows || `<tr><td colspan="6" class="users-empty">${emptyMessage}</td></tr>`}</tbody>
+          <tbody>
+            ${itemRows || `<tr><td colspan="6" class="users-empty">${emptyMessage}</td></tr>`}
+          </tbody>
         </table>
       </div>
+      ${attachmentBlock}
     `;
 
     this.toggleOverlay("procurementDetailOverlay", true);
@@ -593,6 +608,7 @@ class ProcurementView {
     this.closeStock();
     this.manualQtys = {};
     this.manualSearch = "";
+    this.clearManualAttachment();
     const search = document.getElementById("procurementManualSearch");
     if (search) search.value = "";
     document.getElementById("procurementManualError")?.classList.add("--hidden");
@@ -718,6 +734,69 @@ class ProcurementView {
       : "0 lines ready — enter quantities or use Fill Missing ROP / Fill Procurement need";
   }
 
+  clearManualAttachment() {
+    this.manualAttachmentDataUrl = null;
+    const input = document.getElementById("procurementManualAttachment");
+    const preview = document.getElementById("procurementManualAttachmentPreview");
+    const clearBtn = document.getElementById("procurementManualAttachmentClear");
+    const hint = document.getElementById("procurementManualAttachmentHint");
+    if (input) input.value = "";
+    if (preview) {
+      preview.src = "";
+      preview.classList.add("--hidden");
+    }
+    clearBtn?.classList.add("--hidden");
+    if (hint) hint.textContent = "PNG, JPG, or WebP · shown at the bottom of the RS slip";
+  }
+
+  onManualAttachmentChange(event) {
+    const file = event.target?.files?.[0];
+    const error = document.getElementById("procurementManualError");
+    if (!file) {
+      this.clearManualAttachment();
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      this.clearManualAttachment();
+      if (error) {
+        error.textContent = "Attachment must be an image file.";
+        error.classList.remove("--hidden");
+      }
+      return;
+    }
+    if (file.size > 2500000) {
+      this.clearManualAttachment();
+      if (error) {
+        error.textContent = "Attachment is too large. Use an image under about 2 MB.";
+        error.classList.remove("--hidden");
+      }
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.manualAttachmentDataUrl = String(reader.result || "");
+      const preview = document.getElementById("procurementManualAttachmentPreview");
+      const clearBtn = document.getElementById("procurementManualAttachmentClear");
+      const hint = document.getElementById("procurementManualAttachmentHint");
+      if (preview) {
+        preview.src = this.manualAttachmentDataUrl;
+        preview.classList.remove("--hidden");
+      }
+      clearBtn?.classList.remove("--hidden");
+      if (hint) hint.textContent = file.name;
+      error?.classList.add("--hidden");
+    };
+    reader.onerror = () => {
+      this.clearManualAttachment();
+      if (error) {
+        error.textContent = "Could not read that image.";
+        error.classList.remove("--hidden");
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
   async submitManual() {
     const error = document.getElementById("procurementManualError");
     const items = this.manualItems
@@ -760,19 +839,24 @@ class ProcurementView {
     if (!signature) return;
 
     try {
+      const payload = {
+        source: "manual",
+        original_filename: "Manual entry",
+        destination: document.getElementById("procurementManualDestination")?.value.trim() || "",
+        purpose: document.getElementById("procurementManualPurpose")?.value.trim() || "",
+        date_needed: document.getElementById("procurementManualDateNeeded")?.value || null,
+        assigned_to: assignedTo,
+        signature,
+        items,
+      };
+      if (this.manualAttachmentDataUrl) {
+        payload.attachment = this.manualAttachmentDataUrl;
+      }
+
       const res = await fetch("/api/procurement-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          source: "manual",
-          original_filename: "Manual entry",
-          destination: document.getElementById("procurementManualDestination")?.value.trim() || "",
-          purpose: document.getElementById("procurementManualPurpose")?.value.trim() || "",
-          date_needed: document.getElementById("procurementManualDateNeeded")?.value || null,
-          assigned_to: assignedTo,
-          signature,
-          items,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not create request.");

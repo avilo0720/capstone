@@ -171,6 +171,18 @@
             <option value="">Select a person…</option>
           </select>
         </label>
+        <div class="procurement-manual-meta__wide procurement-manual-attach">
+          <span class="procurement-manual-meta__label">Attachment image <em>(optional)</em></span>
+          <div class="procurement-manual-attach__row">
+            <label class="procurement-manual-attach__pick">
+              Choose image
+              <input type="file" id="procurementManualAttachment" accept="image/png,image/jpeg,image/jpg,image/webp" hidden />
+            </label>
+            <button type="button" class="procurement-manual-attach__clear --hidden" id="procurementManualAttachmentClear">Remove</button>
+          </div>
+          <p class="procurement-manual-attach__hint" id="procurementManualAttachmentHint">PNG, JPG, or WebP · shown at the bottom of the RS slip</p>
+          <img class="procurement-manual-attach__preview --hidden" id="procurementManualAttachmentPreview" alt="Attachment preview" />
+        </div>
       </div>
       <div class="procurement-manual-toolbar">
         <div class="procurement-manual-actions">

@@ -134,6 +134,7 @@ class ProcurementController extends Controller
             'date_needed' => ['nullable', 'date'],
             'assigned_to' => ['required', 'integer', 'exists:users,id'],
             'signature' => ['required', 'string', 'min:64', 'max:900000'],
+            'attachment' => ['nullable', 'string', 'min:64', 'max:3500000'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['nullable', 'integer'],
             'items.*.item_code' => ['nullable', 'string', 'max:80'],
@@ -162,6 +163,17 @@ class ProcurementController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         }
 
+        $attachment = null;
+        if (!empty($data['attachment'])) {
+            try {
+                $attachment = $this->storeAttachmentDataUrl($data['attachment']);
+            } catch (InvalidArgumentException $e) {
+                $this->deleteSignatureFile($signature);
+
+                return response()->json(['error' => $e->getMessage()], 422);
+            }
+        }
+
         $procurement = $this->createRequest(
             $request,
             $inventoryId,
@@ -175,6 +187,7 @@ class ProcurementController extends Controller
                 'date_needed' => $data['date_needed'] ?? null,
                 'assigned_to' => (int) $data['assigned_to'],
                 'requested_signature' => $signature,
+                'attachment_image' => $attachment,
             ]
         );
 
@@ -257,14 +270,23 @@ class ProcurementController extends Controller
             return response()->json(['error' => 'Completed requests cannot be deleted.'], 422);
         }
 
-        $label = 'procurement request #'.$procurement->id;
+        $label = ($procurement->rs_number ?: 'procurement request #'.$procurement->id);
         $procurement->items()->delete();
+        foreach ([
+            $procurement->requested_signature,
+            $procurement->noted_signature,
+            $procurement->checked_signature,
+            $procurement->approved_signature,
+        ] as $signatureFile) {
+            $this->deleteSignatureFile($signatureFile);
+        }
+        $this->deleteAttachmentFile($procurement->attachment_image);
         $procurement->delete();
 
         $this->activity->log(
             $request,
             'procurement_deleted',
-            'Deleted '.$label,
+            'Deleted '.$label.' (RS number returned to pool)',
             'procurement_request',
             $id
         );
@@ -383,24 +405,28 @@ class ProcurementController extends Controller
 
         $reason = trim($data['reason']);
         $sessionUser = $request->session()->get('user');
+        $freedRs = $procurement->rs_number;
 
         $procurement->update([
             'status' => ProcurementRequest::STATUS_DENIED,
             'rejection_reason' => $reason,
             'reviewed_by' => $sessionUser['id'] ?? null,
             'reviewed_at' => now(),
+            // Free the RS sequence so a new / resubmitted slip can reuse it.
+            'rs_number' => null,
         ]);
 
         $this->activity->log(
             $request,
             'procurement_denied',
-            'Denied procurement request #'.$procurement->id,
+            'Denied procurement request #'.$procurement->id
+                .($freedRs ? ' (released '.$freedRs.')' : ''),
             'procurement_request',
             (int) $procurement->id,
             [
                 'changes' => ActivityChangeSet::snapshot(
-                    ['reason' => $reason],
-                    ['reason' => 'Rejection reason']
+                    ['reason' => $reason, 'rs_number' => $freedRs],
+                    ['reason' => 'Rejection reason', 'rs_number' => 'RS number']
                 ),
             ]
         );
@@ -489,30 +515,38 @@ class ProcurementController extends Controller
         $this->deleteSignatureFile($procurement->checked_signature);
         $this->deleteSignatureFile($procurement->approved_signature);
 
-        $procurement->update([
-            'status' => ProcurementRequest::STATUS_PENDING,
-            'assigned_to' => (int) $data['assigned_to'],
-            'previous_rejection_reason' => $previous,
-            'rejection_reason' => null,
-            'reviewed_by' => null,
-            'reviewed_at' => null,
-            'noted_by' => null,
-            'noted_at' => null,
-            'noted_signature' => null,
-            'checked_by' => null,
-            'checked_at' => null,
-            'checked_signature' => null,
-            'approved_by' => null,
-            'approved_at' => null,
-            'approved_signature' => null,
-            'printed_at' => null,
-            'requested_signature' => $signature,
-        ]);
+        DB::transaction(function () use ($procurement, $data, $previous, $signature) {
+            $rsNumber = ProcurementRequest::allocateRsNumber(now());
+
+            $procurement->update([
+                'status' => ProcurementRequest::STATUS_PENDING,
+                'rs_number' => $rsNumber,
+                'assigned_to' => (int) $data['assigned_to'],
+                'previous_rejection_reason' => $previous,
+                'rejection_reason' => null,
+                'reviewed_by' => null,
+                'reviewed_at' => null,
+                'noted_by' => null,
+                'noted_at' => null,
+                'noted_signature' => null,
+                'checked_by' => null,
+                'checked_at' => null,
+                'checked_signature' => null,
+                'approved_by' => null,
+                'approved_at' => null,
+                'approved_signature' => null,
+                'printed_at' => null,
+                'requested_signature' => $signature,
+            ]);
+        });
+
+        $procurement->refresh();
 
         $this->activity->log(
             $request,
             'procurement_resubmitted',
-            'Resubmitted procurement request #'.$procurement->id.' to pending',
+            'Resubmitted procurement request #'.$procurement->id
+                .' to pending as '.($procurement->rs_number ?: 'pending'),
             'procurement_request',
             (int) $procurement->id,
             [
@@ -588,6 +622,7 @@ class ProcurementController extends Controller
                 'checked' => $slip->signatureUrl($slip->checked_signature),
                 'approved' => $slip->signatureUrl($slip->approved_signature),
             ],
+            'attachmentUrl' => $slip->attachmentUrl(),
         ]);
     }
 
@@ -626,9 +661,10 @@ class ProcurementController extends Controller
                 'uploaded_by' => $sessionUser['id'] ?? null,
                 'assigned_to' => $extras['assigned_to'] ?? null,
                 'requested_signature' => $extras['requested_signature'] ?? null,
+                'attachment_image' => $extras['attachment_image'] ?? null,
             ]);
             $created->update([
-                'rs_number' => ProcurementRequest::makeRsNumber((int) $created->id, $created->created_at),
+                'rs_number' => ProcurementRequest::allocateRsNumber($created->created_at),
             ]);
 
             foreach ($rows as $row) {
@@ -759,6 +795,51 @@ class ProcurementController extends Controller
         }
     }
 
+    private function storeAttachmentDataUrl(string $dataUrl): string
+    {
+        if (!preg_match('#^data:image/(png|jpeg|jpg|webp);base64,#i', $dataUrl, $matches)) {
+            throw new InvalidArgumentException('Attachment must be a PNG, JPG, or WebP image.');
+        }
+
+        $encoded = substr($dataUrl, strpos($dataUrl, ',') + 1);
+        $binary = base64_decode($encoded, true);
+        if ($binary === false || strlen($binary) < 80) {
+            throw new InvalidArgumentException('Attachment image is empty or invalid.');
+        }
+        if (strlen($binary) > 2500000) {
+            throw new InvalidArgumentException('Attachment image is too large. Use a file under about 2 MB.');
+        }
+
+        $ext = strtolower($matches[1]);
+        if ($ext === 'jpeg') {
+            $ext = 'jpg';
+        }
+
+        $directory = public_path('uploads/procurement-attachments');
+        if (!is_dir($directory) && !mkdir($directory, 0755, true) && !is_dir($directory)) {
+            throw new InvalidArgumentException('Could not save attachment file.');
+        }
+
+        $filename = 'att_'.time().'_'.Str::lower(Str::random(6)).'.'.$ext;
+        if (file_put_contents($directory.DIRECTORY_SEPARATOR.$filename, $binary) === false) {
+            throw new InvalidArgumentException('Could not save attachment file.');
+        }
+
+        return $filename;
+    }
+
+    private function deleteAttachmentFile(?string $filename): void
+    {
+        if (!$filename) {
+            return;
+        }
+
+        $path = public_path('uploads/procurement-attachments/'.$filename);
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+
     private function findForInventory(Request $request, int $id): ProcurementRequest
     {
         $inventoryId = InventoryContext::currentId($request);
@@ -868,6 +949,7 @@ class ProcurementController extends Controller
             'noted_by' => $this->personPayload($row->notedByUser),
             'checked_by' => $this->personPayload($row->checkedByUser),
             'approved_by' => $this->personPayload($row->approvedByUser),
+            'attachment_url' => $row->attachmentUrl(),
         ];
 
         if ($withItems) {

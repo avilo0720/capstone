@@ -24,3 +24,5 @@ yarn-error.log
 !/public/uploads/profiles/.gitkeep
 /public/uploads/procurement-signatures/*
 !/public/uploads/procurement-signatures/.gitkeep
+/public/uploads/procurement-attachments/*
+!/public/uploads/procurement-attachments/.gitkeep

@@ -32,6 +32,7 @@ class ProcurementRequest extends Model
         'date_needed',
         'uploaded_by',
         'requested_signature',
+        'attachment_image',
         'assigned_to',
         'reviewed_by',
         'reviewed_at',
@@ -160,11 +161,61 @@ class ProcurementRequest extends Model
         };
     }
 
-    public static function makeRsNumber(int $id, $when = null): string
+    public static function makeRsNumber(int $sequence, $when = null): string
     {
         $stamp = ($when ? \Illuminate\Support\Carbon::parse($when) : now())->format('Y-m');
 
-        return sprintf('NB-%s-%05d', $stamp, $id);
+        return sprintf('NB-%s-%05d', $stamp, $sequence);
+    }
+
+    /**
+     * Next RS number for the month, reusing the lowest free sequence
+     * (so denied/deleted slips do not permanently skip numbers).
+     * Call inside a DB transaction so lockForUpdate is effective.
+     */
+    public static function allocateRsNumber($when = null, ?int $inventoryId = null): string
+    {
+        $when = $when ? \Illuminate\Support\Carbon::parse($when) : now();
+        $stamp = $when->format('Y-m');
+        $prefix = 'NB-'.$stamp.'-';
+
+        $query = static::query()
+            ->whereNotNull('rs_number')
+            ->where('rs_number', 'like', $prefix.'%');
+
+        if ($inventoryId) {
+            $query->where('inventory_id', $inventoryId);
+        }
+
+        $used = $query
+            ->lockForUpdate()
+            ->pluck('rs_number')
+            ->map(function (?string $rs) use ($prefix) {
+                if (!$rs || !str_starts_with($rs, $prefix)) {
+                    return null;
+                }
+                $seq = (int) substr($rs, strlen($prefix));
+
+                return $seq > 0 ? $seq : null;
+            })
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
+        $next = 1;
+        foreach ($used as $seq) {
+            if ((int) $seq === $next) {
+                $next++;
+                continue;
+            }
+            if ((int) $seq > $next) {
+                break;
+            }
+        }
+
+        return self::makeRsNumber($next, $when);
     }
 
     public function signatureUrl(?string $filename): ?string
@@ -174,5 +225,14 @@ class ProcurementRequest extends Model
         }
 
         return '/uploads/procurement-signatures/'.$filename;
+    }
+
+    public function attachmentUrl(): ?string
+    {
+        if (!$this->attachment_image) {
+            return null;
+        }
+
+        return '/uploads/procurement-attachments/'.$this->attachment_image;
     }
 }

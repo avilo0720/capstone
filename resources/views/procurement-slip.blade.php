@@ -184,6 +184,28 @@
       font-size: 0.68rem;
       line-height: 1.25;
     }
+    .attachment {
+      margin-top: 1.1rem;
+      page-break-inside: avoid;
+    }
+    .attachment h3 {
+      margin: 0 0 0.45rem;
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .attachment img {
+      display: block;
+      max-width: 100%;
+      max-height: 90mm;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      border: 1px solid #ccc;
+      padding: 4px;
+      background: #fff;
+    }
     @media print {
       @page { size: A4 portrait; margin: 8mm; }
       body { background: #fff; }
@@ -339,6 +361,13 @@
         <div class="role">Branch Manager</div>
       </div>
     </section>
+
+    @if(!empty($attachmentUrl))
+      <section class="attachment">
+        <h3>Attachment</h3>
+        <img src="{{ $attachmentUrl }}" alt="Request attachment" />
+      </section>
+    @endif
   </main>
   <script>window.addEventListener('load', () => setTimeout(() => window.print(), 250));</script>
 </body>

@@ -8739,6 +8739,85 @@ svg use {
   grid-column: 1 / -1;
 }
 
+.procurement-manual-attach {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.procurement-manual-attach__row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.procurement-manual-attach__pick,
+.procurement-manual-attach__clear {
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #fff;
+  color: #344054;
+  font: 600 0.82rem/1 inherit;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+}
+
+.procurement-manual-attach__pick:hover,
+.procurement-manual-attach__clear:hover {
+  background: #f2f4f7;
+}
+
+.procurement-manual-attach__hint {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #667085;
+}
+
+.procurement-manual-attach__preview {
+  display: block;
+  max-width: min(320px, 100%);
+  max-height: 160px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #fff;
+  padding: 4px;
+}
+
+.procurement-manual-attach__preview.--hidden,
+.procurement-manual-attach__clear.--hidden {
+  display: none;
+}
+
+.procurement-detail-attachment {
+  margin-top: 0.9rem;
+  padding: 0.75rem;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.procurement-detail-attachment strong {
+  display: block;
+  margin-bottom: 0.45rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #667085;
+}
+
+.procurement-detail-attachment img {
+  display: block;
+  max-width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
 @media screen and (max-width: 960px) {
   .procurement-page .users-tabs {
     width: 100%;
