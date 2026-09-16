@@ -85,10 +85,14 @@ Route::middleware('auth.custom')->prefix('api')->group(function () {
     Route::post('/export/calendar/excel', [ExportController::class, 'calendarExcel'])->middleware('page:calendar');
     Route::post('/export/calendar/pdf', [ExportController::class, 'calendarPdf'])->middleware('page:calendar');
     Route::post('/export/calendar/preview', [ExportController::class, 'calendarPreview'])->middleware('page:calendar');
+    Route::post('/export/procurement/excel', [ExportController::class, 'procurementExcel'])->middleware('page:procurement');
+    Route::post('/export/procurement/pdf', [ExportController::class, 'procurementPdf'])->middleware('page:procurement');
+    Route::post('/export/procurement/preview', [ExportController::class, 'procurementPreview'])->middleware('page:procurement');
 
     Route::middleware('page:procurement')->group(function () {
         Route::get('/procurement-requests', [ProcurementController::class, 'index']);
         Route::get('/procurement-assignees', [ProcurementController::class, 'assignees']);
+        Route::get('/procurement-requests/{id}/history', [ProcurementController::class, 'history']);
         Route::get('/procurement-requests/{id}', [ProcurementController::class, 'show']);
         Route::post('/procurement-requests', [ProcurementController::class, 'store'])->middleware('ability:procurement.edit');
         Route::put('/procurement-requests/{id}', [ProcurementController::class, 'update'])->middleware('ability:procurement.edit');

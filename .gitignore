@@ -22,3 +22,5 @@ yarn-error.log
 !/bootstrap/cache/.gitkeep
 /public/uploads/profiles/*
 !/public/uploads/profiles/.gitkeep
+/public/uploads/procurement-signatures/*
+!/public/uploads/procurement-signatures/.gitkeep

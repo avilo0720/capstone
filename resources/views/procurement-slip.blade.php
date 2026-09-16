@@ -163,6 +163,15 @@
       min-height: 18mm;
       border-bottom: 1px solid #111;
       margin-top: 0.15rem;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 2px;
+    }
+    .sign .who img {
+      max-width: 100%;
+      max-height: 16mm;
+      object-fit: contain;
     }
     .sign .name {
       margin-top: 0.2rem;
@@ -291,25 +300,41 @@
     <section class="signs">
       <div class="sign">
         <div class="label">Requested by:</div>
-        <div class="who"></div>
+        <div class="who">
+          @if(!empty($signatures['requested']))
+            <img src="{{ $signatures['requested'] }}" alt="Requested signature" />
+          @endif
+        </div>
         <div class="name">{{ $request->uploader?->full_name }}</div>
         <div class="role">End user</div>
       </div>
       <div class="sign">
         <div class="label">Noted by:</div>
-        <div class="who"></div>
+        <div class="who">
+          @if(!empty($signatures['noted']))
+            <img src="{{ $signatures['noted'] }}" alt="Noted signature" />
+          @endif
+        </div>
         <div class="name">{{ $request->notedByUser?->full_name }}</div>
         <div class="role">Department Head</div>
       </div>
       <div class="sign">
         <div class="label">Checked by:</div>
-        <div class="who"></div>
+        <div class="who">
+          @if(!empty($signatures['checked']))
+            <img src="{{ $signatures['checked'] }}" alt="Checked signature" />
+          @endif
+        </div>
         <div class="name">{{ $request->checkedByUser?->full_name }}</div>
         <div class="role">Procurement and Office Asset Staff</div>
       </div>
       <div class="sign">
         <div class="label">Approved by:</div>
-        <div class="who"></div>
+        <div class="who">
+          @if(!empty($signatures['approved']))
+            <img src="{{ $signatures['approved'] }}" alt="Approved signature" />
+          @endif
+        </div>
         <div class="name">{{ $request->approvedByUser?->full_name }}</div>
         <div class="role">Branch Manager</div>
       </div>

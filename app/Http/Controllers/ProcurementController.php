@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\Item;
 use App\Models\ProcurementRequest;
 use App\Models\ProcurementRequestItem;
@@ -15,6 +16,7 @@ use App\Support\RolePermissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 
@@ -56,6 +58,49 @@ class ProcurementController extends Controller
         return response()->json(['request' => $this->serialize($request, $procurement, true)]);
     }
 
+    public function history(Request $request, int $id): JsonResponse
+    {
+        $procurement = $this->findForInventory($request, $id);
+
+        $logs = ActivityLog::query()
+            ->with('user:id,first_name,last_name,username,role')
+            ->where('entity_type', 'procurement_request')
+            ->where('entity_id', $procurement->id)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->limit(200)
+            ->get()
+            ->map(function (ActivityLog $log) {
+                $user = $log->user;
+
+                return [
+                    'id' => $log->id,
+                    'action' => $log->action,
+                    'description' => $log->description,
+                    'meta' => $log->meta,
+                    'created_at' => $log->created_at?->toIso8601String(),
+                    'user' => $user ? [
+                        'id' => $user->id,
+                        'full_name' => trim($user->first_name.' '.$user->last_name),
+                        'username' => $user->username,
+                        'role' => $user->role,
+                    ] : [
+                        'id' => null,
+                        'full_name' => 'Unknown user',
+                        'username' => null,
+                        'role' => null,
+                    ],
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'request_id' => $procurement->id,
+            'rs_number' => $procurement->rs_number,
+            'events' => $logs,
+        ]);
+    }
+
     public function assignees(Request $request): JsonResponse
     {
         $users = User::query()
@@ -88,6 +133,7 @@ class ProcurementController extends Controller
             'purpose' => ['nullable', 'string', 'max:2000'],
             'date_needed' => ['nullable', 'date'],
             'assigned_to' => ['required', 'integer', 'exists:users,id'],
+            'signature' => ['required', 'string', 'min:64', 'max:900000'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['nullable', 'integer'],
             'items.*.item_code' => ['nullable', 'string', 'max:80'],
@@ -110,6 +156,12 @@ class ProcurementController extends Controller
         $source = $data['source'] ?? 'forecast';
         $defaultName = $source === 'manual' ? 'Manual entry' : 'Forecast send';
 
+        try {
+            $signature = $this->storeSignatureDataUrl($data['signature'], 'requested');
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+
         $procurement = $this->createRequest(
             $request,
             $inventoryId,
@@ -122,6 +174,7 @@ class ProcurementController extends Controller
                 'purpose' => $data['purpose'] ?? null,
                 'date_needed' => $data['date_needed'] ?? null,
                 'assigned_to' => (int) $data['assigned_to'],
+                'requested_signature' => $signature,
             ]
         );
 
@@ -236,12 +289,19 @@ class ProcurementController extends Controller
 
         $data = $request->validate([
             'assigned_to' => ['required', 'integer', 'exists:users,id'],
+            'signature' => ['required', 'string', 'min:64', 'max:900000'],
         ]);
 
         $nextAssignee = (int) $data['assigned_to'];
         $nextStatus = $procurement->nextStatus();
         if (!$nextStatus) {
             return response()->json(['error' => 'This request is not waiting for approval.'], 422);
+        }
+
+        try {
+            $signatureFile = $this->storeSignatureDataUrl($data['signature'], (string) $step);
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
         }
 
         $previousStatus = $procurement->status;
@@ -259,18 +319,24 @@ class ProcurementController extends Controller
         $description = 'Advanced procurement request #'.$procurement->id;
 
         if ($step === ProcurementRequest::STEP_DEPT) {
+            $this->deleteSignatureFile($procurement->noted_signature);
             $payload['noted_by'] = $userId;
             $payload['noted_at'] = $now;
+            $payload['noted_signature'] = $signatureFile;
             $action = 'procurement_dept_noted';
             $description = 'Department head noted request slip #'.$procurement->id;
         } elseif ($step === ProcurementRequest::STEP_CHECK) {
+            $this->deleteSignatureFile($procurement->checked_signature);
             $payload['checked_by'] = $userId;
             $payload['checked_at'] = $now;
+            $payload['checked_signature'] = $signatureFile;
             $action = 'procurement_checked';
             $description = 'Procurement checked request slip #'.$procurement->id;
         } else {
+            $this->deleteSignatureFile($procurement->approved_signature);
             $payload['approved_by'] = $userId;
             $payload['approved_at'] = $now;
+            $payload['approved_signature'] = $signatureFile;
             $action = 'procurement_approved';
             $description = 'Branch manager approved request slip #'.$procurement->id;
         }
@@ -403,13 +469,25 @@ class ProcurementController extends Controller
 
         $data = $request->validate([
             'assigned_to' => ['required', 'integer', 'exists:users,id'],
+            'signature' => ['required', 'string', 'min:64', 'max:900000'],
         ]);
 
         if (!trim((string) $procurement->rejection_reason)) {
             return response()->json(['error' => 'A manager rejection reason must be on file before resubmitting.'], 422);
         }
 
+        try {
+            $signature = $this->storeSignatureDataUrl($data['signature'], 'requested');
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+
         $previous = $procurement->rejection_reason;
+
+        $this->deleteSignatureFile($procurement->requested_signature);
+        $this->deleteSignatureFile($procurement->noted_signature);
+        $this->deleteSignatureFile($procurement->checked_signature);
+        $this->deleteSignatureFile($procurement->approved_signature);
 
         $procurement->update([
             'status' => ProcurementRequest::STATUS_PENDING,
@@ -420,11 +498,15 @@ class ProcurementController extends Controller
             'reviewed_at' => null,
             'noted_by' => null,
             'noted_at' => null,
+            'noted_signature' => null,
             'checked_by' => null,
             'checked_at' => null,
+            'checked_signature' => null,
             'approved_by' => null,
             'approved_at' => null,
+            'approved_signature' => null,
             'printed_at' => null,
+            'requested_signature' => $signature,
         ]);
 
         $this->activity->log(
@@ -500,6 +582,12 @@ class ProcurementController extends Controller
             'lines' => $lines,
             'grandTotal' => $lines->sum('total'),
             'blankRows' => max(0, 16 - max(1, $lines->count())),
+            'signatures' => [
+                'requested' => $slip->signatureUrl($slip->requested_signature),
+                'noted' => $slip->signatureUrl($slip->noted_signature),
+                'checked' => $slip->signatureUrl($slip->checked_signature),
+                'approved' => $slip->signatureUrl($slip->approved_signature),
+            ],
         ]);
     }
 
@@ -537,6 +625,7 @@ class ProcurementController extends Controller
                 'date_needed' => $extras['date_needed'] ?? null,
                 'uploaded_by' => $sessionUser['id'] ?? null,
                 'assigned_to' => $extras['assigned_to'] ?? null,
+                'requested_signature' => $extras['requested_signature'] ?? null,
             ]);
             $created->update([
                 'rs_number' => ProcurementRequest::makeRsNumber((int) $created->id, $created->created_at),
@@ -623,6 +712,51 @@ class ProcurementController extends Controller
             return strtolower(trim((string) $item->title)) === $title
                 && strtolower(trim((string) $item->size)) === $size;
         });
+    }
+
+    private function storeSignatureDataUrl(string $dataUrl, string $role): string
+    {
+        if (!preg_match('#^data:image/(png|jpeg|jpg|webp);base64,#i', $dataUrl, $matches)) {
+            throw new InvalidArgumentException('Signature must be a drawn or uploaded image.');
+        }
+
+        $encoded = substr($dataUrl, strpos($dataUrl, ',') + 1);
+        $binary = base64_decode($encoded, true);
+        if ($binary === false || strlen($binary) < 80) {
+            throw new InvalidArgumentException('Signature image is empty or invalid.');
+        }
+        if (strlen($binary) > 700000) {
+            throw new InvalidArgumentException('Signature image is too large. Use a smaller drawing or photo.');
+        }
+
+        $ext = strtolower($matches[1]);
+        if ($ext === 'jpeg') {
+            $ext = 'jpg';
+        }
+
+        $directory = public_path('uploads/procurement-signatures');
+        if (!is_dir($directory) && !mkdir($directory, 0755, true) && !is_dir($directory)) {
+            throw new InvalidArgumentException('Could not save signature file.');
+        }
+
+        $filename = 'sig_'.$role.'_'.time().'_'.Str::lower(Str::random(6)).'.'.$ext;
+        if (file_put_contents($directory.DIRECTORY_SEPARATOR.$filename, $binary) === false) {
+            throw new InvalidArgumentException('Could not save signature file.');
+        }
+
+        return $filename;
+    }
+
+    private function deleteSignatureFile(?string $filename): void
+    {
+        if (!$filename) {
+            return;
+        }
+
+        $path = public_path('uploads/procurement-signatures/'.$filename);
+        if (is_file($path)) {
+            @unlink($path);
+        }
     }
 
     private function findForInventory(Request $request, int $id): ProcurementRequest

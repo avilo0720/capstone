@@ -1,7 +1,9 @@
-import confirmAction, { notifyAlert, pickAssignee } from "./ConfirmDialog.js";
+import confirmAction, { notifyAlert, pickAssignee, captureSignature } from "./ConfirmDialog.js";
 import { bindBackdropClose } from "./OverlayDismiss.js";
+import { renderActivityChanges } from "./ActivityChanges.js";
 import Pagination from "./Pagination.js";
 import { fetchAssignees } from "./API.js";
+import DownloadOptions from "./DownloadOptions.js";
 
 const STATUS = {
   pending: { label: "Dept. head", tone: "orange" },
@@ -10,6 +12,19 @@ const STATUS = {
   approved: { label: "Approved · print RS", tone: "green" },
   denied: { label: "Denied", tone: "red" },
   stock_entered: { label: "Stock entered", tone: "blue" },
+};
+
+const HISTORY_BADGES = {
+  procurement_submitted: { label: "Submitted", tone: "blue" },
+  procurement_dept_noted: { label: "Noted", tone: "blue" },
+  procurement_checked: { label: "Checked", tone: "blue" },
+  procurement_approved: { label: "Approved", tone: "green" },
+  procurement_printed: { label: "Printed", tone: "green" },
+  procurement_denied: { label: "Denied", tone: "red" },
+  procurement_stock_entered: { label: "Stock in", tone: "green" },
+  procurement_edited: { label: "Edited", tone: "blue" },
+  procurement_resubmitted: { label: "Resubmitted", tone: "orange" },
+  procurement_deleted: { label: "Deleted", tone: "red" },
 };
 
 const NEXT_STEP = {
@@ -63,6 +78,7 @@ class ProcurementView {
     this.closeDeny();
     this.closeStock();
     this.closeManual();
+    this.closeHistory();
     this.hideDetail();
     const requestId = Number(new URLSearchParams(window.location.search).get("request"));
     if (requestId) this.selectedId = requestId;
@@ -86,7 +102,7 @@ class ProcurementView {
     select.innerHTML = `<option value="">Select a person…</option>${options}`;
   }
 
-  async chooseNextPerson({ title, message, confirmLabel }) {
+  async chooseNextPerson({ title, message, confirmLabel, requireSignature = true }) {
     if (!this.people.length) await this.loadPeople();
     if (!this.people.length) {
       notifyAlert("Could not load people to send this request to.");
@@ -97,6 +113,7 @@ class ProcurementView {
       message,
       people: this.people,
       confirmLabel,
+      requireSignature,
     });
   }
 
@@ -128,6 +145,7 @@ class ProcurementView {
     document.getElementById("procurementDetailClose")?.addEventListener("click", () => this.hideDetail());
     bindBackdropClose(this.detailOverlay, () => this.hideDetail());
 
+    document.getElementById("procurementDownloadBtn")?.addEventListener("click", () => this.exportReport());
     document.getElementById("procurementManualBtn")?.addEventListener("click", () => this.openManual());
     document.getElementById("procurementManualCancel")?.addEventListener("click", () => this.closeManual());
     document.getElementById("procurementManualConfirm")?.addEventListener("click", () => this.submitManual());
@@ -152,13 +170,19 @@ class ProcurementView {
     document.getElementById("procurementDenyConfirm")?.addEventListener("click", () => this.submitDeny());
     document.getElementById("procurementStockCancel")?.addEventListener("click", () => this.closeStock());
     document.getElementById("procurementStockConfirm")?.addEventListener("click", () => this.submitStock());
+    document.getElementById("procurementHistoryClose")?.addEventListener("click", () => this.closeHistory());
 
     bindBackdropClose(document.getElementById("procurementDenyOverlay"), () => this.closeDeny());
     bindBackdropClose(document.getElementById("procurementStockOverlay"), () => this.closeStock());
     bindBackdropClose(document.getElementById("procurementManualOverlay"), () => this.closeManual());
+    bindBackdropClose(document.getElementById("procurementHistoryOverlay"), () => this.closeHistory());
 
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
+      if (document.getElementById("procurementHistoryOverlay")?.classList.contains("is-open")) {
+        this.closeHistory();
+        return;
+      }
       if (document.getElementById("procurementDenyOverlay")?.classList.contains("is-open")) {
         this.closeDeny();
         return;
@@ -414,7 +438,8 @@ class ProcurementView {
       ? `<button type="button" class="confirm-modal__btn ${denied ? "confirm-modal__btn--danger" : "confirm-modal__btn--ghost"}" data-action="delete">Delete</button>`
       : "";
 
-    const actions = `${reviewBtns}${printBtns}${deniedBtns}${deleteBtn}`;
+    const historyBtn = `<button type="button" class="confirm-modal__btn confirm-modal__btn--ghost" data-action="history">View history</button>`;
+    const actions = `${historyBtn}${reviewBtns}${printBtns}${deniedBtns}${deleteBtn}`;
     if (footer) {
       footer.hidden = !actions;
       footer.innerHTML = actions
@@ -495,6 +520,7 @@ class ProcurementView {
 
   async onAction(action) {
     if (!this.detail) return;
+    if (action === "history") return this.openHistory();
     if (action === "approve") return this.approve();
     if (action === "print") return this.printSlip();
     if (action === "deny") return this.openDeny();
@@ -502,6 +528,63 @@ class ProcurementView {
     if (action === "save-edit") return this.saveEdits();
     if (action === "resubmit") return this.resubmit();
     if (action === "delete") return this.remove();
+  }
+
+  async openHistory() {
+    if (!this.detail?.id) return;
+    const body = document.getElementById("procurementHistoryBody");
+    const meta = document.getElementById("procurementHistoryMeta");
+    const title = document.getElementById("procurementHistoryTitle");
+    const label = this.detail.rs_number || `Request #${this.detail.id}`;
+    if (title) title.textContent = "Request history";
+    if (meta) meta.textContent = label;
+    if (body) body.innerHTML = `<p class="users-empty">Loading history…</p>`;
+    this.toggleOverlay("procurementHistoryOverlay", true);
+
+    try {
+      const res = await fetch(`/api/procurement-requests/${this.detail.id}/history`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not load history.");
+      this.renderHistory(data.events || []);
+    } catch (err) {
+      if (body) {
+        body.innerHTML = `<p class="users-empty">${this.escape(err.message || "Could not load history.")}</p>`;
+      }
+    }
+  }
+
+  closeHistory() {
+    this.toggleOverlay("procurementHistoryOverlay", false);
+  }
+
+  renderHistory(events) {
+    const body = document.getElementById("procurementHistoryBody");
+    if (!body) return;
+
+    if (!events.length) {
+      body.innerHTML = `<p class="users-empty">No history yet for this request.</p>`;
+      return;
+    }
+
+    body.innerHTML = `<ol class="procurement-history-list">
+      ${events.map((event) => {
+        const badge = HISTORY_BADGES[event.action] || { label: "Update", tone: "gray" };
+        const who = this.escape(event.user?.full_name || "Unknown user");
+        const role = event.user?.role ? ` · ${this.escape(event.user.role)}` : "";
+        const when = this.escape(this.formatWhen(event.created_at));
+        const description = this.escape(event.description || "—");
+        const changes = renderActivityChanges(event.meta, (value) => this.escape(value));
+        return `<li class="procurement-history-item">
+          <div class="procurement-history-item__top">
+            <span class="dashboard-activity__badge dashboard-activity__badge--${badge.tone}">${badge.label}</span>
+            <time class="procurement-history-item__when">${when}</time>
+          </div>
+          <p class="procurement-history-item__desc">${description}</p>
+          <p class="procurement-history-item__who">${who}${role}</p>
+          ${changes}
+        </li>`;
+      }).join("")}
+    </ol>`;
   }
 
   async openManual() {
@@ -669,12 +752,12 @@ class ProcurementView {
       return;
     }
 
-    const ok = await confirmAction({
-      title: "Submit request slip?",
-      message: `Create a request slip with ${items.length} line item${items.length === 1 ? "" : "s"} and send it to the person you picked?`,
-      confirmLabel: "Submit request",
+    const signature = await captureSignature({
+      title: "Sign request slip",
+      message: "Draw or upload your signature. It will appear on the Requested by line of the RS slip.",
+      confirmLabel: "Submit with signature",
     });
-    if (!ok) return;
+    if (!signature) return;
 
     try {
       const res = await fetch("/api/procurement-requests", {
@@ -687,6 +770,7 @@ class ProcurementView {
           purpose: document.getElementById("procurementManualPurpose")?.value.trim() || "",
           date_needed: document.getElementById("procurementManualDateNeeded")?.value || null,
           assigned_to: assignedTo,
+          signature,
           items,
         }),
       });
@@ -708,13 +792,17 @@ class ProcurementView {
   async approve() {
     const step = NEXT_STEP[this.detail?.status];
     if (!step) return;
-    const assignedTo = await this.chooseNextPerson({
+    const choice = await this.chooseNextPerson({
       title: step.action,
-      message: `This does not add stock yet. After you continue, pick ${step.nextLabel}.`,
+      message: `Sign this step, then pick ${step.nextLabel}. Your signature goes on the RS slip.`,
       confirmLabel: step.confirm,
+      requireSignature: true,
     });
-    if (!assignedTo) return;
-    await this.post(`/api/procurement-requests/${this.detail.id}/approve`, { assigned_to: assignedTo });
+    if (!choice?.assignedTo || !choice?.signature) return;
+    await this.post(`/api/procurement-requests/${this.detail.id}/approve`, {
+      assigned_to: choice.assignedTo,
+      signature: choice.signature,
+    });
   }
 
   printSlip() {
@@ -796,17 +884,21 @@ class ProcurementView {
   }
 
   async resubmit() {
-    const assignedTo = await this.chooseNextPerson({
+    const choice = await this.chooseNextPerson({
       title: "Resubmit request slip?",
-      message: "Quantity edits will be saved, then pick who should note this request next.",
+      message: "Quantity edits will be saved. Sign again, then pick who should note this request next.",
       confirmLabel: "Resubmit",
+      requireSignature: true,
     });
-    if (!assignedTo) return;
+    if (!choice?.assignedTo || !choice?.signature) return;
     const edits = this.collectQtyEdits();
     if (edits.length) {
       await this.put(`/api/procurement-requests/${this.detail.id}`, { items: edits });
     }
-    await this.post(`/api/procurement-requests/${this.detail.id}/resubmit`, { assigned_to: assignedTo });
+    await this.post(`/api/procurement-requests/${this.detail.id}/resubmit`, {
+      assigned_to: choice.assignedTo,
+      signature: choice.signature,
+    });
   }
 
   async remove() {
@@ -871,6 +963,119 @@ class ProcurementView {
       hour: "numeric",
       minute: "2-digit",
     });
+  }
+
+  getProcurementExportData() {
+    const headers = [
+      "RS Number",
+      "Source",
+      "Status",
+      "Purpose",
+      "Destination",
+      "Department",
+      "Next person",
+      "Lines",
+      "Total qty",
+      "Requested by",
+      "Noted by",
+      "Checked by",
+      "Approved by",
+      "Date needed",
+      "Created",
+      "Rejection reason",
+    ];
+
+    const rows = this.filtered().map((row) => {
+      const badge = STATUS[row.status] || STATUS.pending;
+      return [
+        row.rs_number || `#${row.id}`,
+        row.original_filename || row.source || "—",
+        badge.label,
+        row.purpose || "—",
+        row.destination || "—",
+        row.department_name || "—",
+        row.assigned_to?.name || "—",
+        Number(row.line_count) || 0,
+        Number(row.total_requested) || 0,
+        row.uploaded_by || "—",
+        row.noted_by?.name || "—",
+        row.checked_by?.name || "—",
+        row.approved_by?.name || "—",
+        row.date_needed || "—",
+        this.formatWhen(row.created_at),
+        row.rejection_reason || row.previous_rejection_reason || "—",
+      ];
+    });
+
+    const filterLabel = this.statusFilter === "all"
+      ? "All requests"
+      : (STATUS[this.statusFilter]?.label || this.statusFilter);
+    const title = `Procurement Report — ${filterLabel}`;
+
+    return { headers, rows, title };
+  }
+
+  exportReport() {
+    const rows = this.filtered();
+    if (!rows.length) {
+      notifyAlert("Nothing to export for the current filters.");
+      return Promise.resolve(false);
+    }
+
+    return DownloadOptions.open(
+      { format: "pdf", paper: "A4", orientation: "landscape" },
+      async (options) => {
+        const { headers, rows: exportRows, title } = this.getProcurementExportData();
+        const endpoint = options.format === "pdf"
+          ? "/api/export/procurement/pdf"
+          : "/api/export/procurement/excel";
+        const payload = { headers, rows: exportRows, title };
+        if (options.format === "pdf") {
+          payload.paper = options.paper;
+          payload.orientation = options.orientation;
+          payload.fontSize = options.fontSize;
+          payload.rowSize = options.rowSize;
+        }
+
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error("Export failed");
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        link.href = url;
+        link.download = `procurement-report-${stamp}.${options.format === "pdf" ? "pdf" : "xlsx"}`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      },
+      {
+        fetchPreview: async (options, signal) => {
+          const { headers, rows: exportRows, title } = this.getProcurementExportData();
+          const payload = { format: options.format, headers, rows: exportRows, title };
+          if (options.format === "pdf") {
+            payload.paper = options.paper;
+            payload.orientation = options.orientation;
+            payload.fontSize = options.fontSize;
+            payload.rowSize = options.rowSize;
+          }
+          const res = await fetch("/api/export/procurement/preview", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+            signal,
+          });
+          if (!res.ok) throw new Error("Preview failed");
+          return res.blob();
+        },
+      }
+    );
   }
 
   escape(value) {

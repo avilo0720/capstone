@@ -1027,13 +1027,14 @@ class ForecastingUi {
       return;
     }
 
-    const assignedTo = await pickAssignee({
+    const choice = await pickAssignee({
       title: "Send to Procurement?",
-      message: "This creates a request slip from the current forecast. Pick who should note it next — any person, not a fixed role.",
+      message: "This creates a request slip from the current forecast. Sign it, then pick who should note it next — any person, not a fixed role.",
       people,
       confirmLabel: "Send request",
+      requireSignature: true,
     });
-    if (!assignedTo) return;
+    if (!choice?.assignedTo || !choice?.signature) return;
 
     try {
       const res = await fetch("/api/procurement-requests", {
@@ -1041,7 +1042,8 @@ class ForecastingUi {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...payload,
-          assigned_to: assignedTo,
+          assigned_to: choice.assignedTo,
+          signature: choice.signature,
         }),
       });
       const data = await res.json().catch(() => ({}));

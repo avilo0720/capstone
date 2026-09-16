@@ -339,6 +339,89 @@ class ExportController extends Controller
         ]);
     }
 
+    public function procurementExcel(Request $request): Response
+    {
+        $data = $request->validate([
+            'headers' => ['nullable', 'array'],
+            'rows' => ['nullable', 'array'],
+        ]);
+
+        $buffer = $this->exportService->tableToExcel(
+            $data['headers'] ?? [],
+            $data['rows'] ?? [],
+            'Procurement'
+        );
+
+        return response($buffer, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="procurement-report.xlsx"',
+        ]);
+    }
+
+    public function procurementPdf(Request $request): Response
+    {
+        $data = $request->validate([
+            'title' => ['nullable', 'string', 'max:180'],
+            'headers' => ['nullable', 'array'],
+            'rows' => ['nullable', 'array'],
+            ...$this->pdfStyleRules(),
+        ]);
+
+        $buffer = $this->exportService->tableToPdf(
+            $data['title'] ?? 'Procurement Report',
+            $data['headers'] ?? [],
+            $data['rows'] ?? [],
+            $data['paper'] ?? 'A4',
+            $data['orientation'] ?? 'landscape',
+            $data['fontSize'] ?? 'medium',
+            $data['rowSize'] ?? 'normal'
+        );
+
+        return response($buffer, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="procurement-report.pdf"',
+        ]);
+    }
+
+    public function procurementPreview(Request $request): Response
+    {
+        $data = $request->validate([
+            'format' => ['required', 'string', Rule::in(['pdf', 'excel'])],
+            'title' => ['nullable', 'string', 'max:180'],
+            'headers' => ['nullable', 'array'],
+            'rows' => ['nullable', 'array'],
+            ...$this->pdfStyleRules(),
+        ]);
+
+        if ($data['format'] === 'excel') {
+            $html = $this->exportService->tableToHtml(
+                $data['headers'] ?? [],
+                $data['rows'] ?? [],
+                'Procurement'
+            );
+
+            return response($html, 200, [
+                'Content-Type' => 'text/html; charset=UTF-8',
+                'Content-Disposition' => 'inline; filename="procurement-preview.html"',
+            ]);
+        }
+
+        $buffer = $this->exportService->tableToPdf(
+            $data['title'] ?? 'Procurement Report',
+            $data['headers'] ?? [],
+            $data['rows'] ?? [],
+            $data['paper'] ?? 'A4',
+            $data['orientation'] ?? 'landscape',
+            $data['fontSize'] ?? 'medium',
+            $data['rowSize'] ?? 'normal'
+        );
+
+        return response($buffer, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="procurement-preview.pdf"',
+        ]);
+    }
+
     /**
      * @return array<string, array<int, mixed>>
      */

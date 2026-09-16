@@ -31,15 +31,19 @@ class ProcurementRequest extends Model
         'purpose',
         'date_needed',
         'uploaded_by',
+        'requested_signature',
         'assigned_to',
         'reviewed_by',
         'reviewed_at',
         'noted_by',
         'noted_at',
+        'noted_signature',
         'checked_by',
         'checked_at',
+        'checked_signature',
         'approved_by',
         'approved_at',
+        'approved_signature',
         'printed_at',
         'rejection_reason',
         'previous_rejection_reason',
@@ -161,5 +165,14 @@ class ProcurementRequest extends Model
         $stamp = ($when ? \Illuminate\Support\Carbon::parse($when) : now())->format('Y-m');
 
         return sprintf('NB-%s-%05d', $stamp, $id);
+    }
+
+    public function signatureUrl(?string $filename): ?string
+    {
+        if (!$filename) {
+            return null;
+        }
+
+        return '/uploads/procurement-signatures/'.$filename;
     }
 }

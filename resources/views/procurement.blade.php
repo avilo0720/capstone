@@ -27,6 +27,7 @@
         </form>
       </div>
       <div class="product-section__header__buttons">
+        <button type="button" class="downloadBtn" id="procurementDownloadBtn">Download report</button>
         @if($user['canEditProcurement'] ?? false)
           <button type="button" class="addProBtn" id="procurementManualBtn">Add request</button>
         @endif
@@ -238,6 +239,25 @@
       <div class="confirm-modal__actions">
         <button type="button" class="confirm-modal__btn confirm-modal__btn--ghost" id="procurementStockCancel">Cancel</button>
         <button type="button" class="confirm-modal__btn confirm-modal__btn--primary" id="procurementStockConfirm">Save stock</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="procurement-overlay" id="procurementHistoryOverlay" hidden>
+    <div class="confirm-modal confirm-modal--wide procurement-history-modal" role="dialog" aria-modal="true" aria-labelledby="procurementHistoryTitle">
+      <div class="procurement-detail-modal__header">
+        <div class="procurement-detail-modal__heading">
+          <h2 class="confirm-modal__title" id="procurementHistoryTitle">Request history</h2>
+          <p class="procurement-detail-meta" id="procurementHistoryMeta"></p>
+        </div>
+        <button type="button" class="procurement-detail-modal__close" id="procurementHistoryClose" title="Close" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="procurement-history-body" id="procurementHistoryBody">
+        <p class="users-empty">Loading history…</p>
       </div>
     </div>
   </div>

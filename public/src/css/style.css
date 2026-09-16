@@ -8118,6 +8118,65 @@ svg use {
   background: #f9fafb;
 }
 
+.procurement-history-modal {
+  max-height: min(88vh, 760px);
+  display: flex;
+  flex-direction: column;
+}
+
+.procurement-history-body {
+  padding: 0 1.25rem 1.25rem;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.procurement-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.procurement-history-item {
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.85rem 1rem;
+}
+
+.procurement-history-item__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.procurement-history-item__when {
+  font-size: 0.8rem;
+  color: #667085;
+  white-space: nowrap;
+}
+
+.procurement-history-item__desc {
+  margin: 0 0 0.25rem;
+  color: #101828;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.procurement-history-item__who {
+  margin: 0 0 0.55rem;
+  color: #667085;
+  font-size: 0.82rem;
+}
+
+.procurement-history-item .activity-changes {
+  margin: 0;
+}
+
 .procurement-detail-modal__actions {
   display: flex;
   flex-wrap: wrap;
@@ -8601,6 +8660,79 @@ svg use {
   margin: 0 0 0.85rem;
   font-size: 0.8rem;
   color: #667085;
+}
+
+.confirm-modal--signature {
+  width: min(560px, calc(100vw - 2rem));
+}
+
+.signature-pad {
+  margin: 0 0 0.85rem;
+  padding: 0.7rem 0.75rem 0.65rem;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.signature-pad__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #344054;
+}
+
+.signature-pad__tools {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.signature-pad__upload,
+.signature-pad__clear {
+  border: 1px solid #d0d5dd;
+  border-radius: 7px;
+  background: #fff;
+  color: #344054;
+  font: 600 0.75rem/1 inherit;
+  padding: 0.3rem 0.55rem;
+  cursor: pointer;
+}
+
+.signature-pad__upload:hover,
+.signature-pad__clear:hover {
+  background: #f2f4f7;
+}
+
+.signature-pad__canvas {
+  display: block;
+  width: 100%;
+  height: 160px;
+  border: 1.5px dashed #98a2b3;
+  border-radius: 8px;
+  background: #fff;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.signature-pad__hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.75rem;
+  color: #667085;
+}
+
+.signature-pad__error {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #b42318;
+}
+
+.signature-pad__error.--hidden {
+  display: none;
 }
 
 .procurement-manual-meta__wide {
