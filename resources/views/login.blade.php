@@ -2,9 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="stylesheet" href="/src/css/font.css" />
-    <link rel="stylesheet" href="/src/css/style.css?v=100" />
+    <link rel="stylesheet" href="/src/css/style.css?v=109" />
     <title>Login | Nabua Water Inventory</title>
   </head>
   <body class="login-body">

@@ -8,7 +8,7 @@ const DEFAULT_CATALOG = {
   "stock-materials": { label: "Stock Materials", abilities: ["view"] },
   "office-materials": { label: "Office Materials", abilities: ["view"] },
   forecast: { label: "Forecasting", abilities: ["view"] },
-  procurement: { label: "Procurement", abilities: ["view", "edit", "dept_review", "check", "final_approve", "review"] },
+  procurement: { label: "Procurement", abilities: ["view", "add", "delete"] },
   issuance: { label: "Issuance", abilities: ["view", "edit", "review"] },
   reports: { label: "Reports", abilities: ["view"] },
   calendar: { label: "Calendar", abilities: ["view", "table"] },
@@ -37,6 +37,8 @@ const CHILD_PAGES = {
 const ABILITY_LABELS = {
   view: "Access",
   edit: "Edit",
+  add: "Add request",
+  delete: "Delete",
   table: "Table",
   review: "Review",
   manage: "Manage",

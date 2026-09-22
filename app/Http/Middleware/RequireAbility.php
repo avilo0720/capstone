@@ -18,6 +18,11 @@ class RequireAbility
         }
 
         if (!RolePermissions::hasAbility($user, $ability)) {
+            // Allow legacy procurement.edit while sessions/DB migrate to procurement.add.
+            if ($ability === 'procurement.add' && RolePermissions::hasAbility($user, 'procurement.edit')) {
+                return $next($request);
+            }
+
             return response()->json(['error' => 'Forbidden'], 403);
         }
 

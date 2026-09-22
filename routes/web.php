@@ -94,10 +94,10 @@ Route::middleware('auth.custom')->prefix('api')->group(function () {
         Route::get('/procurement-assignees', [ProcurementController::class, 'assignees']);
         Route::get('/procurement-requests/{id}/history', [ProcurementController::class, 'history']);
         Route::get('/procurement-requests/{id}', [ProcurementController::class, 'show']);
-        Route::post('/procurement-requests', [ProcurementController::class, 'store'])->middleware('ability:procurement.edit');
-        Route::put('/procurement-requests/{id}', [ProcurementController::class, 'update'])->middleware('ability:procurement.edit');
+        Route::post('/procurement-requests', [ProcurementController::class, 'store'])->middleware('ability:procurement.add');
+        Route::put('/procurement-requests/{id}', [ProcurementController::class, 'update'])->middleware('ability:procurement.add');
         Route::delete('/procurement-requests/{id}', [ProcurementController::class, 'destroy']);
-        Route::post('/procurement-requests/{id}/resubmit', [ProcurementController::class, 'resubmit'])->middleware('ability:procurement.edit');
+        Route::post('/procurement-requests/{id}/resubmit', [ProcurementController::class, 'resubmit'])->middleware('ability:procurement.add');
         Route::post('/procurement-requests/{id}/approve', [ProcurementController::class, 'approve']);
         Route::post('/procurement-requests/{id}/deny', [ProcurementController::class, 'deny']);
         Route::post('/procurement-requests/{id}/stock-entry', [ProcurementController::class, 'stockEntry']);

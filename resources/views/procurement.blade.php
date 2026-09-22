@@ -28,7 +28,7 @@
       </div>
       <div class="product-section__header__buttons">
         <button type="button" class="downloadBtn" id="procurementDownloadBtn">Download report</button>
-        @if($user['canEditProcurement'] ?? false)
+        @if($user['canAddProcurement'] ?? $user['canEditProcurement'] ?? false)
           <button type="button" class="addProBtn" id="procurementManualBtn">Add request</button>
         @endif
       </div>
@@ -152,6 +152,7 @@
     <div class="confirm-modal confirm-modal--wide procurement-manual-modal" role="dialog" aria-modal="true" aria-labelledby="procurementManualTitle">
       <h2 class="confirm-modal__title" id="procurementManualTitle">Add request slip</h2>
       <p class="confirm-modal__message">Submit a requisition slip, then pick the next person. After the branch manager approves, procurement prints the RS slip.</p>
+      <div class="procurement-manual-body">
       <div class="procurement-manual-meta">
         <label>
           <span class="procurement-manual-meta__label">To</span>
@@ -210,18 +211,19 @@
       </div>
       <p class="procurement-manual-hint" id="procurementManualHint">0 lines ready</p>
       <div class="procurement-manual-attach">
-        <span class="procurement-manual-meta__label">Attachment image <em>(optional)</em></span>
-        <div class="procurement-manual-attach__row">
-          <label class="procurement-manual-attach__pick">
-            Choose image
-            <input type="file" id="procurementManualAttachment" accept="image/png,image/jpeg,image/jpg,image/webp" hidden />
-          </label>
+        <div class="procurement-manual-attach__head">
+          <span class="procurement-manual-meta__label">Attachment image <em>(optional)</em></span>
           <button type="button" class="procurement-manual-attach__clear --hidden" id="procurementManualAttachmentClear">Remove</button>
         </div>
-        <p class="procurement-manual-attach__hint" id="procurementManualAttachmentHint">PNG, JPG, or WebP · shown at the bottom of the RS slip</p>
-        <img class="procurement-manual-attach__preview --hidden" id="procurementManualAttachmentPreview" alt="Attachment preview" />
+        <button type="button" class="procurement-manual-attach__drop" id="procurementManualAttachmentPick" aria-label="Choose attachment image">
+          <span class="procurement-manual-attach__cta" id="procurementManualAttachmentCta">Click to choose image</span>
+          <span class="procurement-manual-attach__hint" id="procurementManualAttachmentHint">PNG, JPG, or WebP · shown at the bottom of the RS slip</span>
+          <img class="procurement-manual-attach__preview --hidden" id="procurementManualAttachmentPreview" alt="Attachment preview" />
+        </button>
+        <input type="file" id="procurementManualAttachment" accept="image/png,image/jpeg,image/jpg,image/webp" hidden />
       </div>
       <p class="procurement-modal__error --hidden" id="procurementManualError"></p>
+      </div>
       <div class="confirm-modal__actions">
         <button type="button" class="confirm-modal__btn confirm-modal__btn--ghost" id="procurementManualCancel">Cancel</button>
         <button type="button" class="confirm-modal__btn confirm-modal__btn--primary" id="procurementManualConfirm">Submit request</button>

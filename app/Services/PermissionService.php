@@ -54,14 +54,11 @@ class PermissionService
             'canEdit' => in_array('inventory.edit', $abilityList, true),
             'canManageUsers' => $canManageUsers,
             'canViewCalendarTable' => in_array('calendar.table', $abilityList, true),
-            'canEditProcurement' => in_array('procurement.edit', $abilityList, true),
-            'canReviewProcurement' => in_array('procurement.review', $abilityList, true),
-            'canDeptReviewProcurement' => in_array('procurement.review', $abilityList, true)
-                || in_array('procurement.dept_review', $abilityList, true),
-            'canCheckProcurement' => in_array('procurement.review', $abilityList, true)
-                || in_array('procurement.check', $abilityList, true),
-            'canFinalApproveProcurement' => in_array('procurement.review', $abilityList, true)
-                || in_array('procurement.final_approve', $abilityList, true),
+            'canEditProcurement' => in_array('procurement.add', $abilityList, true)
+                || in_array('procurement.edit', $abilityList, true),
+            'canAddProcurement' => in_array('procurement.add', $abilityList, true)
+                || in_array('procurement.edit', $abilityList, true),
+            'canDeleteProcurement' => in_array('procurement.delete', $abilityList, true),
             'canEditIssuance' => in_array('issuance.edit', $abilityList, true),
             'canReviewIssuance' => in_array('issuance.review', $abilityList, true),
         ];
@@ -91,10 +88,8 @@ class PermissionService
             'canManageUsers' => $resolved['canManageUsers'],
             'canViewCalendarTable' => $resolved['canViewCalendarTable'],
             'canEditProcurement' => $resolved['canEditProcurement'],
-            'canReviewProcurement' => $resolved['canReviewProcurement'],
-            'canDeptReviewProcurement' => $resolved['canDeptReviewProcurement'],
-            'canCheckProcurement' => $resolved['canCheckProcurement'],
-            'canFinalApproveProcurement' => $resolved['canFinalApproveProcurement'],
+            'canAddProcurement' => $resolved['canAddProcurement'],
+            'canDeleteProcurement' => $resolved['canDeleteProcurement'],
             'canEditIssuance' => $resolved['canEditIssuance'],
             'canReviewIssuance' => $resolved['canReviewIssuance'],
         ];

@@ -2,13 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="stylesheet" href="/src/css/font.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" />
-    <link rel="stylesheet" href="/src/css/style.css?v=100" />
+    <link rel="stylesheet" href="/src/css/style.css?v=121" />
     <title>{{ $title }} | Nabua Water Inventory</title>
   </head>
-  <body data-can-edit="{{ ($user['canEdit'] ?? false) ? 'true' : 'false' }}" data-can-calendar-table="{{ ($user['canViewCalendarTable'] ?? false) ? 'true' : 'false' }}" data-can-manage-users="{{ ($user['canManageUsers'] ?? false) ? 'true' : 'false' }}" data-can-procurement-edit="{{ ($user['canEditProcurement'] ?? false) ? 'true' : 'false' }}" data-can-procurement-review="{{ ($user['canReviewProcurement'] ?? false) ? 'true' : 'false' }}" data-can-issuance-edit="{{ ($user['canEditIssuance'] ?? false) ? 'true' : 'false' }}" data-can-issuance-review="{{ ($user['canReviewIssuance'] ?? false) ? 'true' : 'false' }}" data-user-id="{{ $user['id'] ?? '' }}" data-inventory="{{ $currentInventory->slug ?? '' }}">
+  <body data-can-edit="{{ ($user['canEdit'] ?? false) ? 'true' : 'false' }}" data-can-calendar-table="{{ ($user['canViewCalendarTable'] ?? false) ? 'true' : 'false' }}" data-can-manage-users="{{ ($user['canManageUsers'] ?? false) ? 'true' : 'false' }}" data-can-procurement-add="{{ ($user['canAddProcurement'] ?? $user['canEditProcurement'] ?? false) ? 'true' : 'false' }}" data-can-procurement-edit="{{ ($user['canAddProcurement'] ?? $user['canEditProcurement'] ?? false) ? 'true' : 'false' }}" data-can-procurement-delete="{{ ($user['canDeleteProcurement'] ?? false) ? 'true' : 'false' }}" data-can-issuance-edit="{{ ($user['canEditIssuance'] ?? false) ? 'true' : 'false' }}" data-can-issuance-review="{{ ($user['canReviewIssuance'] ?? false) ? 'true' : 'false' }}" data-user-id="{{ $user['id'] ?? '' }}" data-inventory="{{ $currentInventory->slug ?? '' }}">
     @include('partials.sidebar')
     <div class="app container">
       @include('partials.header')
@@ -28,7 +28,7 @@
     @include('partials.profile-crop-modal')
     <script type="application/json" id="assigneeDirectory">@json($assigneeDirectory ?? [])</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
-    <script src="/src/js/app.js?v=96" type="module"></script>
+    <script src="/src/js/app.js?v=100" type="module"></script>
     <script>
       setTimeout(function () {
         var overlay = document.getElementById("appLoading");

@@ -2,7 +2,7 @@
   $allowedPages = $user['pages'] ?? [];
 @endphp
 
-<div class="sideBar-ontoggle --hidden">
+<div class="sideBar-ontoggle --hidden" id="mobileSideBar">
   <div class="sideBar__brand">
     @include('partials.sidebar-logo')
     @include('partials.inventory-switcher')

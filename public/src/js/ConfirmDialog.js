@@ -332,7 +332,7 @@ function bindSignaturePad(root) {
   const resizeForDisplay = () => {
     const ratio = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
-    const width = Math.max(320, Math.floor(rect.width || 520));
+    const width = Math.max(240, Math.floor(rect.width || 520));
     const height = 160;
     canvas.width = width * ratio;
     canvas.height = height * ratio;

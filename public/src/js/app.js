@@ -100,6 +100,19 @@ class App {
       });
     }
 
+    // Close mobile drawer after choosing a page
+    sideBarOnToggle?.querySelectorAll("a.sideBar__icon").forEach((link) => {
+      link.addEventListener("click", () => this.hideMenu());
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") this.hideMenu();
+    });
+
+    // Always start closed (bfcache / stale DOM)
+    this.hideMenu();
+    window.addEventListener("pageshow", () => this.hideMenu());
+
     if (searchBar) {
       searchBar.addEventListener("input", () => {
         this.searchInputLogic();
@@ -178,14 +191,22 @@ class App {
     }
   }
 
-  menuToggleLogic(event) {
-    sideBarOnToggle.classList.remove("--hidden");
-    sideBarBackdrop.classList.remove("--hidden");
+  menuToggleLogic() {
+    if (!sideBarOnToggle || !sideBarBackdrop) return;
+    const isOpen = !sideBarOnToggle.classList.contains("--hidden");
+    if (isOpen) {
+      this.hideMenu();
+    } else {
+      sideBarOnToggle.classList.remove("--hidden");
+      sideBarBackdrop.classList.remove("--hidden");
+      document.body.classList.add("disableScroll");
+    }
   }
 
   hideMenu() {
-    sideBarOnToggle.classList.add("--hidden");
-    sideBarBackdrop.classList.add("--hidden");
+    sideBarOnToggle?.classList.add("--hidden");
+    sideBarBackdrop?.classList.add("--hidden");
+    document.body.classList.remove("disableScroll");
   }
 
   bindInventorySwitch() {

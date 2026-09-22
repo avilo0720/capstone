@@ -42,32 +42,22 @@ class RolePermissions
         return self::hasAbility($sessionUser, 'calendar.table');
     }
 
+    public static function canAddProcurement(?array $sessionUser): bool
+    {
+        return self::hasAbility($sessionUser, 'procurement.add')
+            || self::hasAbility($sessionUser, 'procurement.edit'); // legacy
+    }
+
+    /** @deprecated Use canAddProcurement() */
     public static function canEditProcurement(?array $sessionUser): bool
     {
-        return self::hasAbility($sessionUser, 'procurement.edit');
+        return self::canAddProcurement($sessionUser);
     }
 
-    public static function canReviewProcurement(?array $sessionUser): bool
+    public static function canDeleteProcurement(?array $sessionUser): bool
     {
-        return self::hasAbility($sessionUser, 'procurement.review');
-    }
-
-    public static function canDeptReviewProcurement(?array $sessionUser): bool
-    {
-        return self::canReviewProcurement($sessionUser)
-            || self::hasAbility($sessionUser, 'procurement.dept_review');
-    }
-
-    public static function canCheckProcurement(?array $sessionUser): bool
-    {
-        return self::canReviewProcurement($sessionUser)
-            || self::hasAbility($sessionUser, 'procurement.check');
-    }
-
-    public static function canFinalApproveProcurement(?array $sessionUser): bool
-    {
-        return self::canReviewProcurement($sessionUser)
-            || self::hasAbility($sessionUser, 'procurement.final_approve');
+        return self::hasAbility($sessionUser, 'procurement.delete')
+            || self::canManageUsers($sessionUser);
     }
 
     public static function canActOnProcurementStep(?array $sessionUser, ?string $step): bool
@@ -95,7 +85,7 @@ class RolePermissions
 
     public static function canPrintProcurementSlip(?array $sessionUser, ?int $assignedTo = null, ?int $checkedBy = null): bool
     {
-        if (self::canManageUsers($sessionUser) || self::canEditProcurement($sessionUser)) {
+        if (self::canManageUsers($sessionUser) || self::canAddProcurement($sessionUser)) {
             return true;
         }
 
@@ -112,8 +102,7 @@ class RolePermissions
             return true;
         }
 
-        return self::canCheckProcurement($sessionUser)
-            || self::canReviewProcurement($sessionUser);
+        return self::canAccessPage($sessionUser, 'procurement');
     }
 
     public static function canEditIssuance(?array $sessionUser): bool
@@ -126,14 +115,20 @@ class RolePermissions
         return self::hasAbility($sessionUser, 'issuance.review');
     }
 
-    public static function canDeleteProcurementRequest(?array $sessionUser, ?int $uploadedBy): bool
+    public static function canDeleteProcurementRequest(?array $sessionUser, ?int $uploadedBy = null): bool
     {
-        return self::canDeleteSubmittedRequest(
-            $sessionUser,
-            $uploadedBy,
-            self::canReviewProcurement($sessionUser),
-            self::canEditProcurement($sessionUser),
-        );
+        if (self::canDeleteProcurement($sessionUser)) {
+            return true;
+        }
+
+        // Legacy: submitters with add (or old edit) can remove their own pending/denied slips.
+        if (!self::canAddProcurement($sessionUser)) {
+            return false;
+        }
+
+        $userId = (int) ($sessionUser['id'] ?? 0);
+
+        return $userId > 0 && $uploadedBy !== null && (int) $uploadedBy === $userId;
     }
 
     public static function canDeleteIssuanceRequest(?array $sessionUser, ?int $uploadedBy): bool

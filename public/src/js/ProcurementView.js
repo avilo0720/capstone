@@ -59,8 +59,9 @@ class ProcurementView {
     this.manualSearch = "";
     this.manualAttachmentDataUrl = null;
     this.people = [];
-    this.canEdit = document.body.dataset.canProcurementEdit === "true";
-    this.canReview = document.body.dataset.canProcurementReview === "true";
+    this.canEdit = document.body.dataset.canProcurementAdd === "true"
+      || document.body.dataset.canProcurementEdit === "true";
+    this.canDelete = document.body.dataset.canProcurementDelete === "true";
     this.canManageUsers = document.body.dataset.canManageUsers === "true";
     this.userId = Number(document.body.dataset.userId || 0);
     this.pagination = new Pagination({
@@ -150,8 +151,15 @@ class ProcurementView {
     document.getElementById("procurementManualBtn")?.addEventListener("click", () => this.openManual());
     document.getElementById("procurementManualCancel")?.addEventListener("click", () => this.closeManual());
     document.getElementById("procurementManualConfirm")?.addEventListener("click", () => this.submitManual());
+    document.getElementById("procurementManualAttachmentPick")?.addEventListener("click", () => {
+      document.getElementById("procurementManualAttachment")?.click();
+    });
     document.getElementById("procurementManualAttachment")?.addEventListener("change", (e) => this.onManualAttachmentChange(e));
-    document.getElementById("procurementManualAttachmentClear")?.addEventListener("click", () => this.clearManualAttachment());
+    document.getElementById("procurementManualAttachmentClear")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.clearManualAttachment();
+    });
     document.getElementById("procurementManualFillRop")?.addEventListener("click", () => this.fillManualByMode("missing-rop"));
     document.getElementById("procurementManualFillProcurement")?.addEventListener("click", () => this.fillManualByMode("procurement"));
     document.getElementById("procurementManualClearAll")?.addEventListener("click", () => this.clearManualQtys());
@@ -528,7 +536,7 @@ class ProcurementView {
   }
 
   canDeleteRequest(req) {
-    if (this.canReview || this.canManageUsers) return true;
+    if (this.canDelete || this.canManageUsers) return true;
     if (!this.canEdit || !req) return false;
     return this.userId > 0 && Number(req.uploaded_by_id) === this.userId;
   }
@@ -740,12 +748,16 @@ class ProcurementView {
     const preview = document.getElementById("procurementManualAttachmentPreview");
     const clearBtn = document.getElementById("procurementManualAttachmentClear");
     const hint = document.getElementById("procurementManualAttachmentHint");
+    const cta = document.getElementById("procurementManualAttachmentCta");
+    const drop = document.getElementById("procurementManualAttachmentPick");
     if (input) input.value = "";
     if (preview) {
       preview.src = "";
       preview.classList.add("--hidden");
     }
     clearBtn?.classList.add("--hidden");
+    drop?.classList.remove("has-file");
+    if (cta) cta.textContent = "Click to choose image";
     if (hint) hint.textContent = "PNG, JPG, or WebP · shown at the bottom of the RS slip";
   }
 
@@ -779,11 +791,15 @@ class ProcurementView {
       const preview = document.getElementById("procurementManualAttachmentPreview");
       const clearBtn = document.getElementById("procurementManualAttachmentClear");
       const hint = document.getElementById("procurementManualAttachmentHint");
+      const cta = document.getElementById("procurementManualAttachmentCta");
+      const drop = document.getElementById("procurementManualAttachmentPick");
       if (preview) {
         preview.src = this.manualAttachmentDataUrl;
         preview.classList.remove("--hidden");
       }
       clearBtn?.classList.remove("--hidden");
+      drop?.classList.add("has-file");
+      if (cta) cta.textContent = "Change image";
       if (hint) hint.textContent = file.name;
       error?.classList.add("--hidden");
     };

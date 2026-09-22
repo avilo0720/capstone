@@ -71,7 +71,8 @@ class ShareUserData
                     $changed = true;
                 }
                 if (!in_array('issuance.edit', $abilities, true)
-                    && (in_array('procurement.edit', $abilities, true)
+                    && (in_array('procurement.add', $abilities, true)
+                        || in_array('procurement.edit', $abilities, true)
                         || in_array('forecast.view', $abilities, true)
                         || in_array('inventory.edit', $abilities, true))
                 ) {
@@ -79,8 +80,7 @@ class ShareUserData
                     $changed = true;
                 }
                 if (!in_array('issuance.review', $abilities, true)
-                    && (in_array('procurement.review', $abilities, true)
-                        || in_array('reports.view', $abilities, true)
+                    && (in_array('reports.view', $abilities, true)
                         || in_array('users.manage', $abilities, true))
                 ) {
                     $abilities[] = 'issuance.review';
@@ -90,14 +90,16 @@ class ShareUserData
             }
 
             $abilities = $user['abilities'] ?? [];
-            $user['canEditProcurement'] = in_array('procurement.edit', $abilities, true);
-            $user['canReviewProcurement'] = in_array('procurement.review', $abilities, true);
-            $user['canDeptReviewProcurement'] = in_array('procurement.review', $abilities, true)
-                || in_array('procurement.dept_review', $abilities, true);
-            $user['canCheckProcurement'] = in_array('procurement.review', $abilities, true)
-                || in_array('procurement.check', $abilities, true);
-            $user['canFinalApproveProcurement'] = in_array('procurement.review', $abilities, true)
-                || in_array('procurement.final_approve', $abilities, true);
+            // Migrate legacy session ability keys until the user re-logs in.
+            if (in_array('procurement.edit', $abilities, true) && !in_array('procurement.add', $abilities, true)) {
+                $abilities[] = 'procurement.add';
+                $changed = true;
+            }
+            $user['abilities'] = $abilities;
+            $user['canAddProcurement'] = in_array('procurement.add', $abilities, true)
+                || in_array('procurement.edit', $abilities, true);
+            $user['canEditProcurement'] = $user['canAddProcurement'];
+            $user['canDeleteProcurement'] = in_array('procurement.delete', $abilities, true);
             $user['canEditIssuance'] = in_array('issuance.edit', $abilities, true);
             $user['canReviewIssuance'] = in_array('issuance.review', $abilities, true);
 
