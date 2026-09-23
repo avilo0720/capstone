@@ -28,7 +28,7 @@
     @include('partials.profile-crop-modal')
     <script type="application/json" id="assigneeDirectory">@json($assigneeDirectory ?? [])</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
-    <script src="/src/js/app.js?v=100" type="module"></script>
+    <script src="/src/js/app.js?v=101" type="module"></script>
     <script>
       setTimeout(function () {
         var overlay = document.getElementById("appLoading");

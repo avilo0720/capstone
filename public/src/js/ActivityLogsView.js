@@ -1,5 +1,5 @@
 import Pagination from "./Pagination.js";
-import { activityChanges, renderActivityChanges } from "./ActivityChanges.js";
+import { activityChanges, renderActivityChanges } from "./ActivityChanges.js?v=101";
 import { bindBackdropClose } from "./OverlayDismiss.js";
 
 const ACTION_BADGES = {

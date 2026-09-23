@@ -1,6 +1,6 @@
 import confirmAction, { notifyAlert, pickAssignee, captureSignature } from "./ConfirmDialog.js";
 import { bindBackdropClose } from "./OverlayDismiss.js";
-import { renderActivityChanges } from "./ActivityChanges.js";
+import { renderActivityChanges } from "./ActivityChanges.js?v=101";
 import Pagination from "./Pagination.js";
 import { fetchAssignees } from "./API.js";
 import DownloadOptions from "./DownloadOptions.js";
@@ -642,7 +642,12 @@ class ProcurementView {
         const role = event.user?.role ? ` · ${this.escape(event.user.role)}` : "";
         const when = this.escape(this.formatWhen(event.created_at));
         const description = this.escape(event.description || "—");
-        const changes = renderActivityChanges(event.meta, (value) => this.escape(value));
+        const lineNames = {};
+        (this.detail?.items || []).forEach((line) => {
+          const title = String(line?.title || "").trim();
+          if (line?.id != null && title) lineNames[String(line.id)] = title;
+        });
+        const changes = renderActivityChanges(event.meta, (value) => this.escape(value), lineNames);
         return `<li class="procurement-history-item">
           <div class="procurement-history-item__top">
             <span class="dashboard-activity__badge dashboard-activity__badge--${badge.tone}">${badge.label}</span>

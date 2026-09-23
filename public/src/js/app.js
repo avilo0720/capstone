@@ -1,11 +1,11 @@
-import DashboardUi from "./Dashboard.js";
+import DashboardUi from "./Dashboard.js?v=101";
 import InventoryUi from "./InventoryView.js";
 import ForecastingUi from "./ForecastingView.js";
 import ReportsView from "./ReportsView.js";
 import CalendarView from "./CalendarView.js";
 import UsersView from "./UsersView.js";
-import ActivityLogsView from "./ActivityLogsView.js";
-import ProcurementView from "./ProcurementView.js";
+import ActivityLogsView from "./ActivityLogsView.js?v=101";
+import ProcurementView from "./ProcurementView.js?v=101";
 import IssuanceView from "./IssuanceView.js";
 import Storage from "./API.js";
 import confirmAction, { notifyAlert } from "./ConfirmDialog.js";

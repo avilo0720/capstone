@@ -1,6 +1,6 @@
 const mainApp = document.querySelector(".main");
 import Storage from "./API.js";
-import { renderActivityChanges } from "./ActivityChanges.js";
+import { renderActivityChanges } from "./ActivityChanges.js?v=101";
 import { bindBackdropClose } from "./OverlayDismiss.js";
 
 class DashboardUi {
