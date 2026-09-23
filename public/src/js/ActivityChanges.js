@@ -17,11 +17,55 @@ function deriveLegacyChanges(meta) {
   return rows;
 }
 
-export function activityChanges(meta) {
-  if (Array.isArray(meta?.changes) && meta.changes.length) {
-    return meta.changes.filter((row) => row && (row.field || row.from != null || row.to != null));
+function parseLineDump(value) {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  if (!text.startsWith("[")) return null;
+  try {
+    const rows = JSON.parse(text);
+    if (!Array.isArray(rows) || rows.some((row) => !row || typeof row !== "object" || row.title == null)) {
+      return null;
+    }
+    return rows;
+  } catch {
+    return null;
   }
-  return deriveLegacyChanges(meta);
+}
+
+function lineKey(line) {
+  return String(line.id ?? line.item_id ?? line.title);
+}
+
+function expandLineDump(row) {
+  const before = parseLineDump(row.from);
+  const after = parseLineDump(row.to);
+  if (!before && !after) return [row];
+
+  const left = new Map((before || []).map((line) => [lineKey(line), line]));
+  const right = new Map((after || []).map((line) => [lineKey(line), line]));
+  const changes = [];
+
+  [...new Set([...left.keys(), ...right.keys()])].forEach((key) => {
+    const fromLine = left.get(key);
+    const toLine = right.get(key);
+    const name = (toLine || fromLine).title || "Item";
+    const fromQty = fromLine ? String(fromLine.qty ?? fromLine.requested_qty ?? 0) : null;
+    const toQty = toLine ? String(toLine.qty ?? toLine.requested_qty ?? 0) : null;
+    if (fromLine && toLine && fromQty === toQty) return;
+    if (!fromLine) changes.push({ field: name, to: toQty });
+    else if (!toLine) changes.push({ field: name, from: fromQty, to: "Removed" });
+    else changes.push({ field: name, from: fromQty, to: toQty });
+  });
+
+  return changes.length ? changes : [{ field: "Request lines", to: "No quantity changes" }];
+}
+
+export function activityChanges(meta) {
+  const rows = Array.isArray(meta?.changes) && meta.changes.length
+    ? meta.changes.filter((row) => row && (row.field || row.from != null || row.to != null))
+    : deriveLegacyChanges(meta);
+
+  return rows.flatMap(expandLineDump);
 }
 
 export function renderActivityChanges(meta, escapeHtml) {

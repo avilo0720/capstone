@@ -17,6 +17,7 @@ const ACTION_BADGES = {
   procurement_stock_entered: { label: "Stock in", tone: "green" },
   procurement_edited: { label: "Edited", tone: "blue" },
   procurement_resubmitted: { label: "Resubmitted", tone: "orange" },
+  procurement_returned: { label: "Returned", tone: "orange" },
   procurement_deleted: { label: "Deleted", tone: "red" },
   issuance_submitted: { label: "Issuance", tone: "blue" },
   issuance_approved: { label: "Approved", tone: "green" },

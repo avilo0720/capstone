@@ -49,11 +49,6 @@ class IssuanceView {
   }
 
   bindEvents() {
-    document.getElementById("issuanceFilters")?.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-status]");
-      if (btn) this.setStatusFilter(btn.dataset.status);
-    });
-
     document.getElementById("issuanceSummary")?.addEventListener("click", (e) => {
       const card = e.target.closest("[data-status]");
       if (card) this.setStatusFilter(card.dataset.status);
@@ -124,9 +119,6 @@ class IssuanceView {
 
   setStatusFilter(status) {
     this.statusFilter = status || "all";
-    document.querySelectorAll("#issuanceFilters .users-tab").forEach((el) => {
-      el.classList.toggle("--active", el.dataset.status === this.statusFilter);
-    });
     document.querySelectorAll("#issuanceSummary [data-status]").forEach((el) => {
       el.classList.toggle("is-active", el.dataset.status === this.statusFilter);
     });

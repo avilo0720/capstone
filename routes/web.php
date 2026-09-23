@@ -98,6 +98,7 @@ Route::middleware('auth.custom')->prefix('api')->group(function () {
         Route::put('/procurement-requests/{id}', [ProcurementController::class, 'update'])->middleware('ability:procurement.add');
         Route::delete('/procurement-requests/{id}', [ProcurementController::class, 'destroy']);
         Route::post('/procurement-requests/{id}/resubmit', [ProcurementController::class, 'resubmit'])->middleware('ability:procurement.add');
+        Route::post('/procurement-requests/{id}/return-to-previous', [ProcurementController::class, 'returnToPrevious']);
         Route::post('/procurement-requests/{id}/approve', [ProcurementController::class, 'approve']);
         Route::post('/procurement-requests/{id}/deny', [ProcurementController::class, 'deny']);
         Route::post('/procurement-requests/{id}/stock-entry', [ProcurementController::class, 'stockEntry']);

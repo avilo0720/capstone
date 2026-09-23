@@ -210,31 +210,114 @@ class ProcurementController extends Controller
 
         $data = $request->validate([
             'items' => ['required', 'array', 'min:1'],
-            'items.*.id' => ['required', 'integer'],
+            'items.*.id' => ['nullable', 'integer'],
+            'items.*.item_id' => ['nullable', 'integer'],
             'items.*.requested_qty' => ['required', 'integer', 'min:0'],
         ]);
 
-        $allowedIds = $procurement->items->pluck('id')->all();
-        $before = $procurement->items->mapWithKeys(
-            fn (ProcurementRequestItem $line) => [$line->id => (int) $line->requested_qty]
-        )->all();
+        $allowedIds = $procurement->items->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $before = $procurement->items->map(
+            fn (ProcurementRequestItem $line) => [
+                'id' => (int) $line->id,
+                'item_id' => $line->item_id ? (int) $line->item_id : null,
+                'title' => $line->title,
+                'qty' => (int) $line->requested_qty,
+            ]
+        )->values()->all();
+
+        $keepIds = [];
+        $seenItemIds = [];
+        $catalog = Item::query()
+            ->where('inventory_id', $procurement->inventory_id)
+            ->get()
+            ->keyBy('id');
 
         foreach ($data['items'] as $row) {
-            if (!in_array((int) $row['id'], $allowedIds, true)) {
-                return response()->json(['error' => 'One of the lines does not belong to this request.'], 422);
+            $lineId = isset($row['id']) ? (int) $row['id'] : 0;
+            $itemId = isset($row['item_id']) ? (int) $row['item_id'] : 0;
+            $qty = (int) $row['requested_qty'];
+
+            if ($lineId > 0) {
+                if (!in_array($lineId, $allowedIds, true)) {
+                    return response()->json(['error' => 'One of the lines does not belong to this request.'], 422);
+                }
+
+                $existing = $procurement->items->firstWhere('id', $lineId);
+                if ($existing?->item_id) {
+                    $catalogItemId = (int) $existing->item_id;
+                    if (isset($seenItemIds[$catalogItemId])) {
+                        return response()->json(['error' => 'Duplicate inventory items are not allowed on one request.'], 422);
+                    }
+                    $seenItemIds[$catalogItemId] = true;
+                }
+
+                ProcurementRequestItem::where('id', $lineId)
+                    ->where('procurement_request_id', $procurement->id)
+                    ->update(['requested_qty' => $qty]);
+                $keepIds[] = $lineId;
+                continue;
             }
+
+            if ($itemId <= 0) {
+                return response()->json(['error' => 'New lines must include an inventory item.'], 422);
+            }
+
+            /** @var Item|null $matched */
+            $matched = $catalog->get($itemId);
+            if (!$matched) {
+                return response()->json(['error' => 'One of the new items was not found in this inventory.'], 422);
+            }
+
+            if (isset($seenItemIds[$itemId])) {
+                return response()->json(['error' => 'Duplicate inventory items are not allowed on one request.'], 422);
+            }
+            $seenItemIds[$itemId] = true;
+
+            $alreadyOnRequest = $procurement->items->first(
+                fn (ProcurementRequestItem $line) => (int) $line->item_id === $itemId
+                    && !in_array((int) $line->id, $keepIds, true)
+            );
+            if ($alreadyOnRequest) {
+                return response()->json([
+                    'error' => 'Item "'.$matched->title.'" is already on this request. Update its quantity instead.',
+                ], 422);
+            }
+
+            $created = ProcurementRequestItem::create([
+                'procurement_request_id' => $procurement->id,
+                'item_id' => $matched->id,
+                'item_code' => $matched->itemCode,
+                'title' => $matched->title,
+                'size' => $matched->size,
+                'current_qty' => (int) ($matched->quantity ?? 0),
+                'amc' => (float) ($matched->monthlyDemand ?? 0),
+                'need_3m' => 0,
+                'need_6m' => 0,
+                'need_1y' => 0,
+                'method' => null,
+                'requested_qty' => $qty,
+            ]);
+            $keepIds[] = (int) $created->id;
         }
 
-        foreach ($data['items'] as $row) {
-            ProcurementRequestItem::where('id', $row['id'])
-                ->where('procurement_request_id', $procurement->id)
-                ->update(['requested_qty' => (int) $row['requested_qty']]);
+        if ($keepIds === []) {
+            return response()->json(['error' => 'At least one line item is required.'], 422);
         }
+
+        ProcurementRequestItem::query()
+            ->where('procurement_request_id', $procurement->id)
+            ->whereNotIn('id', $keepIds)
+            ->delete();
 
         $procurement->refresh()->load('items');
-        $after = $procurement->items->mapWithKeys(
-            fn (ProcurementRequestItem $line) => [$line->id => (int) $line->requested_qty]
-        )->all();
+        $after = $procurement->items->map(
+            fn (ProcurementRequestItem $line) => [
+                'id' => (int) $line->id,
+                'item_id' => $line->item_id ? (int) $line->item_id : null,
+                'title' => $line->title,
+                'qty' => (int) $line->requested_qty,
+            ]
+        )->values()->all();
 
         $this->activity->log(
             $request,
@@ -244,9 +327,8 @@ class ProcurementController extends Controller
             (int) $procurement->id,
             [
                 'changes' => ActivityChangeSet::diff(
-                    ['qtys' => json_encode($before)],
-                    ['qtys' => json_encode($after)],
-                    ['qtys' => 'Requested quantities']
+                    $this->lineQtyMap($before),
+                    $this->lineQtyMap($after)
                 ),
             ]
         );
@@ -309,12 +391,19 @@ class ProcurementController extends Controller
             return response()->json(['error' => 'Only the person assigned this step can act on it.'], 403);
         }
 
-        $data = $request->validate([
-            'assigned_to' => ['required', 'integer', 'exists:users,id'],
+        $isFinal = $step === ProcurementRequest::STEP_MANAGER;
+        $rules = [
             'signature' => ['required', 'string', 'min:64', 'max:900000'],
-        ]);
+        ];
+        if (!$isFinal) {
+            $rules['assigned_to'] = ['required', 'integer', 'exists:users,id'];
+        }
 
-        $nextAssignee = (int) $data['assigned_to'];
+        $data = $request->validate($rules);
+
+        $nextAssignee = $isFinal
+            ? ($procurement->checked_by ? (int) $procurement->checked_by : null)
+            : (int) $data['assigned_to'];
         $nextStatus = $procurement->nextStatus();
         if (!$nextStatus) {
             return response()->json(['error' => 'This request is not waiting for approval.'], 422);
@@ -481,6 +570,92 @@ class ProcurementController extends Controller
             'request' => $this->serialize($request, $this->findForInventory($request, $id), true),
         ]);
     }
+
+    public function returnToPrevious(Request $request, int $id): JsonResponse
+    {
+        $user = $request->session()->get('user');
+        $procurement = $this->findForInventory($request, $id);
+
+        if (!$procurement->isDenied()) {
+            return response()->json(['error' => 'Only denied requests can be sent back.'], 422);
+        }
+
+        if (!$this->canReturnToPrevious($user, $procurement)) {
+            return response()->json(['error' => 'Only the person who denied this request can send it back.'], 403);
+        }
+
+        $target = $this->previousReturnTarget($procurement);
+        if (!$target) {
+            return response()->json([
+                'error' => 'There is no previous checker for this request. Resubmit it to a department head instead.',
+            ], 422);
+        }
+
+        $previousStatus = $procurement->status;
+
+        DB::transaction(function () use ($procurement, $target) {
+            $rsNumber = $procurement->rs_number ?: ProcurementRequest::allocateRsNumber(now());
+            $payload = [
+                'status' => $target['restore_status'],
+                'assigned_to' => $target['user_id'],
+                'rs_number' => $rsNumber,
+                'reviewed_by' => null,
+                'reviewed_at' => null,
+            ];
+
+            if ($target['step'] === 'check') {
+                $this->deleteSignatureFile($procurement->checked_signature);
+                $payload['checked_by'] = null;
+                $payload['checked_at'] = null;
+                $payload['checked_signature'] = null;
+                $payload['approved_by'] = null;
+                $payload['approved_at'] = null;
+                $payload['approved_signature'] = null;
+                $payload['printed_at'] = null;
+            } else {
+                $this->deleteSignatureFile($procurement->noted_signature);
+                $this->deleteSignatureFile($procurement->checked_signature);
+                $this->deleteSignatureFile($procurement->approved_signature);
+                $payload['noted_by'] = null;
+                $payload['noted_at'] = null;
+                $payload['noted_signature'] = null;
+                $payload['checked_by'] = null;
+                $payload['checked_at'] = null;
+                $payload['checked_signature'] = null;
+                $payload['approved_by'] = null;
+                $payload['approved_at'] = null;
+                $payload['approved_signature'] = null;
+                $payload['printed_at'] = null;
+            }
+
+            $procurement->update($payload);
+        });
+
+        $procurement->refresh();
+
+        $this->activity->log(
+            $request,
+            'procurement_returned',
+            'Sent procurement request #'.$procurement->id
+                .' back to '.$target['label']
+                .($target['name'] ? ' ('.$target['name'].')' : ''),
+            'procurement_request',
+            (int) $procurement->id,
+            [
+                'changes' => ActivityChangeSet::diff(
+                    ['status' => $previousStatus],
+                    ['status' => $target['restore_status']],
+                    ['status' => 'Status']
+                ),
+            ]
+        );
+
+        return response()->json([
+            'success' => true,
+            'request' => $this->serialize($request, $this->findForInventory($request, $id), true),
+        ]);
+    }
+
 
     public function resubmit(Request $request, int $id): JsonResponse
     {
@@ -912,6 +1087,80 @@ class ProcurementController extends Controller
         );
     }
 
+
+    /**
+     * @param  array<int, array{title?: string, qty?: int}>  $lines
+     * @return array<string, string>
+     */
+    private function lineQtyMap(array $lines): array
+    {
+        $map = [];
+        foreach ($lines as $line) {
+            $label = trim((string) ($line['title'] ?? 'Item'));
+            if ($label === '') {
+                $label = 'Item';
+            }
+            $key = $label;
+            $n = 2;
+            while (array_key_exists($key, $map)) {
+                $key = $label.' ('.$n.')';
+                $n++;
+            }
+            $map[$key] = (string) (int) ($line['qty'] ?? 0);
+        }
+
+        return $map;
+    }
+
+    private function previousReturnTarget(ProcurementRequest $row): ?array
+    {
+        if (!$row->isDenied()) {
+            return null;
+        }
+
+        if ($row->checked_at && $row->checked_by) {
+            $person = $row->checkedByUser;
+
+            return [
+                'step' => 'check',
+                'user_id' => (int) $row->checked_by,
+                'name' => $person?->full_name,
+                'label' => 'procurement checker',
+                'restore_status' => ProcurementRequest::STATUS_DEPT_NOTED,
+            ];
+        }
+
+        if ($row->noted_at && $row->noted_by) {
+            $person = $row->notedByUser;
+
+            return [
+                'step' => 'dept',
+                'user_id' => (int) $row->noted_by,
+                'name' => $person?->full_name,
+                'label' => 'department head',
+                'restore_status' => ProcurementRequest::STATUS_PENDING,
+            ];
+        }
+
+        return null;
+    }
+
+    private function canReturnToPrevious(?array $user, ProcurementRequest $row): bool
+    {
+        if (!$row->isDenied() || !$this->previousReturnTarget($row)) {
+            return false;
+        }
+
+        if (RolePermissions::canManageUsers($user)) {
+            return true;
+        }
+
+        $userId = (int) ($user['id'] ?? 0);
+
+        return $userId > 0 && (int) ($row->reviewed_by ?? 0) === $userId;
+    }
+
+
     private function serialize(Request $request, ProcurementRequest $row, bool $withItems): array
     {
         $user = $request->session()->get('user');
@@ -922,6 +1171,8 @@ class ProcurementController extends Controller
             'current_step' => $row->currentStep(),
             'can_act' => $this->canActOnRequest($user, $row),
             'can_print' => $this->canHandleApprovedRequest($user, $row),
+            'can_return_to_previous' => $this->canReturnToPrevious($user, $row),
+            'return_to' => $this->previousReturnTarget($row),
             'source' => $row->source,
             'original_filename' => $row->original_filename,
             'amc_mode' => $row->amc_mode,

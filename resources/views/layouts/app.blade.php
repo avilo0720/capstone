@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="stylesheet" href="/src/css/font.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" />
-    <link rel="stylesheet" href="/src/css/style.css?v=121" />
+    <link rel="stylesheet" href="/src/css/style.css?v=125" />
     <title>{{ $title }} | Nabua Water Inventory</title>
   </head>
   <body data-can-edit="{{ ($user['canEdit'] ?? false) ? 'true' : 'false' }}" data-can-calendar-table="{{ ($user['canViewCalendarTable'] ?? false) ? 'true' : 'false' }}" data-can-manage-users="{{ ($user['canManageUsers'] ?? false) ? 'true' : 'false' }}" data-can-procurement-add="{{ ($user['canAddProcurement'] ?? $user['canEditProcurement'] ?? false) ? 'true' : 'false' }}" data-can-procurement-edit="{{ ($user['canAddProcurement'] ?? $user['canEditProcurement'] ?? false) ? 'true' : 'false' }}" data-can-procurement-delete="{{ ($user['canDeleteProcurement'] ?? false) ? 'true' : 'false' }}" data-can-issuance-edit="{{ ($user['canEditIssuance'] ?? false) ? 'true' : 'false' }}" data-can-issuance-review="{{ ($user['canReviewIssuance'] ?? false) ? 'true' : 'false' }}" data-user-id="{{ $user['id'] ?? '' }}" data-inventory="{{ $currentInventory->slug ?? '' }}">

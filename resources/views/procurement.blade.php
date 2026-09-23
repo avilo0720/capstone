@@ -8,15 +8,6 @@
         @if($currentInventory)
           <span class="inventory-context-name">{{ $currentInventory->name }}</span>
         @endif
-        <div class="users-tabs" id="procurementFilters" role="tablist">
-          <button type="button" class="users-tab --active" data-status="all" role="tab">All</button>
-          <button type="button" class="users-tab" data-status="pending" role="tab">Dept. head</button>
-          <button type="button" class="users-tab" data-status="dept_noted" role="tab">Procurement</button>
-          <button type="button" class="users-tab" data-status="procurement_checked" role="tab">Branch mgr</button>
-          <button type="button" class="users-tab" data-status="approved" role="tab">Approved</button>
-          <button type="button" class="users-tab" data-status="denied" role="tab">Denied</button>
-          <button type="button" class="users-tab" data-status="stock_entered" role="tab">Stock entered</button>
-        </div>
         <form class="inventory-search__form" onsubmit="return false;">
           <div class="inventory-search">
             <svg class="icon">

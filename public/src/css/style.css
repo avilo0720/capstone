@@ -755,7 +755,7 @@ svg use {
 .calendar-header {
   flex: 0 0 auto;
   position: relative;
-  z-index: 2;
+  z-index: 30;
   background: #fff;
 }
 
@@ -1084,7 +1084,9 @@ svg use {
   top: calc(100% + 0.5rem);
   min-width: 320px;
   max-width: min(420px, calc(100vw - 2rem));
-  z-index: 20;
+  max-height: calc(100vh - 11rem);
+  overflow-y: auto;
+  z-index: 40;
   box-shadow: 0 12px 28px rgba(16, 24, 40, 0.14);
 }
 
@@ -8046,6 +8048,20 @@ svg use {
   margin: 0 0 0.75rem;
 }
 
+.procurement-detail-toolbar__history {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: #175cd3;
+  font: 600 0.82rem/1 inherit;
+  cursor: pointer;
+  padding: 0.2rem 0.15rem;
+}
+
+.procurement-detail-toolbar__history:hover {
+  text-decoration: underline;
+}
+
 .procurement-detail-toolbar__hint {
   font-size: 0.8rem;
   color: #667085;
@@ -8700,7 +8716,7 @@ svg use {
 
 .procurement-workflow {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.45rem;
   list-style: none;
   margin: 0 0 0.9rem;
@@ -9491,4 +9507,41 @@ svg use {
   .confirm-modal--signature {
     width: calc(100vw - 0.5rem);
   }
+}
+
+
+.procurement-add-item {
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+.procurement-add-item strong {
+  display: block;
+  margin-bottom: 0.45rem;
+  font-size: 0.92rem;
+}
+.procurement-add-item__row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.procurement-add-item__row select {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+.procurement-add-item__row input[type="number"] {
+  width: 5.5rem;
+}
+.procurement-line-remove {
+  margin-left: 0.35rem;
+  border: 0;
+  background: transparent;
+  color: #b42318;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+.procurement-line-remove:hover {
+  color: #7a1710;
 }

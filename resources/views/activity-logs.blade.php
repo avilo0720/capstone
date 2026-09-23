@@ -36,6 +36,7 @@
           <option value="procurement_stock_entered">Procurement stock</option>
           <option value="procurement_edited">Procurement edited</option>
           <option value="procurement_resubmitted">Procurement resubmitted</option>
+          <option value="procurement_returned">Procurement returned</option>
           <option value="procurement_deleted">Procurement deleted</option>
           <option value="issuance_submitted">Issuance submitted</option>
           <option value="issuance_approved">Issuance approved</option>

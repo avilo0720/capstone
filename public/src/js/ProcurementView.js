@@ -24,6 +24,7 @@ const HISTORY_BADGES = {
   procurement_stock_entered: { label: "Stock in", tone: "green" },
   procurement_edited: { label: "Edited", tone: "blue" },
   procurement_resubmitted: { label: "Resubmitted", tone: "orange" },
+  procurement_returned: { label: "Returned", tone: "orange" },
   procurement_deleted: { label: "Deleted", tone: "red" },
 };
 
@@ -40,8 +41,8 @@ const NEXT_STEP = {
   },
   procurement_checked: {
     action: "Approve this request",
-    nextLabel: "who in procurement should print the RS slip",
-    confirm: "Approve and send",
+    confirm: "Approve",
+    signatureOnly: true,
   },
 };
 
@@ -58,6 +59,9 @@ class ProcurementView {
     this.manualQtys = {};
     this.manualSearch = "";
     this.manualAttachmentDataUrl = null;
+    this.showAllItems = false;
+    this.deniedDraftByLine = {};
+    this.deniedDraftByItem = {};
     this.people = [];
     this.canEdit = document.body.dataset.canProcurementAdd === "true"
       || document.body.dataset.canProcurementEdit === "true";
@@ -120,11 +124,6 @@ class ProcurementView {
   }
 
   bindEvents() {
-    document.getElementById("procurementFilters")?.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-status]");
-      if (btn) this.setStatusFilter(btn.dataset.status);
-    });
-
     document.getElementById("procurementSummary")?.addEventListener("click", (e) => {
       const card = e.target.closest("[data-status]");
       if (card) this.setStatusFilter(card.dataset.status);
@@ -212,9 +211,6 @@ class ProcurementView {
 
   setStatusFilter(status) {
     this.statusFilter = status || "all";
-    document.querySelectorAll("#procurementFilters .users-tab").forEach((el) => {
-      el.classList.toggle("--active", el.dataset.status === this.statusFilter);
-    });
     document.querySelectorAll("#procurementSummary [data-status]").forEach((el) => {
       el.classList.toggle("is-active", el.dataset.status === this.statusFilter);
     });
@@ -313,6 +309,9 @@ class ProcurementView {
     this.selectedId = null;
     this.detail = null;
     this.requestedOnly = false;
+    this.showAllItems = false;
+    this.deniedDraftByLine = {};
+    this.deniedDraftByItem = {};
     this.toggleOverlay("procurementDetailOverlay", false);
     const footer = document.getElementById("procurementDetailFooter");
     if (footer) {
@@ -328,6 +327,9 @@ class ProcurementView {
   }
 
   async selectRequest(id) {
+    this.showAllItems = false;
+    this.deniedDraftByLine = {};
+    this.deniedDraftByItem = {};
     this.selectedId = id;
     this.requestedOnly = false;
     this.renderList();
@@ -411,18 +413,32 @@ class ProcurementView {
         <div class="procurement-slip-meta__wide"><strong>Purpose</strong><span>${this.escape(req.purpose || "—")}</span></div>
       </div>`;
 
-    const itemRows = items.map((line) => {
-      const qtyControl = denied && this.canEdit
-        ? `<input type="number" min="0" class="procurement-qty-input" data-line-id="${line.id}" value="${line.requested_qty}">`
+    const editingDenied = denied && this.canEdit;
+    const editableLines = editingDenied && this.showAllItems
+      ? this.allItemLines(req)
+      : items;
+
+    const itemRows = editableLines.map((line) => {
+      const isNew = !line.id;
+      const draftedQty = line.id
+        ? this.deniedDraftByLine[line.id]
+        : this.deniedDraftByItem[line.item_id];
+      const qtyValue = draftedQty != null ? draftedQty : line.requested_qty;
+      const qtyControl = editingDenied
+        ? `<input type="number" min="0" class="procurement-qty-input" ${
+            isNew
+              ? `data-item-id="${line.item_id}"`
+              : `data-line-id="${line.id}"`
+          } value="${qtyValue}">`
         : String(line.requested_qty);
       const applied = line.applied_qty == null ? "—" : String(line.applied_qty);
-      const match = line.matched ? "" : ` <span class="procurement-unmatched">Unmatched</span>`;
+      const match = line.matched === false ? ` <span class="procurement-unmatched">Unmatched</span>` : "";
       const size = line.size ? `<span class="procurement-detail-size">${this.escape(line.size)}</span>` : "";
       return `<tr>
         <td class="procurement-detail-code">${this.escape(line.item_code || "—")}</td>
         <td><span class="procurement-detail-item">${this.escape(line.title)}</span>${match}${size}</td>
-        <td class="num">${line.current_qty}</td>
-        <td class="num">${line.need_3m}</td>
+        <td class="num">${line.current_qty ?? "—"}</td>
+        <td class="num">${line.need_3m ?? "—"}</td>
         <td class="num">${qtyControl}</td>
         <td class="num">${applied}</td>
       </tr>`;
@@ -439,9 +455,13 @@ class ProcurementView {
       ${approved ? `<button type="button" class="confirm-modal__btn confirm-modal__btn--ghost" data-action="stock">Stock entry</button>` : ""}
     ` : "";
 
+    const returnTarget = req.return_to;
+    const returnBtn = denied && req.can_return_to_previous && returnTarget
+      ? `<button type="button" class="confirm-modal__btn confirm-modal__btn--ghost" data-action="return-previous">Send back to ${this.escape(returnTarget.name || returnTarget.label || "previous checker")}</button>`
+      : "";
+
     const deniedBtns = denied && this.canEdit ? `
-      <button type="button" class="confirm-modal__btn confirm-modal__btn--primary" data-action="save-edit">Save edits</button>
-      <button type="button" class="confirm-modal__btn confirm-modal__btn--ghost" data-action="resubmit">Resubmit to dept. head</button>
+      <button type="button" class="confirm-modal__btn confirm-modal__btn--primary" data-action="resubmit">Resubmit to dept. head</button>
     ` : "";
 
     const canDelete = this.canDeleteRequest(req);
@@ -449,8 +469,7 @@ class ProcurementView {
       ? `<button type="button" class="confirm-modal__btn ${denied ? "confirm-modal__btn--danger" : "confirm-modal__btn--ghost"}" data-action="delete">Delete</button>`
       : "";
 
-    const historyBtn = `<button type="button" class="confirm-modal__btn confirm-modal__btn--ghost" data-action="history">View history</button>`;
-    const actions = `${historyBtn}${reviewBtns}${printBtns}${deniedBtns}${deleteBtn}`;
+    const actions = `${reviewBtns}${printBtns}${deniedBtns}${returnBtn}${deleteBtn}`;
     if (footer) {
       footer.hidden = !actions;
       footer.innerHTML = actions
@@ -461,9 +480,31 @@ class ProcurementView {
       });
     }
 
-    const emptyMessage = this.requestedOnly
-      ? "No lines with requested or applied quantity."
-      : "No lines";
+    const emptyMessage = editingDenied && this.showAllItems
+      ? (this._loadingManualItems ? "Loading inventory items…" : "No inventory items to add.")
+      : this.requestedOnly
+        ? "No lines with requested or applied quantity."
+        : "No lines";
+
+    if (editingDenied && this.showAllItems) {
+      void this.ensureManualItemsLoaded();
+    }
+
+    const shownCount = editableLines.length;
+    const toolbarToggle = editingDenied
+      ? `<label class="procurement-mine-toggle" title="Show every inventory item so new lines can be added">
+          <span class="procurement-mine-toggle__label">All items</span>
+          <input type="checkbox" id="procurementShowAllItems" ${this.showAllItems ? "checked" : ""} />
+          <span class="procurement-mine-toggle__switch" aria-hidden="true"></span>
+        </label>`
+      : `<label class="procurement-mine-toggle" title="Show only lines with requested or applied quantity">
+          <span class="procurement-mine-toggle__label">Requested / Applied</span>
+          <input type="checkbox" id="procurementRequestedOnly" ${this.requestedOnly ? "checked" : ""} />
+          <span class="procurement-mine-toggle__switch" aria-hidden="true"></span>
+        </label>`;
+    const toolbarHint = editingDenied && this.showAllItems
+      ? `${shownCount} inventory item${shownCount === 1 ? "" : "s"}`
+      : `${items.length} shown${hiddenCount ? ` · ${hiddenCount} hidden` : ""} of ${allItems.length}`;
 
     const attachmentBlock = req.attachment_url
       ? `<div class="procurement-detail-attachment">
@@ -479,12 +520,9 @@ class ProcurementView {
       ${slipMeta}
       ${reason}${previous}${unmatched}
       <div class="procurement-detail-toolbar">
-        <label class="procurement-mine-toggle" title="Show only lines with requested or applied quantity">
-          <span class="procurement-mine-toggle__label">Requested / Applied</span>
-          <input type="checkbox" id="procurementRequestedOnly" ${this.requestedOnly ? "checked" : ""} />
-          <span class="procurement-mine-toggle__switch" aria-hidden="true"></span>
-        </label>
-        <span class="procurement-detail-toolbar__hint">${items.length} shown${hiddenCount ? ` · ${hiddenCount} hidden` : ""} of ${allItems.length}</span>
+        ${toolbarToggle}
+        <span class="procurement-detail-toolbar__hint">${toolbarHint}</span>
+        <button type="button" class="procurement-detail-toolbar__history" data-action="history">History</button>
       </div>
       <div class="procurement-detail-table-wrap">
         <table class="product-section-table procurement-detail-table">
@@ -511,6 +549,14 @@ class ProcurementView {
       this.requestedOnly = !!e.target.checked;
       this.renderDetail();
     });
+    this.detailEl.querySelector("#procurementShowAllItems")?.addEventListener("change", (e) => {
+      this.snapshotDeniedQtys();
+      this.showAllItems = !!e.target.checked;
+      this.renderDetail();
+    });
+    this.detailEl.querySelectorAll("[data-action]").forEach((btn) => {
+      btn.addEventListener("click", () => this.onAction(btn.dataset.action));
+    });
   }
 
   renderWorkflow(req) {
@@ -519,7 +565,6 @@ class ProcurementView {
       { key: "dept", label: "2. Department head", person: req.noted_by?.name, done: !!req.noted_at, waiting: req.status === "pending" },
       { key: "check", label: "3. Procurement check", person: req.checked_by?.name, done: !!req.checked_at, waiting: req.status === "dept_noted" },
       { key: "manager", label: "4. Branch manager", person: req.approved_by?.name, done: !!req.approved_at, waiting: req.status === "procurement_checked" },
-      { key: "print", label: "Print RS slip", person: req.status === "approved" || req.status === "stock_entered" ? (req.assigned_to?.name || req.checked_by?.name) : null, done: !!req.printed_at, waiting: req.status === "approved" },
     ];
 
     return `<ol class="procurement-workflow">
@@ -550,6 +595,7 @@ class ProcurementView {
     if (action === "stock") return this.openStock();
     if (action === "save-edit") return this.saveEdits();
     if (action === "resubmit") return this.resubmit();
+    if (action === "return-previous") return this.returnToPrevious();
     if (action === "delete") return this.remove();
   }
 
@@ -892,6 +938,16 @@ class ProcurementView {
   async approve() {
     const step = NEXT_STEP[this.detail?.status];
     if (!step) return;
+    if (step.signatureOnly) {
+      const signature = await captureSignature({
+        title: step.action,
+        message: "Sign to approve this request. Your signature goes on the RS slip.",
+        confirmLabel: step.confirm,
+      });
+      if (!signature) return;
+      await this.post(`/api/procurement-requests/${this.detail.id}/approve`, { signature });
+      return;
+    }
     const choice = await this.chooseNextPerson({
       title: step.action,
       message: `Sign this step, then pick ${step.nextLabel}. Your signature goes on the RS slip.`,
@@ -972,15 +1028,120 @@ class ProcurementView {
     this.closeStock();
   }
 
+  snapshotDeniedQtys() {
+    if (!this.detailEl) return;
+    this.detailEl.querySelectorAll(".procurement-qty-input").forEach((input) => {
+      const lineId = Number(input.dataset.lineId || 0);
+      const itemId = Number(input.dataset.itemId || 0);
+      const qty = Number(input.value || 0);
+      if (lineId > 0) this.deniedDraftByLine[lineId] = qty;
+      if (itemId > 0) this.deniedDraftByItem[itemId] = qty;
+    });
+  }
+
+  allItemLines(req) {
+    const existing = req.items || [];
+    const byItem = new Map();
+    existing.forEach((line) => {
+      if (line.item_id) byItem.set(Number(line.item_id), line);
+    });
+    const catalog = this.manualItems || [];
+    if (!catalog.length) return existing;
+
+    const catalogIds = new Set(catalog.map((item) => Number(item.id)));
+    const unmatched = existing.filter((line) => !line.item_id);
+    const leftover = existing.filter((line) => line.item_id && !catalogIds.has(Number(line.item_id)));
+    const catalogRows = catalog.map((item) => {
+      const found = byItem.get(Number(item.id));
+      if (found) return found;
+      return {
+        item_id: item.id,
+        item_code: item.itemCode || item.item_code || "",
+        title: item.title || "",
+        size: item.size || "",
+        current_qty: Number(item.quantity ?? 0),
+        need_3m: 0,
+        requested_qty: Number(this.deniedDraftByItem[item.id] || 0),
+        applied_qty: null,
+        matched: true,
+      };
+    });
+    return [...unmatched, ...leftover, ...catalogRows];
+  }
+
   collectQtyEdits() {
-    return [...this.detailEl.querySelectorAll(".procurement-qty-input")].map((input) => ({
-      id: Number(input.dataset.lineId),
-      requested_qty: Number(input.value || 0),
-    }));
+    this.snapshotDeniedQtys();
+    const rows = [];
+    const seenItems = new Set();
+    for (const line of this.detail?.items || []) {
+      if (!line.id) continue;
+      const qty = this.deniedDraftByLine[line.id] != null
+        ? Number(this.deniedDraftByLine[line.id])
+        : Number(line.requested_qty || 0);
+      rows.push({ id: Number(line.id), requested_qty: qty });
+      if (line.item_id) seenItems.add(Number(line.item_id));
+    }
+    Object.entries(this.deniedDraftByItem || {}).forEach(([itemId, qty]) => {
+      const id = Number(itemId);
+      const amount = Number(qty || 0);
+      if (!id || amount <= 0 || seenItems.has(id)) return;
+      rows.push({ item_id: id, requested_qty: amount });
+    });
+    return rows;
+  }
+
+  async ensureManualItemsLoaded() {
+    if (this._loadingManualItems || this._manualItemsLoaded) return;
+    if (Array.isArray(this.manualItems) && this.manualItems.length) {
+      this._manualItemsLoaded = true;
+      return;
+    }
+    this._loadingManualItems = true;
+    try {
+      const res = await fetch("/api/items");
+      const data = await res.json();
+      this.manualItems = (Array.isArray(data) ? data : (data.items || [])).map((item) => ({
+        ...item,
+        itemCode: item.itemCode ?? item.item_code ?? "",
+        title: item.title || item.name || "",
+      }));
+    } catch (err) {
+      console.error(err);
+      this.manualItems = [];
+    } finally {
+      this._loadingManualItems = false;
+      this._manualItemsLoaded = true;
+    }
+    if (this.detail?.status === "denied" && this.showAllItems) {
+      this.snapshotDeniedQtys();
+      this.renderDetail();
+    }
   }
 
   async saveEdits() {
-    await this.put(`/api/procurement-requests/${this.detail.id}`, { items: this.collectQtyEdits() });
+    const items = this.collectQtyEdits();
+    if (!items.length) {
+      notifyAlert("Add at least one item before saving.");
+      return;
+    }
+    await this.put(`/api/procurement-requests/${this.detail.id}`, { items });
+  }
+
+  async returnToPrevious() {
+    const target = this.detail?.return_to;
+    const label = target?.name || target?.label || "the previous checker";
+    const ok = await confirmAction({
+      title: "Send back to previous checker?",
+      message: `This denied request will return to ${label} with the rejection reason kept on file.`,
+      confirmLabel: "Send back",
+    });
+    if (!ok) return;
+    const edits = this.collectQtyEdits();
+    if (edits.length) {
+      const saved = await this.put(`/api/procurement-requests/${this.detail.id}`, { items: edits });
+      if (!saved) return;
+    }
+    await this.post(`/api/procurement-requests/${this.detail.id}/return-to-previous`);
   }
 
   async resubmit() {
@@ -993,7 +1154,8 @@ class ProcurementView {
     if (!choice?.assignedTo || !choice?.signature) return;
     const edits = this.collectQtyEdits();
     if (edits.length) {
-      await this.put(`/api/procurement-requests/${this.detail.id}`, { items: edits });
+      const saved = await this.put(`/api/procurement-requests/${this.detail.id}`, { items: edits });
+      if (!saved) return;
     }
     await this.post(`/api/procurement-requests/${this.detail.id}/resubmit`, {
       assigned_to: choice.assignedTo,
@@ -1047,10 +1209,11 @@ class ProcurementView {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       notifyAlert(data.error || "Could not save edits.");
-      return;
+      return false;
     }
     await this.loadRequests();
     if (data.request?.id) await this.selectRequest(data.request.id);
+    return true;
   }
 
   formatWhen(iso) {
