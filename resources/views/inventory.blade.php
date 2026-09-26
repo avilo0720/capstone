@@ -20,7 +20,6 @@
       </div>
       <div class="product-section__header__buttons">
         <button type="button" class="addProBtn">Add New Item</button>
-        <button type="button" class="stockToggleBtn">Adjust Stock</button>
         <button type="button" class="editToggleBtn">Edit</button>
         <button type="button" class="downloadBtn">Download</button>
         <div class="filterDropdown">
@@ -61,10 +60,6 @@
     </div>
 
     <div class="module-body">
-      <div class="stock-mode-banner --hidden" id="stockModeBanner" role="status">
-        Enter a quantity, then choose <strong>Use</strong> or <strong>Add</strong>.
-      </div>
-
       <div class="product-section">
         <table class="product-section-table"></table>
       </div>

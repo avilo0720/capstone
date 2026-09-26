@@ -1,10 +1,10 @@
-// Nawad Inventory Management System — Database schema (DBML)
+// Nabua Water Inventory — Database schema (DBML)
 // Source: Laravel migrations under database/migrations/
 // Preview: https://dbdiagram.io  (paste or import this file)
 
-Project nawad_inventory {
+Project nabua_water_inventory {
   database_type: 'MySQL'
-  Note: 'Nawad Inventory Management System schema'
+  Note: 'Nabua Water Inventory schema'
 }
 
 // ─────────────────────────────────────────────
@@ -126,14 +126,32 @@ Table transactions {
 
 Table procurement_requests {
   id bigint [pk, increment]
+  rs_number varchar(40) [null, note: 'NB-YYYY-MM-#####; cleared when denied']
   inventory_id bigint [not null, ref: > inventories.id]
-  status varchar(32) [not null, default: 'pending', note: 'pending | approved | denied | stock_entered']
-  source varchar(32) [not null, default: 'upload', note: 'upload | forecast']
+  department_id bigint [null, ref: > departments.id]
+  status varchar(32) [not null, default: 'pending', note: 'pending | dept_noted | procurement_checked | approved | denied | stock_entered']
+  source varchar(32) [not null, default: 'upload', note: 'upload | forecast | manual']
   original_filename varchar(255) [null]
   amc_mode varchar(255) [null]
+  destination varchar(255) [null]
+  purpose text [null]
+  date_needed date [null]
   uploaded_by bigint [null, ref: > users.id]
+  requested_signature varchar(255) [null, note: 'Stored signature filename']
+  attachment_image varchar(255) [null, note: 'Stored attachment filename']
+  assigned_to bigint [null, ref: > users.id]
   reviewed_by bigint [null, ref: > users.id]
   reviewed_at datetime [null]
+  noted_by bigint [null, ref: > users.id]
+  noted_at datetime [null]
+  noted_signature varchar(255) [null]
+  checked_by bigint [null, ref: > users.id]
+  checked_at datetime [null]
+  checked_signature varchar(255) [null]
+  approved_by bigint [null, ref: > users.id]
+  approved_at datetime [null]
+  approved_signature varchar(255) [null]
+  printed_at datetime [null]
   rejection_reason text [null]
   previous_rejection_reason text [null]
   stock_applied_at datetime [null]
@@ -142,9 +160,10 @@ Table procurement_requests {
 
   indexes {
     (inventory_id, status)
+    assigned_to
   }
 
-  Note: 'Header for a procurement submission / review cycle'
+  Note: 'Requisition slip. pending = dept head, dept_noted = procurement check, procurement_checked = branch manager'
 }
 
 Table procurement_request_items {
@@ -170,7 +189,60 @@ Table procurement_request_items {
     item_id
   }
 
-  Note: 'Line items; item_id optional until matched to catalog'
+  Note: 'Slip lines. item_id is null until the row is matched to the catalog'
+}
+
+// ─────────────────────────────────────────────
+// Issuance
+// ─────────────────────────────────────────────
+
+Table issuance_requests {
+  id bigint [pk, increment]
+  inventory_id bigint [not null, ref: > inventories.id]
+  status varchar(32) [not null, default: 'pending', note: 'pending | approved | denied | stock_entered']
+  source varchar(32) [not null, default: 'upload', note: 'upload | forecast | manual']
+  original_filename varchar(255) [null]
+  amc_mode varchar(255) [null]
+  uploaded_by bigint [null, ref: > users.id]
+  reviewed_by bigint [null, ref: > users.id]
+  reviewed_at datetime [null]
+  rejection_reason text [null]
+  previous_rejection_reason text [null]
+  stock_applied_at datetime [null]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+
+  indexes {
+    (inventory_id, status)
+  }
+
+  Note: 'Issuance request. Approval deducts requested quantities from inventory'
+}
+
+Table issuance_request_items {
+  id bigint [pk, increment]
+  issuance_request_id bigint [not null, ref: > issuance_requests.id]
+  item_id bigint [null, ref: > items.id]
+  item_code varchar(255) [null]
+  title varchar(255) [not null]
+  size varchar(255) [null]
+  current_qty int [not null, default: 0]
+  amc decimal(12,2) [not null, default: 0]
+  need_3m int [not null, default: 0]
+  need_6m int [not null, default: 0]
+  need_1y int [not null, default: 0]
+  method varchar(255) [null]
+  requested_qty int [not null, default: 0]
+  applied_qty int [null]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+
+  indexes {
+    issuance_request_id
+    item_id
+  }
+
+  Note: 'Issuance lines. item_id is null until the row is matched to the catalog'
 }
 
 // ─────────────────────────────────────────────
@@ -252,5 +324,5 @@ Table activity_logs {
     (user_id, created_at)
   }
 
-  Note: 'Audit trail for stock, procurement, user, and related actions'
+  Note: 'Audit trail for stock, procurement, issuance, users, and related actions'
 }

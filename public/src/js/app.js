@@ -1,5 +1,5 @@
 import DashboardUi from "./Dashboard.js?v=101";
-import InventoryUi from "./InventoryView.js";
+import InventoryUi from "./InventoryView.js?v=102";
 import ForecastingUi from "./ForecastingView.js";
 import ReportsView from "./ReportsView.js";
 import CalendarView from "./CalendarView.js";
@@ -671,7 +671,7 @@ class App {
     } catch (e) {
       console.error('Logout failed:', e);
     }
-    window.location.href = '/login';
+    window.location.replace('/login');
   }
 
   startSessionMonitor() {
@@ -702,7 +702,7 @@ class App {
       'Session Expired',
       'Your session has timed out due to inactivity. Please sign in again.',
       'Sign In',
-      () => { window.location.href = '/login'; }
+      () => { window.location.replace('/login'); }
     );
   }
 
