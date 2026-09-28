@@ -4,6 +4,7 @@ use App\Http\Middleware\RequireAbility;
 use App\Http\Middleware\RequireAuth;
 use App\Http\Middleware\RequirePage;
 use App\Http\Middleware\ShareUserData;
+use App\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -17,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->web(append: [
             ShareUserData::class,
+        ], replace: [
+            \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class => ValidateCsrfToken::class,
         ]);
 
         $middleware->alias([
