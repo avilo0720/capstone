@@ -38,7 +38,9 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $user = User::with(['department', 'permissions'])->where('username', $validated['username'])->first();
+        $user = User::with(['department', 'permissions'])
+            ->whereRaw('BINARY username = ?', [$validated['username']])
+            ->first();
 
         if (!$user || !password_verify($validated['password'], $user->password)) {
             return response()->json(['error' => 'Invalid username or password'], 401);

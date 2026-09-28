@@ -2968,10 +2968,24 @@ svg use {
   padding: 0.9rem 1rem;
   color: #ffffff;
   font-size: 0.95rem;
+  transition: background-color 99999s ease-out;
 }
 
 .login-card__input-wrapper input::placeholder {
   color: rgba(255, 255, 255, 0.35);
+}
+
+.login-card__input-wrapper input:-webkit-autofill,
+.login-card__input-wrapper input:-webkit-autofill:hover,
+.login-card__input-wrapper input:-webkit-autofill:focus,
+.login-card__input-wrapper input:-webkit-autofill:active,
+.login-card__input-wrapper input:autofill {
+  -webkit-text-fill-color: #ffffff;
+  caret-color: #ffffff;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
 }
 
 .login-card__input-wrapper--password input {
