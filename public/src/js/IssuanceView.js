@@ -6,7 +6,7 @@ const STATUS = {
   pending: { label: "Pending", tone: "orange" },
   approved: { label: "Approved", tone: "green" },
   denied: { label: "Denied", tone: "red" },
-  stock_entered: { label: "Stock used", tone: "blue" },
+  stock_entered: { label: "Approved", tone: "green" },
 };
 
 class IssuanceView {
@@ -39,7 +39,6 @@ class IssuanceView {
     this.detailOverlay = document.getElementById("issuanceDetailOverlay");
     this.pagination.setContainer(document.getElementById("issuancePagination"));
     this.closeDeny();
-    this.closeStock();
     this.closeManual();
     this.hideDetail();
     const requestId = Number(new URLSearchParams(window.location.search).get("request"));
@@ -92,21 +91,13 @@ class IssuanceView {
 
     document.getElementById("issuanceDenyCancel")?.addEventListener("click", () => this.closeDeny());
     document.getElementById("issuanceDenyConfirm")?.addEventListener("click", () => this.submitDeny());
-    document.getElementById("issuanceStockCancel")?.addEventListener("click", () => this.closeStock());
-    document.getElementById("issuanceStockConfirm")?.addEventListener("click", () => this.submitStock());
-
     bindBackdropClose(document.getElementById("issuanceDenyOverlay"), () => this.closeDeny());
-    bindBackdropClose(document.getElementById("issuanceStockOverlay"), () => this.closeStock());
     bindBackdropClose(document.getElementById("issuanceManualOverlay"), () => this.closeManual());
 
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
       if (document.getElementById("issuanceDenyOverlay")?.classList.contains("is-open")) {
         this.closeDeny();
-        return;
-      }
-      if (document.getElementById("issuanceStockOverlay")?.classList.contains("is-open")) {
-        this.closeStock();
         return;
       }
       if (document.getElementById("issuanceManualOverlay")?.classList.contains("is-open")) {
@@ -170,9 +161,8 @@ class IssuanceView {
     };
     set("issuanceKpiTotal", this.requests.length);
     set("issuanceKpiPending", this.requests.filter((r) => r.status === "pending").length);
-    set("issuanceKpiApproved", this.requests.filter((r) => r.status === "approved").length);
+        set("issuanceKpiApproved", this.requests.filter((r) => ["approved", "stock_entered"].includes(r.status)).length);
     set("issuanceKpiDenied", this.requests.filter((r) => r.status === "denied").length);
-    set("issuanceKpiStockEntered", this.requests.filter((r) => r.status === "stock_entered").length);
   }
 
   renderList() {
@@ -315,7 +305,6 @@ class IssuanceView {
 
     const reviewBtns = pending && this.canReview ? `
       <button type="button" class="confirm-modal__btn confirm-modal__btn--primary" data-action="approve">Approve</button>
-      <button type="button" class="confirm-modal__btn confirm-modal__btn--ghost" data-action="stock">Use stock</button>
       <button type="button" class="confirm-modal__btn confirm-modal__btn--danger" data-action="deny">Deny</button>
     ` : "";
 
@@ -362,7 +351,7 @@ class IssuanceView {
               <td>Item</td>
               <td class="num">Stock</td>
               <td class="num">To use</td>
-              <td class="num">Used</td>
+              <td class="num">Deducted</td>
             </tr>
           </thead>
           <tbody>${itemRows || `<tr><td colspan="5" class="users-empty">${emptyMessage}</td></tr>`}</tbody>
@@ -387,16 +376,13 @@ class IssuanceView {
     if (!this.detail) return;
     if (action === "approve") return this.approve();
     if (action === "deny") return this.openDeny();
-    if (action === "stock") return this.openStock();
     if (action === "save-edit") return this.saveEdits();
-    if (action === "resubmit") return this.resubmit();
     if (action === "delete") return this.remove();
   }
 
   async openManual() {
     if (!this.canEdit) return;
     this.closeDeny();
-    this.closeStock();
     this.manualQtys = {};
     this.manualSearch = "";
     const search = document.getElementById("issuanceManualSearch");
@@ -554,7 +540,6 @@ class IssuanceView {
   }
 
   openDeny() {
-    this.closeStock();
     document.getElementById("issuanceDenyReason").value = "";
     document.getElementById("issuanceDenyError")?.classList.add("--hidden");
     this.toggleOverlay("issuanceDenyOverlay", true);
@@ -576,43 +561,11 @@ class IssuanceView {
     this.closeDeny();
   }
 
-  openStock() {
-    this.closeDeny();
-    const host = document.getElementById("issuanceStockLines");
-    const items = this.detail?.items || [];
-    host.innerHTML = items.length
-      ? items.map((line) => `
-      <label class="procurement-stock-line">
-        <span>
-          <strong>${this.escape(line.title)}</strong>
-          <small>${this.escape(line.item_code || "")} · requested ${line.requested_qty} · on hand ${line.current_qty}</small>
-        </span>
-        <input type="number" min="0" data-line-id="${line.id}" value="${line.requested_qty}">
-      </label>
-    `).join("")
-      : `<p class="users-empty">No item lines on this request.</p>`;
-    document.getElementById("issuanceStockError")?.classList.add("--hidden");
-    this.toggleOverlay("issuanceStockOverlay", true);
-  }
-
-  closeStock() {
-    this.toggleOverlay("issuanceStockOverlay", false);
-  }
-
   toggleOverlay(id, open) {
     const el = document.getElementById(id);
     if (!el) return;
     el.hidden = !open;
     el.classList.toggle("is-open", open);
-  }
-
-  async submitStock() {
-    const items = [...document.querySelectorAll("#issuanceStockLines input")].map((input) => ({
-      id: Number(input.dataset.lineId),
-      qty: Number(input.value || 0),
-    }));
-    await this.post(`/api/issuance-requests/${this.detail.id}/stock-entry`, { items });
-    this.closeStock();
   }
 
   collectQtyEdits() {

@@ -169,14 +169,15 @@ class ProcurementRequest extends Model
     }
 
     /**
-     * Next RS number for the month, reusing the lowest free sequence
+     * Next RS number for the year, reusing the lowest free sequence
      * (so denied/deleted slips do not permanently skip numbers).
+        * The month remains in the displayed number, but does not reset the sequence.
      * Call inside a DB transaction so lockForUpdate is effective.
      */
     public static function allocateRsNumber($when = null, ?int $inventoryId = null): string
     {
         $when = $when ? \Illuminate\Support\Carbon::parse($when) : now();
-        $stamp = $when->format('Y-m');
+        $stamp = $when->format('Y');
         $prefix = 'NB-'.$stamp.'-';
 
         $query = static::query()
@@ -194,7 +195,14 @@ class ProcurementRequest extends Model
                 if (!$rs || !str_starts_with($rs, $prefix)) {
                     return null;
                 }
-                $seq = (int) substr($rs, strlen($prefix));
+                $suffix = substr($rs, strlen($prefix));
+                if (ctype_digit($suffix)) {
+                    $seq = (int) $suffix;
+                } elseif (preg_match('/^\d{2}-(\d+)$/', $suffix, $matches)) {
+                    $seq = (int) $matches[1];
+                } else {
+                    return null;
+                }
 
                 return $seq > 0 ? $seq : null;
             })

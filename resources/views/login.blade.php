@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <link rel="icon" type="image/png" href="/assets/images/nabua-wave-logo.png" />
     <link rel="stylesheet" href="/src/css/font.css" />
     <link rel="stylesheet" href="/src/css/style.css?v=129" />
     <title>Login | Nabua Water Inventory</title>
@@ -11,8 +12,7 @@
     <div class="login-container">
       <div class="login-card">
         <div class="login-card__logo">
-          <img src="/assets/images/waterlogo.svg" alt="Nabua Water Inventory Logo" class="login-card__logo-img" />
-          <h1 class="login-card__title">Nabua Water Inventory</h1>
+          <img src="/assets/images/tubig-nabua-login.png" alt="Tubig Nabua" class="login-card__logo-img" />
           <p class="login-card__subtitle">Sign in to your account</p>
         </div>
 

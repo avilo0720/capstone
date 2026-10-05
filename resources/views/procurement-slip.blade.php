@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="/assets/images/nabua-wave-logo.png" />
   <title>{{ $request->rs_number }} · Requisition Slip</title>
   <style>
     :root { color-scheme: light; }
@@ -231,15 +232,13 @@
 
   <main class="sheet">
     <header class="head">
-      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
-        <path d="M6 40c8-2 12-14 18-14s8 12 16 12 10-14 18-14" fill="none" stroke="#111" stroke-width="5" stroke-linecap="round"/>
-        <path d="M10 48c8-2 11-11 16-11s8 10 14 10 10-12 16-12" fill="none" stroke="#111" stroke-width="4" stroke-linecap="round"/>
-      </svg>
+      <img class="mark" src="/assets/images/nabua-wave-logo.png" alt="Nabua Water District logo" />
       <div class="org">
         <h2>NABUA WATER DISTRICT</h2>
         <p>
           NAWAD Building, San Francisco<br>
-          Nabua, Camarines Sur 4434
+          Nabua, Camarines Sur 4434<br>
+          Tel No.: (054) 341 0188&nbsp;&nbsp; VAT Reg. TIN: 0101-390-506-000
         </p>
       </div>
       <div class="titleblock">
