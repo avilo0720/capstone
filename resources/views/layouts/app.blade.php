@@ -6,7 +6,7 @@
     <link rel="icon" type="image/png" href="/assets/images/nabua-wave-logo.png" />
     <link rel="stylesheet" href="/src/css/font.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" />
-    <link rel="stylesheet" href="/src/css/style.css?v=127" />
+    <link rel="stylesheet" href="/src/css/style.css?v=130" />
     <title>{{ $title }} | Nabua Water Inventory</title>
     <script>
       window.addEventListener("pageshow", function (event) {

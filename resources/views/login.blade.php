@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="icon" type="image/png" href="/assets/images/nabua-wave-logo.png" />
     <link rel="stylesheet" href="/src/css/font.css" />
-    <link rel="stylesheet" href="/src/css/style.css?v=129" />
+    <link rel="stylesheet" href="/src/css/style.css?v=130" />
     <title>Login | Nabua Water Inventory</title>
   </head>
   <body class="login-body">
