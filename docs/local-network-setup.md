@@ -89,17 +89,51 @@ Replace `HOST_IPV4` with the host computer's local IPv4 address, for example `19
 
 Never commit `.env` to GitHub. It contains machine-specific settings and may contain passwords.
 
-## 5. Create and initialize the database
+## 5. Create and initialize a new database
 
-Start MySQL from the XAMPP Control Panel, then create a database named:
+This section is for a completely new server with no existing inventory data. If you need to transfer the current database and its records, follow the [existing database transfer](#transferring-an-existing-database) section instead.
+
+### Start MySQL
+
+Open the XAMPP Control Panel and click **Start** beside MySQL. Wait until MySQL shows as running.
+
+### Create the database with phpMyAdmin
+
+1. Open `http://localhost/phpmyadmin` on the host computer.
+2. Select **New** in the left sidebar.
+3. Enter this database name:
 
 ```text
 inventory_db
 ```
 
-This can be done in phpMyAdmin or with MySQL.
+4. Select the `utf8mb4_unicode_ci` collation if it is available.
+5. Click **Create**.
 
-For a new installation, run:
+### Create the database from the command line
+
+Alternatively, open Command Prompt and run:
+
+```bat
+C:\xampp\mysql\bin\mysql.exe -u root -p -e "CREATE DATABASE inventory_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+
+Enter the MySQL root password when prompted. If the XAMPP root account has no password, press Enter.
+
+### Create the tables and default users
+
+From the project folder, verify that `.env` points to the new database:
+
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=inventory_db
+DB_USERNAME=root
+DB_PASSWORD=
+```
+
+Then run:
 
 ```powershell
 php artisan migrate --seed
@@ -107,13 +141,45 @@ php artisan migrate --seed
 
 This creates the tables and default users. Change the default passwords after logging in.
 
-Do not run `migrate:fresh` on a database containing real data. It deletes all tables and data.
-
-### Importing an existing database
-
-If the system already contains data, restore a database backup instead of running the seeders over a production database:
+Clear cached configuration if the application still uses old database settings:
 
 ```powershell
+php artisan optimize:clear
+```
+
+Do not run `migrate:fresh` on a database containing real data. It deletes all tables and data.
+
+## Transferring an existing database
+
+The database is not stored in GitHub. Export it from the current computer, copy the SQL file to the new host using a secure method, and import it there.
+
+On the current computer, from the project folder, run:
+
+```text
+scripts\export-database.bat
+```
+
+The script asks for the MySQL password and creates a timestamped file in:
+
+```text
+database-backups\inventory_YYYYMMDD_HHMMSS.sql
+```
+
+The `database-backups` SQL files are ignored by Git so private inventory data cannot be pushed to GitHub. Copy the generated SQL file to the new host using a USB drive or another secure transfer method.
+
+On the new host, create the empty `inventory_db` database first, then run this from the project folder:
+
+```text
+scripts\import-database.bat path\to\inventory_backup.sql
+```
+
+The import script asks for confirmation and the MySQL password. It imports the existing users, inventory, transactions, requests, and other database records. Do not run `migrate --seed` after importing an existing complete database unless you specifically need to seed missing data.
+
+The scripts expect XAMPP at `C:\xampp`. If XAMPP is installed somewhere else, update the `MYSQLDUMP` or `MYSQL` path near the top of the corresponding script.
+
+The equivalent manual commands are:
+
+```bat
 mysql -u root -p inventory_db < inventory_backup.sql
 ```
 
@@ -122,6 +188,8 @@ A backup can be created with:
 ```powershell
 mysqldump -u root -p inventory_db > inventory_backup.sql
 ```
+
+Back up the current database before importing a replacement. The import process can overwrite existing records.
 
 ## 6. Bind the application to the local network
 

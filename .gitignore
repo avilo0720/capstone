@@ -26,3 +26,4 @@ yarn-error.log
 !/public/uploads/procurement-signatures/.gitkeep
 /public/uploads/procurement-attachments/*
 !/public/uploads/procurement-attachments/.gitkeep
+/database-backups/*.sql
