@@ -10,12 +10,16 @@ use App\Support\RolePermissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class AuthController extends Controller
 {
+    private const MAX_LOGIN_ATTEMPTS = 5;
+    private const LOGIN_LOCKOUT_SECONDS = 60;
+
     public function __construct(
         private PermissionService $permissions,
         private ActivityLogger $activity,
@@ -42,12 +46,28 @@ class AuthController extends Controller
             ->whereRaw('BINARY username = ?', [$validated['username']])
             ->first();
 
+        $throttleKey = 'login:' . mb_strtolower($validated['username']) . '|' . $request->ip();
+
+        if (RateLimiter::tooManyAttempts($throttleKey, self::MAX_LOGIN_ATTEMPTS)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+
+            return response()->json([
+                'error' => "Too many login attempts. Please try again in {$seconds} seconds.",
+            ], 429);
+        }
+
         if (!$user || !password_verify($validated['password'], $user->password)) {
+            RateLimiter::hit($throttleKey, self::LOGIN_LOCKOUT_SECONDS);
+
             return response()->json(['error' => 'Invalid username or password'], 401);
         }
 
+        RateLimiter::clear($throttleKey);
+
         $sessionUser = $this->permissions->sessionPayload($user);
 
+        // New session ID on login so a pre-login session ID can't be reused.
+        $request->session()->regenerate();
         $request->session()->put('user', $sessionUser);
         $request->session()->put('loginTime', now()->timestamp * 1000);
 

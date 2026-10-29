@@ -3,12 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
     <link rel="icon" type="image/png" href="/assets/images/nabua-wave-logo.png" />
     <link rel="stylesheet" href="/src/css/font.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" />
     <link rel="stylesheet" href="/src/css/style.css?v=130" />
     <title>{{ $title }} | Nabua Water Inventory</title>
     <script>
+      // Attach the CSRF token to every same-origin request that changes data.
+      (function () {
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        var token = meta ? meta.getAttribute("content") : "";
+        var nativeFetch = window.fetch.bind(window);
+        window.fetch = function (input, init) {
+          init = init || {};
+          var method = String(init.method || (input instanceof Request ? input.method : "GET")).toUpperCase();
+          var url = new URL(input instanceof Request ? input.url : String(input), window.location.href);
+          if (token && url.origin === window.location.origin && ["GET", "HEAD", "OPTIONS"].indexOf(method) === -1) {
+            var headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
+            if (!headers.has("X-CSRF-TOKEN")) headers.set("X-CSRF-TOKEN", token);
+            init = Object.assign({}, init, { headers: headers });
+          }
+          return nativeFetch(input, init);
+        };
+      })();
+
       window.addEventListener("pageshow", function (event) {
         var nav = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
         if (event.persisted || (nav && nav.type === "back_forward")) {
