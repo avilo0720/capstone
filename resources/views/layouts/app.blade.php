@@ -7,7 +7,7 @@
     <link rel="icon" type="image/png" href="/assets/images/nabua-wave-logo.png" />
     <link rel="stylesheet" href="/src/css/font.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" />
-    <link rel="stylesheet" href="/src/css/style.css?v=138" />
+    <link rel="stylesheet" href="/src/css/style.css?v=139" />
     <title>{{ $title }} | Nabua Water Inventory</title>
     <script>
       // Attach the CSRF token to every same-origin request that changes data.
@@ -56,6 +56,6 @@
     @include('partials.profile-crop-modal')
     <script type="application/json" id="assigneeDirectory">@json($assigneeDirectory ?? [])</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
-    <script src="/src/js/app.js?v=112" type="module"></script>
+    <script src="/src/js/app.js?v=114" type="module"></script>
   </body>
 </html>

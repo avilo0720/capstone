@@ -84,6 +84,10 @@ class App {
     this.notifRefreshTimer = null;
     this.notifAlerts = [];
     this.notifReadIds = [];
+    this.notifSeenIds = null;
+    this.notifFilter = "all";
+    this.notifToastTimer = null;
+    this.baseTitle = document.title;
   }
 
   addEventListeners() {
@@ -749,7 +753,7 @@ class App {
   async fetchAndRenderNotifications() {
     try {
       // Stock alerts come from the forecast, the same list as Reports and the Dashboard.
-      const [forecastAlerts, readRes, calendarRes] = await Promise.all([
+      const [forecastAlerts, readRes, serverRes] = await Promise.all([
         loadForecastAlerts(DEFAULT_RESTOCK_WINDOW_MONTHS).catch(() => null),
         fetch('/api/notifications/read'),
         fetch('/api/notifications/alerts'),
@@ -783,14 +787,18 @@ class App {
         href: this.lowStockNotifHref(item),
       }));
 
-      let calendarAlerts = [];
-      if (calendarRes.ok) {
-        const calendarData = await calendarRes.json();
-        calendarAlerts = (calendarData.alerts || []).map((alert) => ({
+      // Calendar notes plus procurement and issuance steps, built on the server.
+      let serverAlerts = [];
+      if (serverRes.ok) {
+        const serverData = await serverRes.json();
+        serverAlerts = (serverData.alerts || []).map((alert) => ({
           id: alert.id,
           type: alert.type || 'calendar',
           title: alert.title,
           message: alert.message || '',
+          category: alert.category || '',
+          badge: alert.badge || '',
+          at: alert.at || null,
           noteDate: alert.note_date,
           endDate: alert.end_date,
           urgency: alert.urgency || 'medium',
@@ -798,17 +806,42 @@ class App {
         }));
       }
 
-      this.notifAlerts = [...calendarAlerts, ...stockAlerts];
+      this.notifAlerts = [...serverAlerts, ...stockAlerts];
 
-      // Sort by urgency: critical > high > medium; calendar due before shared
+      // Requests waiting on this user first, then by urgency, type, and newest first
       const urgencyOrder = { critical: 0, high: 1, medium: 2 };
-      const typeOrder = { calendar_due: 0, calendar_shared: 1, lowstock: 2 };
+      const isAction = (a) => a.type === 'procurement_action' && a.badge === 'Action'
+        || a.type === 'issuance_action';
+      const typeOrder = {
+        procurement_action: 0,
+        issuance_action: 0,
+        calendar_due: 1,
+        procurement_update: 2,
+        issuance_update: 2,
+        procurement_docs: 2,
+        calendar_shared: 3,
+        lowstock: 4,
+      };
       this.notifAlerts.sort((a, b) => {
+        const actionDiff = Number(isAction(b)) - Number(isAction(a));
+        if (actionDiff !== 0) return actionDiff;
         const urgencyDiff =
           (urgencyOrder[a.urgency] ?? 3) - (urgencyOrder[b.urgency] ?? 3);
         if (urgencyDiff !== 0) return urgencyDiff;
-        return (typeOrder[a.type] ?? 9) - (typeOrder[b.type] ?? 9);
+        const typeDiff = (typeOrder[a.type] ?? 9) - (typeOrder[b.type] ?? 9);
+        if (typeDiff !== 0) return typeDiff;
+        return (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0);
       });
+
+      // Pop up anything new since the last refresh (not on the first load of a page).
+      const readIds = this.getReadNotifIds();
+      if (this.notifSeenIds) {
+        const fresh = this.notifAlerts.filter(
+          (a) => !this.notifSeenIds.has(a.id) && !readIds.includes(a.id)
+        );
+        if (fresh.length) this.showNotifToast(fresh);
+      }
+      this.notifSeenIds = new Set(this.notifAlerts.map((a) => a.id));
 
       this.renderNotifications();
     } catch (e) {
@@ -888,6 +921,20 @@ class App {
     const unreadAlerts = this.notifAlerts.filter(a => !readIds.includes(a.id));
     const unreadCount = unreadAlerts.length;
 
+    document.title = unreadCount > 0
+      ? `(${unreadCount > 99 ? '99+' : unreadCount}) ${this.baseTitle}`
+      : this.baseTitle;
+
+    // Tabs only for groups that have something in them
+    const groups = ['requests', 'stock', 'calendar'].filter((group) =>
+      this.notifAlerts.some((a) => this.notifGroup(a) === group)
+    );
+    if (this.notifFilter !== 'all' && !groups.includes(this.notifFilter)) {
+      this.notifFilter = 'all';
+    }
+    const visibleAlerts = this.visibleNotifAlerts();
+    this.renderNotifFilters(groups, unreadAlerts);
+
     // Update badges
     badges.forEach((badge) => {
       if (unreadCount > 0) {
@@ -903,17 +950,16 @@ class App {
       else bellBtn.classList.remove('--has-alerts');
     });
 
-    // Hide "View Full Report" if user doesn't have access to reports
+    // "View Full Report" leads to stock alerts, so it only shows when those are listed
     const hasReportsAccess = document.querySelector('.sideBar__reports');
+    const showReportLink = hasReportsAccess && (this.notifFilter === 'all' || this.notifFilter === 'stock');
     viewAllLinks.forEach((viewAllLink) => {
-      if (!hasReportsAccess) {
-        viewAllLink.style.display = 'none';
-      }
+      viewAllLink.closest('.notif__panel-footer')?.classList.toggle('--hidden', !showReportLink);
     });
 
     // Empty state
     let html = '';
-    if (this.notifAlerts.length === 0) {
+    if (visibleAlerts.length === 0) {
       html = `
         <div class="notif__empty">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -923,13 +969,14 @@ class App {
           <p>All clear! No alerts right now.</p>
         </div>`;
     } else {
-      this.notifAlerts.forEach(alert => {
+      visibleAlerts.forEach(alert => {
         const isUnread = !readIds.includes(alert.id);
         const isCalendar =
           alert.type === 'calendar_shared' || alert.type === 'calendar_due';
+        const isRequest = this.notifGroup(alert) === 'requests';
         const urgencyLabel = isCalendar
           ? (alert.type === 'calendar_due' ? 'Today' : 'Note')
-          : (alert.urgency.charAt(0).toUpperCase() + alert.urgency.slice(1));
+          : this.escapeNotifHtml(alert.badge || (alert.urgency.charAt(0).toUpperCase() + alert.urgency.slice(1)));
         const safeTitle = this.escapeNotifHtml(alert.title || 'Notification');
         const hrefAttr = alert.href
           ? ` data-notif-href="${this.escapeNotifAttr(alert.href)}"`
@@ -940,6 +987,12 @@ class App {
         if (isCalendar) {
           description = this.escapeNotifHtml(alert.message || 'Open calendar to view this note.');
           meta = alert.type === 'calendar_due' ? 'Calendar · Due today' : 'Calendar · Shared with you';
+        } else if (isRequest) {
+          description = this.escapeNotifHtml(alert.message);
+          meta = [alert.category, this.notifTimeAgo(alert.at)]
+            .filter(Boolean)
+            .map((part) => this.escapeNotifHtml(part))
+            .join(' · ');
         } else {
           const windowLabel = restockWindowLabel(DEFAULT_RESTOCK_WINDOW_MONTHS);
           description = alert.currentStock === 0
@@ -950,7 +1003,7 @@ class App {
         }
 
         html += `
-          <div class="notif__item ${isUnread ? '--unread' : ''} ${isCalendar ? '--calendar' : ''}${hrefAttr ? ' --link' : ''}" data-notif-id="${this.escapeNotifAttr(alert.id)}"${hrefAttr} role="link" tabindex="0" title="Open">
+          <div class="notif__item ${isUnread ? '--unread' : ''} ${isCalendar ? '--calendar' : ''}${isRequest ? ' --request' : ''}${hrefAttr ? ' --link' : ''}" data-notif-id="${this.escapeNotifAttr(alert.id)}"${hrefAttr} role="link" tabindex="0" title="Open">
             <div class="notif__item-dot --${alert.urgency}${isCalendar ? ' --calendar' : ''}"></div>
             <div class="notif__item-content">
               <p class="notif__item-title">
@@ -975,8 +1028,107 @@ class App {
     this.renderNotifications();
   }
 
+  notifGroup(alert) {
+    if (alert.type === 'lowstock') return 'stock';
+    if (String(alert.type).startsWith('calendar')) return 'calendar';
+    return 'requests';
+  }
+
+  visibleNotifAlerts() {
+    if (this.notifFilter === 'all') return this.notifAlerts;
+    return this.notifAlerts.filter((a) => this.notifGroup(a) === this.notifFilter);
+  }
+
+  renderNotifFilters(groups, unreadAlerts) {
+    const labels = { all: 'All', requests: 'Requests', stock: 'Stock', calendar: 'Calendar' };
+    const tabs = groups.length > 1 ? ['all', ...groups] : [];
+    const html = tabs.map((group) => {
+      const unread = group === 'all'
+        ? unreadAlerts.length
+        : unreadAlerts.filter((a) => this.notifGroup(a) === group).length;
+      const active = group === this.notifFilter;
+      return `<button type="button" class="notif__filter${active ? ' --active' : ''}" data-notif-filter="${group}" role="tab" aria-selected="${active}">
+          ${labels[group]}${unread ? ` <span class="notif__filter-count">${unread > 99 ? '99+' : unread}</span>` : ''}
+        </button>`;
+    }).join('');
+
+    document.querySelectorAll('.notif__panel').forEach((panel) => {
+      let bar = panel.querySelector('.notif__filters');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.className = 'notif__filters';
+        bar.setAttribute('role', 'tablist');
+        bar.addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-notif-filter]');
+          if (!btn) return;
+          this.notifFilter = btn.dataset.notifFilter;
+          this.renderNotifications();
+        });
+        panel.querySelector('.notif__panel-header')?.after(bar);
+      }
+      bar.innerHTML = html;
+      bar.classList.toggle('--hidden', !tabs.length);
+    });
+  }
+
+  notifTimeAgo(iso) {
+    const time = Date.parse(iso);
+    if (!time) return '';
+    const minutes = Math.floor(Math.max(0, Date.now() - time) / 60000);
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return new Date(time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  // Small pop-up in the corner when a new notification arrives while the page is open.
+  showNotifToast(alerts) {
+    const first = alerts[0];
+    if (!first || !document.querySelector('.notif__bell')) return;
+
+    document.querySelector('.notif-toast')?.remove();
+    clearTimeout(this.notifToastTimer);
+
+    const more = alerts.length - 1;
+    const toast = document.createElement('div');
+    toast.className = `notif-toast --${first.urgency || 'medium'}`;
+    toast.setAttribute('role', 'status');
+    toast.innerHTML = `
+      <button type="button" class="notif-toast__body">
+        <span class="notif-toast__label">New notification${more > 0 ? `s (${alerts.length})` : ''}</span>
+        <span class="notif-toast__title">${this.escapeNotifHtml(first.title || 'Notification')}</span>
+        ${first.message ? `<span class="notif-toast__desc">${this.escapeNotifHtml(first.message)}</span>` : ''}
+        ${more > 0 ? `<span class="notif-toast__more">+${more} more in the bell</span>` : ''}
+      </button>
+      <button type="button" class="notif-toast__close" aria-label="Dismiss">×</button>`;
+
+    const close = () => {
+      clearTimeout(this.notifToastTimer);
+      toast.remove();
+    };
+    toast.querySelector('.notif-toast__close').addEventListener('click', close);
+    toast.querySelector('.notif-toast__body').addEventListener('click', async () => {
+      close();
+      if (more > 0) {
+        // Several new ones: open the bell instead of jumping to just the first
+        const bell = [...document.querySelectorAll('.notif__bell')].find((b) => b.offsetParent);
+        // After this click finishes, or the outside-click handler closes the panel again
+        setTimeout(() => bell?.click(), 0);
+        return;
+      }
+      await this.markNotificationRead(first.id);
+      if (first.href) window.location.assign(first.href);
+    });
+
+    document.body.appendChild(toast);
+    this.notifToastTimer = setTimeout(close, 8000);
+  }
+
   async markAllNotificationsRead() {
-    const unreadIds = this.notifAlerts
+    const unreadIds = this.visibleNotifAlerts()
       .map(a => a.id)
       .filter(id => !this.getReadNotifIds().includes(id));
     if (!unreadIds.length) return;
