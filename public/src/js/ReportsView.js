@@ -1,3 +1,4 @@
+import Storage from "./API.js";
 import Pagination from "./Pagination.js";
 import DownloadOptions from "./DownloadOptions.js";
 import { computeForecasts } from "./ForecastEngine.js";
@@ -25,9 +26,8 @@ class ReportsView {
 
   async setApp() {
     this.pagination.setContainer(document.getElementById("reportsPagination"));
-    await this.loadSummary();
-    await this.loadForecastCharts();
     this.bindEvents();
+    await Promise.all([this.loadSummary(), this.loadForecastCharts()]);
     window.addEventListener("resize", () => {
       clearTimeout(this._resizeTimer);
       this._resizeTimer = setTimeout(() => this.renderForecastCharts(), 160);
@@ -36,32 +36,30 @@ class ReportsView {
 
   async refreshLive() {
     if (!document.querySelector(".reports-page")) return;
-    await this.loadSummary();
-    await this.loadForecastCharts();
+    await Promise.all([this.loadSummary(), this.loadForecastCharts()]);
   }
 
+  /** Totals come from the items Storage already loaded, saving a server round trip. */
   async loadSummary() {
-    try {
-      const res = await fetch('/api/reports/summary');
-      if (!res.ok) throw new Error('Failed to load summary');
-      this.summaryData = await res.json();
-      this.renderSummary();
-    } catch (e) {
-      console.error('Failed to load report summary:', e);
-    }
+    const items = Storage.getItems();
+    this.summaryData = {
+      totalItems: items.length,
+      totalQuantity: items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
+      totalValue: Math.round(
+        items.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 0), 0) * 100
+      ) / 100,
+    };
+    this.renderSummary();
   }
 
   async loadForecastCharts() {
     try {
-      const [usageRes, itemsRes] = await Promise.all([
-        fetch('/api/forecast-data'),
-        fetch('/api/items'),
-      ]);
-      if (!usageRes.ok || !itemsRes.ok) return;
+      // Items are already loaded (and kept fresh by realtime sync) in Storage.
+      const usageRes = await fetch('/api/forecast-data');
+      if (!usageRes.ok) return;
 
       const usageData = await usageRes.json();
-      const items = await itemsRes.json();
-      this.forecastData = computeForecasts(items, usageData);
+      this.forecastData = computeForecasts(Storage.getItems(), usageData);
       this.renderForecastCharts();
       this.updateAlerts();
     } catch (e) {

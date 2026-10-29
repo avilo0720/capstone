@@ -74,10 +74,12 @@ Set-Location $Root
 Start-XamppMysql
 
 $Php = Resolve-PhpExe
-$ServerRouter = Join-Path $Root 'vendor\laravel\framework\src\Illuminate\Foundation\resources\server.php'
-if (-not (Test-Path $ServerRouter)) {
-    throw "Laravel server router not found at $ServerRouter. Run composer install first."
+$LaravelRouter = Join-Path $Root 'vendor\laravel\framework\src\Illuminate\Foundation\resources\server.php'
+if (-not (Test-Path $LaravelRouter)) {
+    throw "Laravel server router not found at $LaravelRouter. Run composer install first."
 }
+# Wraps Laravel's router and lets browsers cache versioned (?v=) scripts and styles.
+$ServerRouter = Join-Path $Root 'scripts\dev-server-router.php'
 
 Write-Host "Using PHP: $Php"
 Write-Host 'Starting app at http://127.0.0.1:8000 ...'

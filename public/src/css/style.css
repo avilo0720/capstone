@@ -84,8 +84,9 @@ input {
   min-height: 0;
 }
 
+/* Pinned to the screen so it covers the visible page however far it is scrolled. */
 .app-loading {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 100;
   display: flex;
@@ -95,6 +96,18 @@ input {
   opacity: 1;
   visibility: visible;
   transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+/* Leave the header (phones) and sidebar (desktop) usable while a page loads. */
+.app-loading {
+  top: 100px;
+}
+
+@media screen and (min-width: 1024px) {
+  .app-loading {
+    top: 0;
+    left: 280px;
+  }
 }
 
 .app-loading.app-loading--done {

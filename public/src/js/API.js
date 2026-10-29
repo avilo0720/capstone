@@ -30,11 +30,14 @@ class Storage {
 
   async init() {
     try {
-      const prodRes = await fetch('/api/items', { signal: AbortSignal.timeout(12000) });
+      // Fetched together so page loads wait for one round trip, not two.
+      const [prodRes, catRes] = await Promise.all([
+        fetch('/api/items', { signal: AbortSignal.timeout(12000) }),
+        fetch('/api/categories', { signal: AbortSignal.timeout(12000) }),
+      ]);
       const items = await prodRes.json();
       this.items = Array.isArray(items) ? items : [];
-      
-      const catRes = await fetch('/api/categories', { signal: AbortSignal.timeout(12000) });
+
       const categories = await catRes.json();
       this.categories = Array.isArray(categories) ? categories : [];
 
