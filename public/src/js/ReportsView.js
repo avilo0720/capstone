@@ -3,6 +3,11 @@ import DownloadOptions from "./DownloadOptions.js";
 import { computeForecasts } from "./ForecastEngine.js";
 import { notifyAlert } from "./ConfirmDialog.js";
 import { bindBackdropClose } from "./OverlayDismiss.js";
+// Same specifiers as app.js so the Reports tab shares one instance of each page module.
+import InventoryView from "./InventoryView.js?v=103";
+import ForecastingView from "./ForecastingView.js?v=102";
+import ProcurementView from "./ProcurementView.js?v=103";
+import CalendarView from "./CalendarView.js?v=102";
 
 class ReportsView {
   constructor() {
@@ -182,20 +187,8 @@ class ReportsView {
   }
 
   renderForecastCharts() {
-    const methodCanvas = document.getElementById("reportsMethodChart");
     const needCanvas = document.getElementById("reportsNeedChart");
-    if (!methodCanvas || !needCanvas || !this.forecastData.length) return;
-
-    const methodCounts = { WMA: 0, Croston: 0, Static: 0 };
-    this.forecastData.forEach((item) => {
-      methodCounts[item.method] = (methodCounts[item.method] || 0) + 1;
-    });
-
-    this.drawBarChart(methodCanvas, [
-      { label: "WMA", value: methodCounts.WMA, color: "#8b5cf6" },
-      { label: "Croston", value: methodCounts.Croston, color: "#f97316" },
-      { label: "Static", value: methodCounts.Static, color: "#94a3b8" },
-    ], "Items");
+    if (!needCanvas || !this.forecastData.length) return;
 
     const topNeeds = [...this.forecastData]
       .filter((item) => item.need3m > 0)
@@ -216,50 +209,6 @@ class ReportsView {
       })),
       "Units needed"
     );
-  }
-
-  drawBarChart(canvas, data, yLabel) {
-    const ctx = canvas.getContext("2d");
-    const dpr = window.devicePixelRatio || 1;
-    const w = canvas.parentElement.clientWidth;
-    const h = 220;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    canvas.style.width = w + "px";
-    canvas.style.height = h + "px";
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, w, h);
-
-    const pad = { top: 20, right: 20, bottom: 40, left: 40 };
-    const plotW = w - pad.left - pad.right;
-    const plotH = h - pad.top - pad.bottom;
-    const maxVal = Math.max(...data.map((d) => d.value), 1);
-    const barW = plotW / data.length * 0.55;
-
-    data.forEach((d, i) => {
-      const x = pad.left + (i + 0.5) * (plotW / data.length) - barW / 2;
-      const barH = (d.value / maxVal) * plotH;
-      const y = pad.top + plotH - barH;
-
-      ctx.fillStyle = d.color;
-      ctx.beginPath();
-      ctx.roundRect(x, y, barW, barH, [4, 4, 0, 0]);
-      ctx.fill();
-
-      ctx.fillStyle = "#344054";
-      ctx.font = "600 11px Inter, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(String(d.value), x + barW / 2, y - 6);
-
-      ctx.fillStyle = "#667085";
-      ctx.font = "11px Inter, sans-serif";
-      ctx.fillText(d.label, x + barW / 2, h - pad.bottom + 16);
-    });
-
-    ctx.fillStyle = "#8896a4";
-    ctx.font = "11px Inter, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(yLabel, pad.left / 2, pad.top + plotH / 2);
   }
 
   drawHorizontalBarChart(canvas, data, xLabel) {
@@ -329,6 +278,32 @@ class ReportsView {
         await this.exportReport();
       });
     }
+
+    document.querySelectorAll('[data-report]').forEach((btn) => {
+      btn.addEventListener('click', () => this.downloadFromLibrary(btn.dataset.report));
+    });
+  }
+
+  /** "All Reports" section: each report reuses the download dialog from its own page. */
+  async downloadFromLibrary(report) {
+    if (report === 'summary') return this.exportReport();
+    if (report === 'inventory') return InventoryView.exportForReports();
+    if (report === 'forecast') {
+      const mode = document.getElementById('reportsForecastMode')?.value || 'forecast';
+      return ForecastingView.exportForReports(mode);
+    }
+    if (report === 'procurement') return ProcurementView.exportForReports();
+    if (report === 'calendar') {
+      const value = document.getElementById('reportsCalendarMonth')?.value || '';
+      const [year, month] = value.split('-').map(Number);
+      if (!year || !month) {
+        notifyAlert('Pick a month first.');
+        return false;
+      }
+      const hideEmpty = document.getElementById('reportsCalendarHideEmpty')?.checked ?? true;
+      return CalendarView.exportMonthForReports(year, month - 1, hideEmpty);
+    }
+    return false;
   }
 
   exportReport() {

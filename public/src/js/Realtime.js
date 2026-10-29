@@ -1,12 +1,13 @@
+// Keep these specifiers identical to app.js: a different ?v= loads a second, unused copy of the module.
 import Storage from "./API.js";
-import DashboardUi from "./Dashboard.js";
-import InventoryUi from "./InventoryView.js";
-import ForecastingUi from "./ForecastingView.js";
-import ReportsView from "./ReportsView.js";
-import CalendarView from "./CalendarView.js";
+import DashboardUi from "./Dashboard.js?v=101";
+import InventoryUi from "./InventoryView.js?v=103";
+import ForecastingUi from "./ForecastingView.js?v=102";
+import ReportsView from "./ReportsView.js?v=102";
+import CalendarView from "./CalendarView.js?v=102";
 import UsersView from "./UsersView.js";
-import ActivityLogsView from "./ActivityLogsView.js";
-import ProcurementView from "./ProcurementView.js";
+import ActivityLogsView from "./ActivityLogsView.js?v=101";
+import ProcurementView from "./ProcurementView.js?v=103";
 import IssuanceView from "./IssuanceView.js";
 
 const POLL_MS = 2000;

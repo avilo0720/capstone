@@ -61,19 +61,83 @@
       </div>
     </div>
 
+    @php
+      $canOpen = fn (string $page) => \App\Support\RolePermissions::canAccessPage($user ?? null, $page);
+    @endphp
+    <section class="reports-library" aria-labelledby="reportsLibraryTitle">
+      <div class="reports-forecast-charts__header">
+        <h2 id="reportsLibraryTitle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+          All Reports
+        </h2>
+        <p class="reports-forecast-charts__desc">Download any report as PDF or Excel. Reports use the inventory selected in the sidebar.</p>
+      </div>
+      <div class="reports-library__grid">
+        <article class="reports-library__card">
+          <h3>Inventory summary &amp; low-stock alerts</h3>
+          <p>Totals for items, quantity, and value, plus every item that needs restocking.</p>
+          <button type="button" class="reportDownloadBtn" data-report="summary">Download</button>
+        </article>
+
+        @if($canOpen('inventory'))
+          <article class="reports-library__card">
+            <h3>Inventory list</h3>
+            <p>Every item with stock, AMC, FSN, reorder levels, costs, and trigger point.</p>
+            <button type="button" class="reportDownloadBtn" data-report="inventory">Download</button>
+          </article>
+        @endif
+
+        @if($canOpen('forecast'))
+          <article class="reports-library__card">
+            <h3>Inventory forecast</h3>
+            <p>Current quantity as of today, AMC, and restock needed for 3 months, 6 months, and 1 year.</p>
+            <label class="reports-library__field">
+              <span>AMC basis</span>
+              <select id="reportsForecastMode">
+                <option value="forecast">Forecast AMC</option>
+                <option value="inventory">AMC</option>
+                <option value="combined">Combined AMC</option>
+              </select>
+            </label>
+            <button type="button" class="reportDownloadBtn" data-report="forecast">Download</button>
+          </article>
+        @endif
+
+        @if($canOpen('procurement'))
+          <article class="reports-library__card">
+            <h3>Procurement requests</h3>
+            <p>All request slips with status, signers, quantities, and dates.</p>
+            <button type="button" class="reportDownloadBtn" data-report="procurement">Download</button>
+          </article>
+        @endif
+
+        @if($canOpen('calendar') && !empty($user['canViewCalendarTable']))
+          <article class="reports-library__card">
+            <h3>Monthly transactions</h3>
+            <p>Stock added and used per item for each day of the month.</p>
+            <label class="reports-library__field">
+              <span>Month</span>
+              <input type="month" id="reportsCalendarMonth" value="{{ now()->format('Y-m') }}" />
+            </label>
+            <label class="reports-library__check">
+              <input type="checkbox" id="reportsCalendarHideEmpty" checked />
+              <span>Hide items and days with no transactions</span>
+            </label>
+            <button type="button" class="reportDownloadBtn" data-report="calendar">Download</button>
+          </article>
+        @endif
+      </div>
+    </section>
+
     <div class="reports-forecast-charts" id="reportsForecastCharts">
       <div class="reports-forecast-charts__header">
         <h2>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           Forecasting Overview
         </h2>
-        <p class="reports-forecast-charts__desc">Graphical summary of WMA and Croston's Method projections across inventory</p>
+        <p class="reports-forecast-charts__desc">Items that need the most stock in the next 3 months, based on the forecast</p>
       </div>
-      <div class="reports-forecast-charts__grid">
-        <div class="reports-chart-card">
-          <h3>Method Distribution</h3>
-          <canvas id="reportsMethodChart" height="220"></canvas>
-        </div>
+      <div class="reports-forecast-charts__grid reports-forecast-charts__grid--single">
         <div class="reports-chart-card">
           <h3>Top Restock Needs (3 Months)</h3>
           <canvas id="reportsNeedChart" height="220"></canvas>

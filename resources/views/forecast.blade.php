@@ -15,7 +15,7 @@
             id="forecastInfoBtn"
             aria-expanded="false"
             aria-controls="forecastAlgoPanel"
-            title="Forecasting algorithms"
+            title="About this forecast"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="10"/>
@@ -24,18 +24,25 @@
             </svg>
           </button>
           <div class="forecast-info__panel --hidden" id="forecastAlgoPanel" role="dialog" aria-labelledby="forecastAlgoTitle">
-            <h3 class="forecast-algo-panel__title" id="forecastAlgoTitle">Forecasting Algorithms</h3>
+            <h3 class="forecast-algo-panel__title" id="forecastAlgoTitle">Inventory Forecast Information</h3>
             <div class="forecast-algo-panel__grid">
               <div class="forecast-algo-card">
-                <h4>Weighted Moving Average (WMA)</h4>
-                <p>Used for items with regular demand (usage on ≥33% of days in the analysis period). Aggregates daily usage into calendar months, then applies weights 1, 2, 3 to the last three months:</p>
-                <code class="forecast-algo-formula">Forecast = (M₁×1 + M₂×2 + M₃×3) ÷ 6</code>
+                <h4>Forecast</h4>
+                <p>The expected quantity used per month, estimated from each item's recorded usage. It updates automatically as stock is used.</p>
               </div>
               <div class="forecast-algo-card">
-                <h4>Croston's Method</h4>
-                <p>Used for intermittent demand (usage on &lt;33% of days). Separately smooths demand size and interval between usage events (α = 0.2), then derives a daily rate:</p>
-                <code class="forecast-algo-formula">Daily Rate = Smoothed Size ÷ Smoothed Interval</code>
-                <p class="forecast-algo-note">Monthly forecast = Daily Rate × 30</p>
+                <h4>Static</h4>
+                <p>An item is marked <strong>Static</strong> when it has fewer than two days of recorded usage, so there is not enough history to forecast from. Its forecast stays fixed at the AMC entered in Inventory until more usage is recorded. Check Static items manually before ordering.</p>
+              </div>
+              <div class="forecast-algo-card">
+                <h4>AMC options</h4>
+                <p><strong>Forecast AMC</strong> uses the forecast. <strong>AMC</strong> uses the average monthly consumption entered in Inventory. <strong>Combined AMC</strong> is the average of the two.</p>
+              </div>
+              <div class="forecast-algo-card">
+                <h4>Restock needed</h4>
+                <p>How many units to add so stock lasts 3 months, 6 months, or 1 year:</p>
+                <code class="forecast-algo-formula">AMC × months − current quantity</code>
+                <p class="forecast-algo-note">Current quantity is the stock on hand as of today. "OK" means no restock is needed.</p>
               </div>
             </div>
           </div>
@@ -47,7 +54,7 @@
           <label for="amcForecast">Forecast AMC</label>
 
           <input type="radio" id="amcInventory" name="amcMode" value="inventory">
-          <label for="amcInventory">Inventory AMC</label>
+          <label for="amcInventory">AMC</label>
 
           <input type="radio" id="amcCombined" name="amcMode" value="combined">
           <label for="amcCombined">Combined AMC</label>
@@ -66,7 +73,7 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
           </div>
           <div class="reports-summary__card-info">
-            <p class="reports-summary__card-label">Items Forecasted</p>
+            <p class="reports-summary__card-label">Items forecasted</p>
             <p class="reports-summary__card-value" id="forecastKpiItems">—</p>
           </div>
         </div>
@@ -75,7 +82,7 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           </div>
           <div class="reports-summary__card-info">
-            <p class="reports-summary__card-label">Need Restock (3 mo)</p>
+            <p class="reports-summary__card-label">Need restock (3 months)</p>
             <p class="reports-summary__card-value" id="forecastKpiRestock">—</p>
           </div>
         </div>
@@ -84,7 +91,7 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           </div>
           <div class="reports-summary__card-info">
-            <p class="reports-summary__card-label">Avg Monthly Demand</p>
+            <p class="reports-summary__card-label">Average monthly use</p>
             <p class="reports-summary__card-value" id="forecastKpiAmc">—</p>
           </div>
         </div>
@@ -93,7 +100,7 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </div>
           <div class="reports-summary__card-info">
-            <p class="reports-summary__card-label">Median Stock Cover</p>
+            <p class="reports-summary__card-label">Typical stock duration</p>
             <p class="reports-summary__card-value" id="forecastKpiCover">—</p>
           </div>
         </div>
@@ -105,16 +112,12 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
             Demand Overview
           </h2>
-          <p>Stock coverage, forecast methods, and the largest restock gaps across this inventory</p>
+          <p>How long current stock will last and which items need restocking first</p>
         </div>
 
         <div class="forecast-coverage-mix" id="forecastCoverageMix"></div>
 
-        <div class="forecast-overview__grid">
-          <div class="forecast-chart-card">
-            <h3>Method Mix</h3>
-            <canvas id="forecastMethodChart" height="240"></canvas>
-          </div>
+        <div class="forecast-overview__grid forecast-overview__grid--single">
           <div class="forecast-chart-card">
             <h3>Top Restock Needs (3 Months)</h3>
             <canvas id="forecastNeedChart" height="240"></canvas>
@@ -168,20 +171,20 @@
         </div>
         <div class="forecast-stat-cards" id="forecastStatCards">
           <div class="forecast-stat-card">
-            <span class="forecast-stat-card__label">Monthly Forecast</span>
+            <span class="forecast-stat-card__label">Monthly forecast</span>
             <span class="forecast-stat-card__value" id="statForecast">—</span>
           </div>
           <div class="forecast-stat-card">
-            <span class="forecast-stat-card__label">Avg Demand Size</span>
-            <span class="forecast-stat-card__value" id="statDemandSize">—</span>
+            <span class="forecast-stat-card__label" id="statQtyLabel">Current quantity</span>
+            <span class="forecast-stat-card__value" id="statQty">—</span>
           </div>
           <div class="forecast-stat-card">
-            <span class="forecast-stat-card__label">Avg Interval</span>
-            <span class="forecast-stat-card__value" id="statInterval">—</span>
+            <span class="forecast-stat-card__label">Stock will last</span>
+            <span class="forecast-stat-card__value" id="statCover">—</span>
           </div>
           <div class="forecast-stat-card">
-            <span class="forecast-stat-card__label">Method</span>
-            <span class="forecast-stat-card__value" id="statMethod">—</span>
+            <span class="forecast-stat-card__label">Forecast basis</span>
+            <span class="forecast-stat-card__value" id="statBasis">—</span>
           </div>
         </div>
       </div>

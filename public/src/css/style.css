@@ -5054,6 +5054,21 @@ svg use {
   flex-wrap: wrap;
 }
 
+.calendar-footer .calendar-hide-empty {
+  margin-right: auto;
+  flex-shrink: 1;
+  flex-wrap: wrap;
+}
+
+.calendar-footer .calendar-hide-empty.--hidden {
+  display: none;
+}
+
+.calendar-hide-empty__hint {
+  color: #667085;
+  font-size: 0.78rem;
+}
+
 .calendar-add-note-btn {
   min-width: 8.5rem;
 }
@@ -5978,6 +5993,17 @@ svg use {
   font-weight: 600 !important;
 }
 
+.forecast-overview__grid.forecast-overview__grid--single {
+  grid-template-columns: 1fr;
+}
+
+.forecastUi td .badge-static {
+  color: #475467 !important;
+  margin-left: 0.3rem;
+  font-size: 0.62rem;
+  cursor: help;
+}
+
 .badge-static {
   background: #f1f5f9 !important;
   color: #94a3b8 !important;
@@ -6671,6 +6697,81 @@ svg use {
   grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
   padding: 1rem 1.25rem 1.25rem;
+}
+
+.reports-forecast-charts__grid.reports-forecast-charts__grid--single {
+  grid-template-columns: 1fr;
+}
+
+.reports-library {
+  background: #ffffff;
+  border: 1px solid #e9edf3;
+  border-radius: 12px;
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+
+.reports-library__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.reports-library__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: #f9fafb;
+  border: 1px solid #e9edf3;
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.reports-library__card h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #101828;
+}
+
+.reports-library__card p {
+  margin: 0;
+  flex: 1;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #475467;
+}
+
+.reports-library__card .reportDownloadBtn {
+  align-self: flex-start;
+}
+
+.reports-library__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #344054;
+}
+
+.reports-library__field select,
+.reports-library__field input {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-weight: 500;
+}
+
+.reports-library__check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  color: #344054;
 }
 
 .reports-chart-card {

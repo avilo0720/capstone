@@ -103,12 +103,15 @@ class ExportController extends Controller
         $data = $request->validate([
             'headers' => ['nullable', 'array'],
             'rows' => ['nullable', 'array'],
+            ...$this->forecastTitleRules(),
         ]);
 
         $buffer = $this->exportService->tableToExcel(
             $data['headers'] ?? [],
             $data['rows'] ?? [],
-            'Forecast'
+            'Forecast',
+            $data['title'] ?? 'Inventory Forecast',
+            $data['subtitle'] ?? null
         );
 
         return response($buffer, 200, [
@@ -122,17 +125,19 @@ class ExportController extends Controller
         $data = $request->validate([
             'headers' => ['nullable', 'array'],
             'rows' => ['nullable', 'array'],
+            ...$this->forecastTitleRules(),
             ...$this->pdfStyleRules(),
         ]);
 
         $buffer = $this->exportService->tableToPdf(
-            'Inventory Forecast',
+            $data['title'] ?? 'Inventory Forecast',
             $data['headers'] ?? [],
             $data['rows'] ?? [],
             $data['paper'] ?? 'A4',
             $data['orientation'] ?? 'landscape',
             $data['fontSize'] ?? 'medium',
-            $data['rowSize'] ?? 'normal'
+            $data['rowSize'] ?? 'normal',
+            $data['subtitle'] ?? null
         );
 
         return response($buffer, 200, [
@@ -271,6 +276,7 @@ class ExportController extends Controller
             'format' => ['required', 'string', Rule::in(['pdf', 'excel'])],
             'headers' => ['nullable', 'array'],
             'rows' => ['nullable', 'array'],
+            ...$this->forecastTitleRules(),
             ...$this->pdfStyleRules(),
         ]);
 
@@ -278,7 +284,9 @@ class ExportController extends Controller
             $html = $this->exportService->tableToHtml(
                 $data['headers'] ?? [],
                 $data['rows'] ?? [],
-                'Forecast'
+                'Forecast',
+                $data['title'] ?? 'Inventory Forecast',
+                $data['subtitle'] ?? null
             );
 
             return response($html, 200, [
@@ -288,13 +296,14 @@ class ExportController extends Controller
         }
 
         $buffer = $this->exportService->tableToPdf(
-            'Inventory Forecast',
+            $data['title'] ?? 'Inventory Forecast',
             $data['headers'] ?? [],
             $data['rows'] ?? [],
             $data['paper'] ?? 'A4',
             $data['orientation'] ?? 'landscape',
             $data['fontSize'] ?? 'medium',
-            $data['rowSize'] ?? 'normal'
+            $data['rowSize'] ?? 'normal',
+            $data['subtitle'] ?? null
         );
 
         return response($buffer, 200, [
@@ -439,6 +448,14 @@ class ExportController extends Controller
             'orientation' => ['nullable', 'string', Rule::in(['portrait', 'landscape'])],
             'fontSize' => ['nullable', 'string', Rule::in(['small', 'medium', 'large', 'xlarge'])],
             'rowSize' => ['nullable', 'string', Rule::in(['compact', 'normal', 'comfortable'])],
+        ];
+    }
+
+    private function forecastTitleRules(): array
+    {
+        return [
+            'title' => ['nullable', 'string', 'max:180'],
+            'subtitle' => ['nullable', 'string', 'max:300'],
         ];
     }
 }

@@ -131,16 +131,45 @@ class ForecastingUi {
     }
   }
 
-  getDemand(item) {
+  getDemand(item, mode = this.amcMode) {
     const forecastAmc = item.forecast || 0;
     const inventoryAmc = Number(item.monthlyDemand) || 0;
-    if (this.amcMode === "inventory") return inventoryAmc;
-    if (this.amcMode === "combined") return (forecastAmc + inventoryAmc) / 2;
+    if (mode === "inventory") return inventoryAmc;
+    if (mode === "combined") return (forecastAmc + inventoryAmc) / 2;
     return forecastAmc;
   }
 
-  getNeeds(item) {
-    const demand = this.getDemand(item);
+  amcLabel(mode = this.amcMode) {
+    if (mode === "inventory") return "AMC";
+    if (mode === "combined") return "AMC (Combined)";
+    return "AMC (Forecast)";
+  }
+
+  amcBasisLabel(mode = this.amcMode) {
+    if (mode === "inventory") return "AMC";
+    if (mode === "combined") return "Combined AMC";
+    return "Forecast AMC";
+  }
+
+  /** Too little usage history: the forecast falls back to the AMC entered in Inventory. */
+  isStatic(item) {
+    return item.method === "Static";
+  }
+
+  asOfDate() {
+    return new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  }
+
+  currentQtyLabel() {
+    return `Current Qty (as of ${this.asOfDate()})`;
+  }
+
+  coverLabel(months) {
+    return months >= 24 ? "24+ months" : `${months.toFixed(1)} months`;
+  }
+
+  getNeeds(item, mode = this.amcMode) {
+    const demand = this.getDemand(item, mode);
     const qty = item.quantity || 0;
     return {
       demand,
@@ -193,7 +222,7 @@ class ForecastingUi {
     itemsEl.textContent = String(this.forecastData.length);
     restockEl.textContent = String(restockCount);
     amcEl.textContent = avgDemand.toFixed(1);
-    coverEl.textContent = mid >= 24 ? "24+ mo" : `${mid.toFixed(1)} mo`;
+    coverEl.textContent = this.coverLabel(mid);
   }
 
   renderCoverageMix() {
@@ -217,7 +246,7 @@ class ForecastingUi {
     host.innerHTML = `
       <div class="forecast-coverage-mix__heading">
         <h3>Stock coverage</h3>
-        <p>How long current quantity lasts at the selected monthly demand</p>
+        <p>How long the current quantity (as of ${this.asOfDate()}) lasts at the selected AMC</p>
       </div>
       <div class="forecast-coverage-mix__bar" role="img" aria-label="Stock coverage mix">
         ${order.map((key) => {
@@ -239,20 +268,8 @@ class ForecastingUi {
   }
 
   renderOverviewCharts() {
-    const methodCanvas = document.getElementById("forecastMethodChart");
     const needCanvas = document.getElementById("forecastNeedChart");
-    if (!methodCanvas || !needCanvas) return;
-
-    const methodCounts = { WMA: 0, Croston: 0, Static: 0 };
-    this.forecastData.forEach((item) => {
-      methodCounts[item.method] = (methodCounts[item.method] || 0) + 1;
-    });
-
-    this.drawDonutChart(methodCanvas, [
-      { label: "WMA", value: methodCounts.WMA, color: "#8b5cf6" },
-      { label: "Croston", value: methodCounts.Croston, color: "#f97316" },
-      { label: "Static", value: methodCounts.Static, color: "#94a3b8" },
-    ]);
+    if (!needCanvas) return;
 
     const topNeeds = [...this.forecastData]
       .map((item) => ({ item, need: this.getNeeds(item).need3m }))
@@ -286,19 +303,15 @@ class ForecastingUi {
 
     const page = this.pagination.getSlice(allItems);
 
-    let amcLabel = "AMC (Forecast)";
-    if (this.amcMode === "inventory") amcLabel = "AMC (Inventory)";
-    if (this.amcMode === "combined") amcLabel = "AMC (Combined)";
-
     let result = `
       <tr class="table__title">
         <td>Item</td>
-        <td>Qty / Cover</td>
-        <td>${amcLabel}</td>
-        <td>3 Months Need</td>
-        <td>6 Months Need</td>
-        <td>1 Year Need</td>
-        <td>Method</td>
+        <td>${this.currentQtyLabel()}</td>
+        <td>Stock will last</td>
+        <td>${this.amcLabel()}</td>
+        <td>Restock for 3 Months</td>
+        <td>Restock for 6 Months</td>
+        <td>Restock for 1 Year</td>
       </tr>
     `;
 
@@ -337,8 +350,10 @@ class ForecastingUi {
     const months = this.getCoverageMonths(item);
     const tone = this.coverageTone(months);
     const coverPct = Math.min(100, (Math.min(months, 12) / 12) * 100);
-    const coverLabel = months >= 24 ? "24+ mo" : `${months.toFixed(1)} mo`;
-    const methodClass = item.method === "Croston" ? "badge-croston" : item.method === "WMA" ? "badge-wma" : "badge-static";
+    const coverLabel = this.coverLabel(months);
+    const staticTag = this.isStatic(item) && this.amcMode !== "inventory"
+      ? ` <span class="badge badge-static" title="Not enough usage history. Uses the AMC entered in Inventory.">Static</span>`
+      : "";
 
     return `
       <tr data-item-id="${item.id}" class="forecast-row">
@@ -349,22 +364,19 @@ class ForecastingUi {
           </div>
           ${this.sparklineSVG(item.id)}
         </td>
+        <td><span class="badge badge-neutral">${qty}</span></td>
         <td>
-          <div class="forecast-qty-cell">
-            <span class="badge badge-neutral">${qty}</span>
-            <div class="forecast-coverage" title="Stock cover: ${coverLabel}">
-              <div class="forecast-coverage__track">
-                <div class="forecast-coverage__fill forecast-coverage__fill--${tone}" style="width:${coverPct}%"></div>
-              </div>
-              <span class="forecast-coverage__label">${coverLabel}</span>
+          <div class="forecast-coverage" title="Stock will last: ${coverLabel}">
+            <div class="forecast-coverage__track">
+              <div class="forecast-coverage__fill forecast-coverage__fill--${tone}" style="width:${coverPct}%"></div>
             </div>
+            <span class="forecast-coverage__label">${coverLabel}</span>
           </div>
         </td>
-        <td>${demand.toFixed ? demand.toFixed(1) : demand}</td>
+        <td>${demand.toFixed ? demand.toFixed(1) : demand}${staticTag}</td>
         <td>${need3m > 0 ? `<span class="badge badge-warning">+${need3m}</span>` : '<span class="badge badge-success">OK</span>'}</td>
         <td>${need6m > 0 ? `<span class="badge badge-danger">+${need6m}</span>` : '<span class="badge badge-success">OK</span>'}</td>
         <td>${need1y > 0 ? `<span class="badge badge-danger">+${need1y}</span>` : '<span class="badge badge-success">OK</span>'}</td>
-        <td><span class="badge ${methodClass}">${item.method}</span></td>
       </tr>
     `;
   }
@@ -461,14 +473,13 @@ class ForecastingUi {
 
     document.getElementById("statForecast").textContent =
       item.forecast ? `${item.forecast.toFixed(1)} / month` : "—";
-    document.getElementById("statDemandSize").textContent =
-      item.demandSize ? `${item.demandSize} units` : "—";
-    document.getElementById("statInterval").textContent =
-      item.demandInterval ? `Every ${item.demandInterval} days` : "—";
+    document.getElementById("statQtyLabel").textContent = `Current quantity (as of ${this.asOfDate()})`;
+    document.getElementById("statQty").textContent = String(item.quantity || 0);
+    document.getElementById("statCover").textContent = this.coverLabel(this.getCoverageMonths(item));
 
-    const methodEl = document.getElementById("statMethod");
-    methodEl.textContent = item.method;
-    methodEl.className = "forecast-stat-card__value forecast-stat-card__method--" + item.method.toLowerCase();
+    const basisEl = document.getElementById("statBasis");
+    basisEl.textContent = this.isStatic(item) ? "Static (AMC from Inventory)" : "Usage history";
+    basisEl.className = "forecast-stat-card__value" + (this.isStatic(item) ? " forecast-stat-card__method--static" : "");
 
     const dailyUsage = this.usageData[item.id] || [];
 
@@ -868,61 +879,6 @@ class ForecastingUi {
     return { ctx, w, h };
   }
 
-  drawDonutChart(canvas, data) {
-    const { ctx, w, h } = this.sizeCanvas(canvas, 240);
-    const total = data.reduce((sum, d) => sum + d.value, 0);
-    const cx = w * 0.38;
-    const cy = h / 2;
-    const radius = Math.min(cx, cy) - 18;
-    const inner = radius * 0.58;
-
-    if (total === 0) {
-      this.drawEmptyChart(canvas, "No forecast data");
-      return;
-    }
-
-    let start = -Math.PI / 2;
-    data.forEach((d) => {
-      if (!d.value) return;
-      const slice = (d.value / total) * Math.PI * 2;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, radius, start, start + slice);
-      ctx.closePath();
-      ctx.fillStyle = d.color;
-      ctx.fill();
-      start += slice;
-    });
-
-    ctx.beginPath();
-    ctx.fillStyle = "#ffffff";
-    ctx.arc(cx, cy, inner, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "#0f172a";
-    ctx.font = "700 22px 'Segoe UI', system-ui, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(String(total), cx, cy - 8);
-    ctx.fillStyle = "#64748b";
-    ctx.font = "600 11px 'Segoe UI', system-ui, sans-serif";
-    ctx.fillText("items", cx, cy + 12);
-
-    let legendY = 28;
-    data.forEach((d) => {
-      ctx.fillStyle = d.color;
-      ctx.beginPath();
-      ctx.roundRect(w - 118, legendY, 10, 10, 3);
-      ctx.fill();
-      ctx.fillStyle = "#334155";
-      ctx.font = "600 12px 'Segoe UI', system-ui, sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText(`${d.label}  ${d.value}`, w - 102, legendY + 5);
-      legendY += 24;
-    });
-  }
-
   drawHorizontalBarChart(canvas, data) {
     const { ctx, w, h } = this.sizeCanvas(canvas, 240);
     const pad = { top: 12, right: 36, bottom: 16, left: 108 };
@@ -1078,14 +1034,20 @@ class ForecastingUi {
     }
   }
 
-  getForecastExportData() {
-    let amcLabel = "AMC (Forecast)";
-    if (this.amcMode === "inventory") amcLabel = "AMC (Inventory)";
-    if (this.amcMode === "combined") amcLabel = "ROP";
-
-    const headers = ["Item Code", "Item Name", "Size", "Current Qty", amcLabel, "3 Months Need", "6 Months Need", "1 Year Need", "Method"];
-    const rows = this.forecastData.map((item) => {
-      const { demand, qty, need3m, need6m, need1y } = this.getNeeds(item);
+  getForecastExportData(forecastData = this.forecastData, mode = this.amcMode) {
+    const headers = [
+      "Item Code",
+      "Item Name",
+      "Size",
+      this.currentQtyLabel(),
+      this.amcLabel(mode),
+      "Restock for 3 Months",
+      "Restock for 6 Months",
+      "Restock for 1 Year",
+      "Remarks",
+    ];
+    const rows = forecastData.map((item) => {
+      const { demand, qty, need3m, need6m, need1y } = this.getNeeds(item, mode);
 
       return [
         item.itemCode || "",
@@ -1096,27 +1058,52 @@ class ForecastingUi {
         need3m > 0 ? `+${need3m}` : "OK",
         need6m > 0 ? `+${need6m}` : "OK",
         need1y > 0 ? `+${need1y}` : "OK",
-        item.method || "Static",
+        this.isStatic(item) && mode !== "inventory" ? "Static" : "",
       ];
     });
 
-    return { headers, rows };
+    const hasStatic = rows.some((row) => row[row.length - 1] === "Static");
+    const inventoryName = document.querySelector(".inventory-context-name")?.textContent?.trim() || "";
+    const subtitle = [
+      inventoryName,
+      `AMC basis: ${this.amcBasisLabel(mode)}`,
+      `Current quantity as of ${this.asOfDate()}`,
+      hasStatic ? "Static = not enough usage history, so the AMC entered in Inventory is used" : "",
+    ].filter(Boolean).join("  ·  ");
+
+    return { headers, rows, title: "Inventory Forecast", subtitle };
+  }
+
+  /** Used by the Reports tab: loads forecast data without the Forecasting page being open. */
+  async exportForReports(mode = "forecast") {
+    try {
+      const usageRes = await fetch("/api/forecast-data");
+      const usage = usageRes.ok ? await usageRes.json() : {};
+      const forecastData = computeForecasts(Storage.getItems(), usage);
+      return this.exportForecast({ forecastData, mode });
+    } catch (err) {
+      notifyAlert(err.message || "Could not load forecast data.");
+      return false;
+    }
   }
 
   exportForecast(exportOpts = {}) {
-    if (!this.forecastData || this.forecastData.length === 0) {
+    const forecastData = exportOpts.forecastData || this.forecastData;
+    const mode = exportOpts.mode || this.amcMode;
+    if (!forecastData || forecastData.length === 0) {
       notifyAlert("No forecast data to export. Generate a forecast first.");
       return Promise.resolve(false);
     }
 
     const downloadName = exportOpts.downloadName || "forecast";
+    const exportData = () => this.getForecastExportData(forecastData, mode);
 
     return DownloadOptions.open(
       { format: "pdf", paper: "A4", orientation: "landscape" },
       async (options) => {
-        const { headers, rows } = this.getForecastExportData();
+        const { headers, rows, title, subtitle } = exportData();
         const endpoint = options.format === "pdf" ? "/api/export/forecast/pdf" : "/api/export/forecast/excel";
-        const payload = { headers, rows };
+        const payload = { headers, rows, title, subtitle };
         if (options.format === "pdf") {
           payload.paper = options.paper;
           payload.orientation = options.orientation;
@@ -1144,8 +1131,8 @@ class ForecastingUi {
       },
       {
         fetchPreview: async (options, signal) => {
-          const { headers, rows } = this.getForecastExportData();
-          const payload = { format: options.format, headers, rows };
+          const { headers, rows, title, subtitle } = exportData();
+          const payload = { format: options.format, headers, rows, title, subtitle };
           if (options.format === "pdf") {
             payload.paper = options.paper;
             payload.orientation = options.orientation;

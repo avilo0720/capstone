@@ -4,7 +4,11 @@ namespace App\Services;
 
 use Dompdf\Dompdf;
 use Dompdf\Options;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Writer\Html as HtmlWriter;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -12,14 +16,24 @@ class ExportService
 {
     private const ALLOWED_ORIENTATIONS = ['portrait', 'landscape'];
 
-    public function tableToExcel(array $headers, array $rows, string $sheetName = 'Sheet1'): string
-    {
-        return $this->writeXlsx($this->buildTableSpreadsheet($headers, $rows, $sheetName));
+    public function tableToExcel(
+        array $headers,
+        array $rows,
+        string $sheetName = 'Sheet1',
+        ?string $title = null,
+        ?string $subtitle = null
+    ): string {
+        return $this->writeXlsx($this->buildTableSpreadsheet($headers, $rows, $sheetName, $title, $subtitle));
     }
 
-    public function tableToHtml(array $headers, array $rows, string $sheetName = 'Sheet1'): string
-    {
-        return $this->writeHtml($this->buildTableSpreadsheet($headers, $rows, $sheetName));
+    public function tableToHtml(
+        array $headers,
+        array $rows,
+        string $sheetName = 'Sheet1',
+        ?string $title = null,
+        ?string $subtitle = null
+    ): string {
+        return $this->writeHtml($this->buildTableSpreadsheet($headers, $rows, $sheetName, $title, $subtitle));
     }
 
     public function tableToPdf(
@@ -29,7 +43,8 @@ class ExportService
         string $paper = 'A4',
         string $orientation = 'landscape',
         string $fontSize = 'medium',
-        string $rowSize = 'normal'
+        string $rowSize = 'normal',
+        ?string $subtitle = null
     ): string {
         $orientation = $this->normalizeOrientation($orientation);
         $isPortrait = $orientation === 'portrait';
@@ -58,6 +73,7 @@ class ExportService
             }
             td { word-wrap: break-word; overflow-wrap: break-word; }
             td.num, th.num { text-align: right; white-space: nowrap; }
+            th.wrap { white-space: normal; }
             td.nowrap { white-space: nowrap; }
             .item-col { width: ' . $styles['itemWidth'] . '; }
             .size-col { width: ' . $styles['sizeWidth'] . '; }
@@ -65,6 +81,9 @@ class ExportService
             .trigger-col { width: ' . $styles['triggerWidth'] . '; }
         </style></head><body>';
         $html .= '<h1>' . htmlspecialchars($title) . '</h1>';
+        if ($subtitle !== null && $subtitle !== '') {
+            $html .= '<p class="meta">' . htmlspecialchars($subtitle) . '</p>';
+        }
         $html .= '<p class="meta">Generated: ' . htmlspecialchars(now()->toDateTimeString()) . '</p>';
         $html .= '<table><thead><tr>';
 
@@ -161,12 +180,47 @@ class ExportService
         return $this->writeHtml($this->buildReportSpreadsheet($summary, $lowStockItems));
     }
 
-    private function buildTableSpreadsheet(array $headers, array $rows, string $sheetName): Spreadsheet
-    {
+    private function buildTableSpreadsheet(
+        array $headers,
+        array $rows,
+        string $sheetName,
+        ?string $title = null,
+        ?string $subtitle = null
+    ): Spreadsheet {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle(mb_substr($sheetName, 0, 31));
-        $sheet->fromArray([$headers, ...$rows], null, 'A1');
+
+        if ($title === null) {
+            $sheet->fromArray([$headers, ...$rows], null, 'A1');
+
+            return $spreadsheet;
+        }
+
+        // Titled tables: title, subtitle, blank row, then a bold header row that stays visible when scrolling.
+        $sheet->setCellValue('A1', $title);
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        if ($subtitle !== null && $subtitle !== '') {
+            $sheet->setCellValue('A2', $subtitle);
+            $sheet->getStyle('A2')->getFont()->setItalic(true)->getColor()->setRGB('667085');
+        }
+
+        $headerRow = 4;
+        $sheet->fromArray([$headers, ...$rows], null, 'A'.$headerRow);
+
+        if ($headers !== []) {
+            $lastColumn = Coordinate::stringFromColumnIndex(count($headers));
+            $headerRange = 'A'.$headerRow.':'.$lastColumn.$headerRow;
+            $sheet->getStyle($headerRange)->getFont()->setBold(true);
+            $sheet->getStyle($headerRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('EEF2F6');
+            $sheet->getStyle($headerRange)->getAlignment()->setWrapText(true)->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getStyle('A'.$headerRow.':'.$lastColumn.($headerRow + count($rows)))
+                ->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB('D0D5DD');
+            for ($index = 1; $index <= count($headers); $index++) {
+                $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($index))->setAutoSize(true);
+            }
+            $sheet->freezePane('A'.($headerRow + 1));
+        }
 
         return $spreadsheet;
     }
@@ -419,8 +473,22 @@ class ExportService
         };
     }
 
+    /** Forecast export columns whose labels carry a date or mode, e.g. "Current Qty (as of Oct 29, 2026)". */
+    private function isForecastNumberColumn(string $header): bool
+    {
+        return str_starts_with($header, 'Current Qty')
+            || str_starts_with($header, 'AMC')
+            || str_starts_with($header, 'Restock for');
+    }
+
     private function pdfHeaderClass(string $header): string
     {
+        if ($header === 'Item Name') {
+            return 'item-col';
+        }
+        if ($this->isForecastNumberColumn($header)) {
+            return 'num wrap';
+        }
         if ($header === 'Item' || ctype_digit($header)) {
             return $header === 'Item' ? 'item-col' : 'num';
         }
@@ -438,6 +506,15 @@ class ExportService
 
     private function pdfCellClass(string $header): string
     {
+        if ($header === 'Item Name') {
+            return 'item-col';
+        }
+        if ($header === 'Item Code') {
+            return 'nowrap';
+        }
+        if ($this->isForecastNumberColumn($header)) {
+            return 'num';
+        }
         if ($header === 'Item' || $header === 'Added' || $header === 'Used' || ctype_digit($header)) {
             return $header === 'Item' ? 'item-col' : 'num';
         }

@@ -54,6 +54,12 @@
     </div>
 
     <div class="calendar-footer">
+      <label class="procurement-mine-toggle calendar-hide-empty --hidden" id="calHideEmptyToggle" title="Show only items and days that have transactions">
+        <span class="procurement-mine-toggle__label">Hide zero</span>
+        <input type="checkbox" id="calHideEmpty" />
+        <span class="procurement-mine-toggle__switch" aria-hidden="true"></span>
+        <span class="calendar-hide-empty__hint" id="calHideEmptyHint"></span>
+      </label>
       <button type="button" class="downloadBtn --hidden" id="calDownloadMonthlyBtn">Download monthly report</button>
       <button type="button" class="addProBtn calendar-add-note-btn" id="calAddNoteBtn">Add Note</button>
     </div>

@@ -27,23 +27,24 @@ let productDemandInput;
 // --------------------- SearchBar --------------------------------
 let searchBar;
 
+// `hint` is the plain-language meaning shown when hovering a column header or toggle.
 const INVENTORY_COLUMNS = [
-  { key: "no", label: "No", short: "No", required: true },
-  { key: "item", label: "Item Description", short: "Item", required: true },
-  { key: "size", label: "Size", short: "Size" },
-  { key: "stock", label: "Current Stock", short: "Stock" },
-  { key: "amc", label: "AMC", short: "AMC" },
-  { key: "cumulative", label: "Cumulative", short: "Cumul" },
-  { key: "percent", label: "%", short: "%" },
-  { key: "fsn", label: "FSN", short: "FSN" },
-  { key: "ltd", label: "LTD", short: "LTD" },
-  { key: "leadTime", label: "Lead Time (Months)", short: "LT Mo" },
-  { key: "ss", label: "SS", short: "SS" },
-  { key: "rop", label: "ROP", short: "ROP" },
-  { key: "msl", label: "MSL", short: "MSL" },
-  { key: "unitCost", label: "Unit Cost", short: "Unit" },
-  { key: "totalCost", label: "Total Cost", short: "Total" },
-  { key: "trigger", label: "Trigger Point", short: "Trigger" },
+  { key: "no", label: "No", short: "No", required: true, hint: "Item number" },
+  { key: "item", label: "Item Description", short: "Item", required: true, hint: "Item name" },
+  { key: "size", label: "Size", short: "Size", hint: "Size or unit of the item" },
+  { key: "stock", label: "Current Stock", short: "Stock", hint: "Quantity on hand right now" },
+  { key: "amc", label: "AMC", short: "AMC", hint: "Average Monthly Consumption: how many are used in a typical month" },
+  { key: "cumulative", label: "Cumulative", short: "Cumul", hint: "Running total of AMC, used to sort items into FSN groups" },
+  { key: "percent", label: "%", short: "%", hint: "Running share of total monthly use, used to sort items into FSN groups" },
+  { key: "fsn", label: "FSN", short: "FSN", hint: "Fast-moving, Slow-moving, or Non-moving, based on how much the item is used" },
+  { key: "ltd", label: "LTD", short: "LTD", hint: "Lead Time Demand: quantity used while waiting for a delivery" },
+  { key: "leadTime", label: "Lead Time (Months)", short: "LT Mo", hint: "Months from ordering until the delivery arrives" },
+  { key: "ss", label: "SS", short: "SS", hint: "Safety Stock: extra quantity kept for unexpected use or late deliveries" },
+  { key: "rop", label: "ROP", short: "ROP", hint: "Reorder Point: order again when stock drops to this level" },
+  { key: "msl", label: "MSL", short: "MSL", hint: "Minimum Stock Level: the lowest quantity that should be kept" },
+  { key: "unitCost", label: "Unit Cost", short: "Unit", hint: "Price of one unit" },
+  { key: "totalCost", label: "Total Cost", short: "Total", hint: "Current stock × unit cost" },
+  { key: "trigger", label: "Trigger Point", short: "Trigger", hint: "Whether the item needs to be reordered now" },
 ];
 
 const DEFAULT_VISIBLE_COLUMNS = ["no", "item", "size", "stock", "amc", "fsn", "trigger"];
@@ -290,7 +291,7 @@ class InventoryUi {
 
     let result = `<tr class="table__title">`;
     visibleCols.forEach((col) => {
-      result += `<td>${col.label}</td>`;
+      result += `<td title="${col.hint}">${col.label}</td>`;
     });
     if (showActions) {
       result += `<td>Actions</td>`;
@@ -473,7 +474,7 @@ class InventoryUi {
     if (!container) return;
     container.innerHTML = INVENTORY_COLUMNS.map((col) => {
       const locked = col.required ? ' data-locked="true"' : "";
-      return `<button type="button" class="filterOptionBtn" data-group="column" data-value="${col.key}"${locked}>${col.short}</button>`;
+      return `<button type="button" class="filterOptionBtn" data-group="column" data-value="${col.key}" title="${col.hint}"${locked}>${col.short}</button>`;
     }).join("");
   }
 
@@ -738,7 +739,20 @@ class InventoryUi {
     return { headers, rows };
   }
 
-  exportVisibleTable() {
+  /** Used by the Reports tab: every column for every item, without the Inventory page's filters. */
+  exportForReports() {
+    const rows = this.getFilteredItems(Storage.getItems());
+    if (!rows.length) {
+      notifyAlert("There are no items in this inventory to export.");
+      return;
+    }
+    this.exportVisibleTable(() => ({
+      headers: INVENTORY_COLUMNS.map((col) => col.label),
+      rows: rows.map((row) => INVENTORY_COLUMNS.map((col) => this.getColumnValue(row, col.key))),
+    }));
+  }
+
+  exportVisibleTable(getTableData = () => this.getVisibleTableData()) {
     if (!this.getVisibleColumnDefs().length) {
       notifyAlert("Nothing to export.");
       return;
@@ -747,7 +761,7 @@ class InventoryUi {
     DownloadOptions.open(
       { format: "pdf", paper: "A4", orientation: "landscape" },
       async (options) => {
-        const tableData = this.getVisibleTableData();
+        const tableData = getTableData();
         const endpoint =
           options.format === "pdf" ? "/api/export/inventory/pdf" : "/api/export/inventory/excel";
         const payload = { ...tableData };
@@ -778,7 +792,7 @@ class InventoryUi {
       },
       {
         fetchPreview: async (options, signal) => {
-          const tableData = this.getVisibleTableData();
+          const tableData = getTableData();
           const payload = {
             format: options.format,
             ...tableData,

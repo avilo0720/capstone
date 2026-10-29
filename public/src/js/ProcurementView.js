@@ -1434,7 +1434,7 @@ class ProcurementView {
     });
   }
 
-  getProcurementExportData() {
+  getProcurementExportData(sourceRows = this.filtered(), statusFilter = this.statusFilter) {
     const headers = [
       "RS Number",
       "Source",
@@ -1454,7 +1454,7 @@ class ProcurementView {
       "Rejection reason",
     ];
 
-    const rows = this.filtered().map((row) => {
+    const rows = sourceRows.map((row) => {
       const badge = STATUS[row.status] || STATUS.pending;
       return [
         row.rs_number || `#${row.id}`,
@@ -1476,17 +1476,30 @@ class ProcurementView {
       ];
     });
 
-    const filterLabel = this.statusFilter === "all"
+    const filterLabel = statusFilter === "all"
       ? "All requests"
-      : (STATUS[this.statusFilter]?.label || this.statusFilter);
+      : (STATUS[statusFilter]?.label || statusFilter);
     const title = `Procurement Report — ${filterLabel}`;
 
     return { headers, rows, title };
   }
 
-  exportReport() {
-    const rows = this.filtered();
-    if (!rows.length) {
+  /** Used by the Reports tab: loads every request in the current inventory and opens the download dialog. */
+  async exportForReports() {
+    try {
+      const res = await fetch("/api/procurement-requests");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not load procurement requests.");
+      const requests = Array.isArray(data.requests) ? data.requests : [];
+      return this.exportReport(() => this.getProcurementExportData(requests, "all"), requests.length);
+    } catch (err) {
+      notifyAlert(err.message || "Could not load procurement requests.");
+      return false;
+    }
+  }
+
+  exportReport(getExportData = () => this.getProcurementExportData(), rowCount = this.filtered().length) {
+    if (!rowCount) {
       notifyAlert("Nothing to export for the current filters.");
       return Promise.resolve(false);
     }
@@ -1494,7 +1507,7 @@ class ProcurementView {
     return DownloadOptions.open(
       { format: "pdf", paper: "A4", orientation: "landscape" },
       async (options) => {
-        const { headers, rows: exportRows, title } = this.getProcurementExportData();
+        const { headers, rows: exportRows, title } = getExportData();
         const endpoint = options.format === "pdf"
           ? "/api/export/procurement/pdf"
           : "/api/export/procurement/excel";
@@ -1526,7 +1539,7 @@ class ProcurementView {
       },
       {
         fetchPreview: async (options, signal) => {
-          const { headers, rows: exportRows, title } = this.getProcurementExportData();
+          const { headers, rows: exportRows, title } = getExportData();
           const payload = { format: options.format, headers, rows: exportRows, title };
           if (options.format === "pdf") {
             payload.paper = options.paper;

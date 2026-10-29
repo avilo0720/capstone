@@ -37,6 +37,26 @@ class CalendarView {
     this.pagination = null;
     this.viewMode = "grid";
     this.viewStorageKey = "calendarViewMode";
+    this.hideEmptyStorageKey = "calendarHideEmpty";
+    this.hideEmpty = this.loadHideEmpty();
+  }
+
+  loadHideEmpty() {
+    try {
+      return localStorage.getItem(this.hideEmptyStorageKey) !== "false";
+    } catch {
+      return true;
+    }
+  }
+
+  setHideEmpty(hide) {
+    this.hideEmpty = !!hide;
+    try {
+      localStorage.setItem(this.hideEmptyStorageKey, String(this.hideEmpty));
+    } catch {
+      /* ignore */
+    }
+    this.renderTable();
   }
 
   async setApp() {
@@ -192,6 +212,12 @@ class CalendarView {
     document.getElementById("calDownloadMonthlyBtn")?.addEventListener("click", () => {
       this.downloadMonthlyReport();
     });
+
+    const hideEmptyInput = document.getElementById("calHideEmpty");
+    if (hideEmptyInput) {
+      hideEmptyInput.checked = this.hideEmpty;
+      hideEmptyInput.addEventListener("change", (e) => this.setHideEmpty(e.target.checked));
+    }
 
     if (this.grid) {
       this.grid.addEventListener("click", (e) => {
@@ -411,10 +437,9 @@ class CalendarView {
     if (this.gridView) this.gridView.classList.toggle("--hidden", this.viewMode !== "grid");
     if (this.tableView) this.tableView.classList.toggle("--hidden", this.viewMode !== "table");
 
-    const downloadBtn = document.getElementById("calDownloadMonthlyBtn");
-    if (downloadBtn) {
-      downloadBtn.classList.toggle("--hidden", this.viewMode !== "table" || !this.canUseTable());
-    }
+    ["calDownloadMonthlyBtn", "calHideEmptyToggle"].forEach((id) => {
+      document.getElementById(id)?.classList.toggle("--hidden", this.viewMode !== "table" || !this.canUseTable());
+    });
 
     if (persist && this.canUseTable()) {
       try {
@@ -519,30 +544,69 @@ class CalendarView {
     });
   }
 
+  /**
+   * Item × day quantities for one month. With hideEmpty, items and days with no
+   * transactions are left out so the table only shows activity.
+   */
+  buildMonthMatrix({ transactions = this.transactions, year = this.currentYear, month = this.currentMonth, hideEmpty = this.hideEmpty } = {}) {
+    const allItems = this.collectTableItems(transactions);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells = this.buildItemDayCells(allItems, transactions);
+    const rowTotals = new Map();
+    const dayTotals = Array.from({ length: daysInMonth + 1 }, () => ({ added: 0, used: 0 }));
+
+    allItems.forEach((item) => {
+      const total = { added: 0, used: 0 };
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const qty = cells.get(`${day}:${item.id}`);
+        if (!qty) continue;
+        total.added += qty.added;
+        total.used += qty.used;
+        dayTotals[day].added += qty.added;
+        dayTotals[day].used += qty.used;
+      }
+      rowTotals.set(item.id, total);
+    });
+
+    const allDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+    const items = hideEmpty
+      ? allItems.filter((item) => rowTotals.get(item.id).added || rowTotals.get(item.id).used)
+      : allItems;
+    const days = hideEmpty
+      ? allDays.filter((day) => dayTotals[day].added || dayTotals[day].used)
+      : allDays;
+
+    return {
+      items,
+      days,
+      cells,
+      rowTotals,
+      dayTotals,
+      hiddenItems: allItems.length - items.length,
+      totalItems: allItems.length,
+    };
+  }
+
   renderTable() {
     if (!this.tableBody || !this.tableHead) return;
 
-    const items = this.collectTableItems();
+    const { items, days, cells, rowTotals, dayTotals, hiddenItems, totalItems } = this.buildMonthMatrix();
     const { notesByDay } = this.collectDayMaps();
-    const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
     const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const today = new Date();
     const isCurrentMonth = today.getMonth() === this.currentMonth && today.getFullYear() === this.currentYear;
     const todayDay = isCurrentMonth ? today.getDate() : null;
-    const cells = this.buildItemDayCells(items);
-    const dayTotals = Array.from({ length: daysInMonth + 1 }, () => ({ added: 0, used: 0 }));
 
-    const dayHeaders = [];
-    for (let day = 1; day <= daysInMonth; day++) {
+    const dayHeaders = days.map((day) => {
       const date = new Date(this.currentYear, this.currentMonth, day);
       const noteCount = (notesByDay[day] || []).length;
-      dayHeaders.push(`
+      return `
         <th class="calendar-table__day${day === todayDay ? " --today" : ""}" data-day="${day}">
           <span class="calendar-table__day-num">${day}</span>
           <span class="calendar-table__day-name">${weekdayNames[date.getDay()]}</span>
           ${noteCount ? `<span class="calendar-table__note-count">${noteCount}</span>` : ""}
-        </th>`);
-    }
+        </th>`;
+    });
 
     this.tableHead.innerHTML = `
       <tr>
@@ -551,29 +615,34 @@ class CalendarView {
         <th class="calendar-table__total-col">Total</th>
       </tr>`;
 
+    const hint = document.getElementById("calHideEmptyHint");
+    if (hint) {
+      hint.textContent = this.hideEmpty && hiddenItems
+        ? `${hiddenItems} of ${totalItems} items had no transactions this month`
+        : "";
+    }
+
     if (!items.length) {
+      const message = totalItems && this.hideEmpty
+        ? "No transactions this month. Turn off \"Hide zero\" to see every item."
+        : "No items in this inventory";
       this.tableBody.innerHTML = `
         <tr>
-          <td class="calendar-table__empty-col" colspan="${daysInMonth + 2}">No items in this inventory</td>
+          <td class="calendar-table__empty-col" colspan="${days.length + 2}">${message}</td>
         </tr>`;
       if (this.tableFoot) this.tableFoot.innerHTML = "";
       return;
     }
 
     this.tableBody.innerHTML = items.map((item) => {
-      const rowTotal = { added: 0, used: 0 };
-      const dayCells = [];
-      for (let day = 1; day <= daysInMonth; day++) {
+      const rowTotal = rowTotals.get(item.id);
+      const dayCells = days.map((day) => {
         const qty = cells.get(`${day}:${item.id}`) || { added: 0, used: 0 };
-        rowTotal.added += qty.added;
-        rowTotal.used += qty.used;
-        dayTotals[day].added += qty.added;
-        dayTotals[day].used += qty.used;
-        dayCells.push(`
+        return `
           <td class="calendar-table__day-cell${day === todayDay ? " --today" : ""}" data-day="${day}">
             ${this.qtyCell(qty.added, qty.used)}
-          </td>`);
-      }
+          </td>`;
+      });
 
       const quiet = !rowTotal.added && !rowTotal.used;
       return `
@@ -593,10 +662,7 @@ class CalendarView {
       this.tableFoot.innerHTML = `
         <tr>
           <th class="calendar-table__item-col">Total</th>
-          ${Array.from({ length: daysInMonth }, (_, i) => {
-            const day = i + 1;
-            return `<td class="calendar-table__day-cell${day === todayDay ? " --today" : ""}" data-day="${day}">${this.qtyCell(dayTotals[day].added, dayTotals[day].used)}</td>`;
-          }).join("")}
+          ${days.map((day) => `<td class="calendar-table__day-cell${day === todayDay ? " --today" : ""}" data-day="${day}">${this.qtyCell(dayTotals[day].added, dayTotals[day].used)}</td>`).join("")}
           <td class="calendar-table__total-col">${this.qtyCell(
             dayTotals.reduce((s, q) => s + q.added, 0),
             dayTotals.reduce((s, q) => s + q.used, 0)
@@ -605,11 +671,11 @@ class CalendarView {
     }
   }
 
-  collectTableItems() {
+  collectTableItems(transactions = this.transactions) {
     const stored = Storage.getItems() || [];
     const source = stored.length
       ? stored
-      : this.transactions.map((tx) => ({
+      : transactions.map((tx) => ({
           id: tx.itemId,
           title: tx.itemTitle,
           itemCode: tx.itemCode,
@@ -636,11 +702,11 @@ class CalendarView {
     });
   }
 
-  buildItemDayCells(items) {
+  buildItemDayCells(items, transactions = this.transactions) {
     const cells = new Map();
     const known = new Set(items.map((item) => item.id));
 
-    this.transactions.forEach((tx) => {
+    transactions.forEach((tx) => {
       const id = String(tx.itemId ?? `name:${tx.itemTitle || "unknown"}`);
       if (!known.has(id)) return;
       const day = new Date(tx.transactionDate).getDate();
@@ -671,36 +737,30 @@ class CalendarView {
     return parts.join(" / ");
   }
 
-  monthTitle() {
+  monthTitle(year = this.currentYear, month = this.currentMonth) {
     const names = [
       "January", "February", "March", "April", "May", "June",
       "July", "August", "September", "October", "November", "December",
     ];
-    return `${names[this.currentMonth]} ${this.currentYear}`;
+    return `${names[month]} ${year}`;
   }
 
-  buildMonthlyReportTable() {
-    const items = this.collectTableItems();
-    const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
-    const cells = this.buildItemDayCells(items);
+  buildMonthlyReportTable(options = {}) {
+    const year = options.year ?? this.currentYear;
+    const month = options.month ?? this.currentMonth;
+    const { items, days, cells, rowTotals, dayTotals } = this.buildMonthMatrix({ ...options, year, month });
     const inventoryName = document.querySelector(".inventory-context-name")?.textContent?.trim() || "";
-    const headers = ["Item", ...Array.from({ length: daysInMonth }, (_, i) => String(i + 1)), "Added", "Used"];
-    const dayTotals = Array.from({ length: daysInMonth + 1 }, () => ({ added: 0, used: 0 }));
+    const headers = ["Item", ...days.map(String), "Added", "Used"];
     let monthAdded = 0;
     let monthUsed = 0;
 
     const rows = items.map((item) => {
       const row = [`${item.code ? `${item.code} ` : ""}${item.title}`.trim()];
-      let added = 0;
-      let used = 0;
-      for (let day = 1; day <= daysInMonth; day += 1) {
+      days.forEach((day) => {
         const qty = cells.get(`${day}:${item.id}`) || { added: 0, used: 0 };
-        added += qty.added;
-        used += qty.used;
-        dayTotals[day].added += qty.added;
-        dayTotals[day].used += qty.used;
         row.push(this.qtyExportValue(qty.added, qty.used));
-      }
+      });
+      const { added, used } = rowTotals.get(item.id);
       monthAdded += added;
       monthUsed += used;
       row.push(added ? `+${added}` : "0");
@@ -710,25 +770,38 @@ class CalendarView {
 
     if (items.length) {
       const totalRow = ["Total"];
-      for (let day = 1; day <= daysInMonth; day += 1) {
+      days.forEach((day) => {
         totalRow.push(this.qtyExportValue(dayTotals[day].added, dayTotals[day].used));
-      }
+      });
       totalRow.push(monthAdded ? `+${monthAdded}` : "0");
       totalRow.push(monthUsed ? `-${monthUsed}` : "0");
       rows.push(totalRow);
     }
 
     return {
-      title: `Monthly transaction report — ${this.monthTitle()}${inventoryName ? ` (${inventoryName})` : ""}`,
+      title: `Monthly transaction report — ${this.monthTitle(year, month)}${inventoryName ? ` (${inventoryName})` : ""}`,
       headers,
       rows,
+      fileStamp: `${year}-${String(month + 1).padStart(2, "0")}`,
     };
   }
 
-  downloadMonthlyReport() {
-    const table = this.buildMonthlyReportTable();
-    if (!table.headers.length) {
-      notifyAlert("Nothing to export.");
+  /** Used by the Reports tab: loads one month's transactions and opens the download dialog. */
+  async exportMonthForReports(year, month, hideEmpty = this.hideEmpty) {
+    try {
+      const res = await fetch(`/api/transactions?month=${month + 1}&year=${year}`);
+      if (!res.ok) throw new Error("Could not load transactions for that month.");
+      const transactions = await res.json();
+      return this.downloadMonthlyReport(this.buildMonthlyReportTable({ transactions, year, month, hideEmpty }));
+    } catch (err) {
+      notifyAlert(err.message || "Could not load transactions for that month.");
+      return false;
+    }
+  }
+
+  downloadMonthlyReport(table = this.buildMonthlyReportTable()) {
+    if (!table.rows.length) {
+      notifyAlert("There are no transactions to export for that month.");
       return;
     }
 
@@ -754,7 +827,7 @@ class CalendarView {
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        const stamp = `${this.currentYear}-${String(this.currentMonth + 1).padStart(2, "0")}`;
+        const stamp = table.fileStamp;
         link.href = url;
         link.download = `monthly-report-${stamp}.${options.format === "pdf" ? "pdf" : "xlsx"}`;
         document.body.appendChild(link);
