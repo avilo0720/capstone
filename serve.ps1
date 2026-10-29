@@ -85,4 +85,4 @@ Write-Host 'Press Ctrl+C to stop.'
 
 # cwd must be public/ — Laravel's server.php uses getcwd() as the docroot.
 Set-Location (Join-Path $Root 'public')
-& $Php -S 127.0.0.1:8000 $ServerRouter
+& $Php -S 0.0.0.0:8000 $ServerRouter

@@ -226,6 +226,11 @@ class ProcurementRequest extends Model
         return self::makeRsNumber($next, $when);
     }
 
+    public function documents(): HasMany
+    {
+        return $this->hasMany(ProcurementRequestDocument::class)->orderBy('id');
+    }
+
     public function signatureUrl(?string $filename): ?string
     {
         if (!$filename) {

@@ -38,28 +38,28 @@
       </button>
       <button type="button" class="reports-summary__card reports-summary__card--clickable" data-status="pending">
         <div class="reports-summary__card-icon reports-summary__card-icon--leadtime">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
         </div>
         <div class="reports-summary__card-info">
-          <p class="reports-summary__card-label">Dept. head</p>
+          <p class="reports-summary__card-label">Needs noting</p>
           <p class="reports-summary__card-value" id="procurementKpiPending">0</p>
         </div>
       </button>
       <button type="button" class="reports-summary__card reports-summary__card--clickable" data-status="dept_noted">
         <div class="reports-summary__card-icon reports-summary__card-icon--value">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><path d="M8 13l2 2 4-4"/><line x1="8" y1="18" x2="13" y2="18"/></svg>
         </div>
         <div class="reports-summary__card-info">
-          <p class="reports-summary__card-label">Procurement check</p>
+          <p class="reports-summary__card-label">To be checked</p>
           <p class="reports-summary__card-value" id="procurementKpiChecked">0</p>
         </div>
       </button>
       <button type="button" class="reports-summary__card reports-summary__card--clickable" data-status="procurement_checked">
         <div class="reports-summary__card-icon reports-summary__card-icon--qty">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="8 12 11 15 17 9"/></svg>
         </div>
         <div class="reports-summary__card-info">
-          <p class="reports-summary__card-label">Branch manager</p>
+          <p class="reports-summary__card-label">For approval</p>
           <p class="reports-summary__card-value" id="procurementKpiManager">0</p>
         </div>
       </button>
@@ -212,6 +212,17 @@
           <img class="procurement-manual-attach__preview --hidden" id="procurementManualAttachmentPreview" alt="Attachment preview" />
         </button>
         <input type="file" id="procurementManualAttachment" accept="image/png,image/jpeg,image/jpg,image/webp" hidden />
+      </div>
+      <div class="procurement-manual-attach">
+        <div class="procurement-manual-attach__head">
+          <span class="procurement-manual-meta__label">Supporting documents <em>(optional)</em></span>
+        </div>
+        <button type="button" class="procurement-manual-attach__drop" id="procurementManualDocumentsPick" aria-label="Choose supporting documents">
+          <span class="procurement-manual-attach__cta">Click to add documents</span>
+          <span class="procurement-manual-attach__hint">PDF, image, Word, or Excel · up to 10 MB each · can also be added later</span>
+        </button>
+        <ul class="procurement-doc-list" id="procurementManualDocumentsList" hidden></ul>
+        <input type="file" id="procurementManualDocuments" accept="{{ \App\Models\ProcurementRequestDocument::acceptAttribute() }}" multiple hidden />
       </div>
       <p class="procurement-modal__error --hidden" id="procurementManualError"></p>
       </div>

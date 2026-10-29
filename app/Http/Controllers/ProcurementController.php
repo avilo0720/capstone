@@ -363,6 +363,9 @@ class ProcurementController extends Controller
             $this->deleteSignatureFile($signatureFile);
         }
         $this->deleteAttachmentFile($procurement->attachment_image);
+        foreach ($procurement->documents as $document) {
+            ProcurementDocumentController::deleteDocument($document);
+        }
         $procurement->delete();
 
         $this->activity->log(
@@ -798,6 +801,7 @@ class ProcurementController extends Controller
                 'approved' => $slip->signatureUrl($slip->approved_signature),
             ],
             'attachmentUrl' => $slip->attachmentUrl(),
+            'documents' => $slip->documents,
         ]);
     }
 
@@ -1036,13 +1040,18 @@ class ProcurementController extends Controller
 
         return [
             'items',
+            'documents.uploader:id,first_name,last_name',
             'department:id,name',
             'uploader:'.$userCols,
+            'uploader.department:id,name',
             'assignedToUser:'.$userCols,
             'reviewer:'.$userCols,
             'notedByUser:'.$userCols,
+            'notedByUser.department:id,name',
             'checkedByUser:'.$userCols,
+            'checkedByUser.department:id,name',
             'approvedByUser:'.$userCols,
+            'approvedByUser.department:id,name',
         ];
     }
 
@@ -1056,6 +1065,7 @@ class ProcurementController extends Controller
             'id' => $user->id,
             'name' => $user->full_name,
             'role' => $user->role,
+            'department' => $user->department?->name,
         ];
     }
 
@@ -1195,12 +1205,15 @@ class ProcurementController extends Controller
             'unmatched_count' => $row->items->whereNull('item_id')->count(),
             'uploaded_by_id' => $row->uploaded_by,
             'uploaded_by' => $row->uploader?->full_name,
+            'uploaded_by_department' => $row->uploader?->department?->name,
             'assigned_to' => $this->personPayload($row->assignedToUser),
             'reviewed_by' => $row->reviewer?->full_name,
             'noted_by' => $this->personPayload($row->notedByUser),
             'checked_by' => $this->personPayload($row->checkedByUser),
             'approved_by' => $this->personPayload($row->approvedByUser),
             'attachment_url' => $row->attachmentUrl(),
+            'document_count' => $row->documents->count(),
+            'can_manage_documents' => ProcurementDocumentController::canManage($user, $row),
         ];
 
         if ($withItems) {
@@ -1220,6 +1233,7 @@ class ProcurementController extends Controller
                 'applied_qty' => $line->applied_qty,
                 'matched' => $line->item_id !== null,
             ])->values();
+            $payload['documents'] = ProcurementDocumentController::serializeAll($user, $row);
         }
 
         return $payload;

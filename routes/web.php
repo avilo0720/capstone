@@ -17,6 +17,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\CalendarNoteController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\ProcurementController;
+use App\Http\Controllers\ProcurementDocumentController;
 use App\Http\Controllers\IssuanceController;
 use App\Http\Controllers\RealtimeController;
 
@@ -41,6 +42,7 @@ Route::middleware('auth.custom')->group(function () {
     Route::get('/activity-logs', [PageController::class, 'activityLogs'])->middleware('page:activity-logs');
     Route::get('/users', [PageController::class, 'users'])->middleware('page:users');
     Route::get('/procurement-requests/{id}/slip', [ProcurementController::class, 'slip'])->middleware('page:procurement');
+    Route::get('/procurement-requests/{id}/documents/{documentId}', [ProcurementDocumentController::class, 'show'])->middleware('page:procurement');
 });
 
 // Protected API
@@ -102,6 +104,8 @@ Route::middleware('auth.custom')->prefix('api')->group(function () {
         Route::post('/procurement-requests/{id}/approve', [ProcurementController::class, 'approve']);
         Route::post('/procurement-requests/{id}/deny', [ProcurementController::class, 'deny']);
         Route::post('/procurement-requests/{id}/stock-entry', [ProcurementController::class, 'stockEntry']);
+        Route::post('/procurement-requests/{id}/documents', [ProcurementDocumentController::class, 'store']);
+        Route::delete('/procurement-requests/{id}/documents/{documentId}', [ProcurementDocumentController::class, 'destroy']);
     });
 
     Route::middleware('page:issuance')->group(function () {

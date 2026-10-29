@@ -196,6 +196,24 @@
       text-transform: uppercase;
       letter-spacing: 0.03em;
     }
+    .documents__list {
+      margin: 0 0 0.5rem;
+      padding-left: 1.2rem;
+      font-size: 0.78rem;
+      line-height: 1.45;
+    }
+    .documents__type {
+      color: #555;
+    }
+    .documents__image {
+      margin: 0.6rem 0 0;
+      page-break-inside: avoid;
+    }
+    .documents__image figcaption {
+      margin-top: 0.2rem;
+      font-size: 0.7rem;
+      color: #555;
+    }
     .attachment img {
       display: block;
       max-width: 100%;
@@ -327,7 +345,7 @@
           @endif
         </div>
         <div class="name">{{ $request->uploader?->full_name }}</div>
-        <div class="role">End user</div>
+        <div class="role">{{ $request->uploader?->department?->name ?: '—' }}</div>
       </div>
       <div class="sign">
         <div class="label">Noted by:</div>
@@ -337,7 +355,7 @@
           @endif
         </div>
         <div class="name">{{ $request->notedByUser?->full_name }}</div>
-        <div class="role">Department Head</div>
+        <div class="role">{{ $request->notedByUser?->department?->name ?: '—' }}</div>
       </div>
       <div class="sign">
         <div class="label">Checked by:</div>
@@ -347,7 +365,7 @@
           @endif
         </div>
         <div class="name">{{ $request->checkedByUser?->full_name }}</div>
-        <div class="role">Procurement and Office Asset Staff</div>
+        <div class="role">{{ $request->checkedByUser?->department?->name ?: '—' }}</div>
       </div>
       <div class="sign">
         <div class="label">Approved by:</div>
@@ -357,7 +375,7 @@
           @endif
         </div>
         <div class="name">{{ $request->approvedByUser?->full_name }}</div>
-        <div class="role">Branch Manager</div>
+        <div class="role">{{ $request->approvedByUser?->department?->name ?: '—' }}</div>
       </div>
     </section>
 
@@ -365,6 +383,23 @@
       <section class="attachment">
         <h3>Attachment</h3>
         <img src="{{ $attachmentUrl }}" alt="Request attachment" />
+      </section>
+    @endif
+
+    @if(($documents ?? collect())->isNotEmpty())
+      <section class="attachment documents">
+        <h3>Supporting documents</h3>
+        <ol class="documents__list">
+          @foreach($documents as $document)
+            <li>{{ $document->original_name }} <span class="documents__type">({{ strtoupper($document->extension()) }})</span></li>
+          @endforeach
+        </ol>
+        @foreach($documents->filter(fn ($document) => $document->isImage()) as $document)
+          <figure class="documents__image">
+            <img src="{{ $document->url() }}" alt="{{ $document->original_name }}" />
+            <figcaption>{{ $document->original_name }}</figcaption>
+          </figure>
+        @endforeach
       </section>
     @endif
   </main>

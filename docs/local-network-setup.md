@@ -329,6 +329,7 @@ Also back up uploaded files from:
 
 ```text
 public\uploads
+storage\app\procurement-documents
 ```
 
 Keep backups outside the Git repository.

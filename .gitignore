@@ -27,3 +27,5 @@ yarn-error.log
 /public/uploads/procurement-attachments/*
 !/public/uploads/procurement-attachments/.gitkeep
 /database-backups/*.sql
+/storage/app/procurement-documents/*
+!/storage/app/procurement-documents/.gitkeep

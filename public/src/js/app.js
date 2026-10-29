@@ -5,11 +5,12 @@ import ReportsView from "./ReportsView.js";
 import CalendarView from "./CalendarView.js";
 import UsersView from "./UsersView.js";
 import ActivityLogsView from "./ActivityLogsView.js?v=101";
-import ProcurementView from "./ProcurementView.js?v=101";
+import ProcurementView from "./ProcurementView.js?v=102";
 import IssuanceView from "./IssuanceView.js";
 import Storage from "./API.js";
 import confirmAction, { notifyAlert } from "./ConfirmDialog.js";
 import { bindBackdropClose } from "./OverlayDismiss.js";
+import Loading from "./Loading.js";
 
 // --------------------------  Sidebar-Menu  ---------------------------------
 const menuToggle = document.querySelector(".menu-toggle");
@@ -27,10 +28,7 @@ const SESSION_WARNING_BEFORE = 2 * 60 * 1000; // Warn 2 minutes before expiry
 const NOTIF_REFRESH_INTERVAL = 5 * 60 * 1000; // Refresh every 5 minutes
 
 function hideAppLoading() {
-  const overlay = document.getElementById("appLoading");
-  if (!overlay) return;
-  overlay.classList.add("app-loading--done");
-  overlay.setAttribute("aria-busy", "false");
+  Loading.hide();
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -122,6 +120,9 @@ class App {
     // Profile card (name / role) — opens details, then edit / logout
     document.querySelectorAll(".sideBar__user-card").forEach((card) => {
       card.addEventListener("click", () => this.openProfileModal());
+    });
+    document.querySelectorAll("a.sideBar__icon[href]").forEach((link) => {
+      link.addEventListener("click", () => Loading.show("Loading page", "Preparing the next view…"));
     });
     this.bindProfileModal();
     this.bindInventorySwitch();
@@ -219,6 +220,7 @@ class App {
             body: JSON.stringify({ slug: select.value }),
           });
           if (!res.ok) throw new Error("Failed to switch inventory");
+          Loading.show("Switching inventory", "Refreshing the current view…");
           window.location.reload();
         } catch (err) {
           console.error(err);

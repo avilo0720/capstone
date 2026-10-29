@@ -4,6 +4,7 @@ import { renderActivityChanges } from "./ActivityChanges.js?v=101";
 import Pagination from "./Pagination.js";
 import { fetchAssignees } from "./API.js";
 import DownloadOptions from "./DownloadOptions.js";
+import Loading from "./Loading.js";
 
 const STATUS = {
   pending: { label: "Dept. head", tone: "orange" },
@@ -46,6 +47,9 @@ const NEXT_STEP = {
   },
 };
 
+const DOCUMENT_EXTENSIONS = ["pdf", "png", "jpg", "jpeg", "webp", "doc", "docx", "xls", "xlsx"];
+const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
+
 class ProcurementView {
   constructor() {
     this.requests = [];
@@ -59,6 +63,7 @@ class ProcurementView {
     this.manualQtys = {};
     this.manualSearch = "";
     this.manualAttachmentDataUrl = null;
+    this.manualDocuments = [];
     this.showAllItems = false;
     this.deniedDraftByLine = {};
     this.deniedDraftByItem = {};
@@ -158,6 +163,19 @@ class ProcurementView {
       e.preventDefault();
       e.stopPropagation();
       this.clearManualAttachment();
+    });
+    document.getElementById("procurementManualDocumentsPick")?.addEventListener("click", () => {
+      document.getElementById("procurementManualDocuments")?.click();
+    });
+    document.getElementById("procurementManualDocuments")?.addEventListener("change", (e) => {
+      this.addManualDocuments(e.target.files);
+      e.target.value = "";
+    });
+    document.getElementById("procurementManualDocumentsList")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-remove-doc]");
+      if (!btn) return;
+      this.manualDocuments.splice(Number(btn.dataset.removeDoc), 1);
+      this.renderManualDocuments();
     });
     document.getElementById("procurementManualFillRop")?.addEventListener("click", () => this.fillManualByMode("missing-rop"));
     document.getElementById("procurementManualFillProcurement")?.addEventListener("click", () => this.fillManualByMode("procurement"));
@@ -515,6 +533,30 @@ class ProcurementView {
         </div>`
       : "";
 
+    const documents = req.documents || [];
+    const documentRows = documents.map((doc) => {
+      const by = [doc.uploaded_by, doc.created_at ? new Date(doc.created_at).toLocaleDateString() : ""]
+        .filter(Boolean).join(" · ");
+      return `<li class="procurement-doc-list__item">
+        <span class="procurement-doc-list__ext">${this.escape(doc.extension)}</span>
+        <a class="procurement-doc-list__name" href="${this.escape(doc.url)}" target="_blank" rel="noopener">${this.escape(doc.name)}</a>
+        <span class="procurement-doc-list__meta">${this.formatBytes(doc.size)}${by ? ` · ${this.escape(by)}` : ""}</span>
+        ${doc.can_delete ? `<button type="button" class="procurement-manual-attach__clear" data-remove-document="${doc.id}">Remove</button>` : ""}
+      </li>`;
+    }).join("");
+    const documentsBlock = documents.length || req.can_manage_documents
+      ? `<div class="procurement-detail-attachment procurement-detail-documents">
+          <div class="procurement-manual-attach__head">
+            <strong>Supporting documents${documents.length ? ` (${documents.length})` : ""}</strong>
+            ${req.can_manage_documents ? `<button type="button" class="procurement-manual-attach__clear" id="procurementDetailAddDocuments">Add documents</button>` : ""}
+          </div>
+          ${documentRows
+            ? `<ul class="procurement-doc-list">${documentRows}</ul>`
+            : `<p class="procurement-doc-list__empty">No documents yet. PDF, image, Word, or Excel files up to 10 MB each.</p>`}
+          <input type="file" id="procurementDetailDocuments" accept="${DOCUMENT_EXTENSIONS.map((ext) => `.${ext}`).join(",")}" multiple hidden />
+        </div>`
+      : "";
+
     this.detailEl.innerHTML = `
       ${this.renderWorkflow(req)}
       ${slipMeta}
@@ -542,6 +584,7 @@ class ProcurementView {
         </table>
       </div>
       ${attachmentBlock}
+      ${documentsBlock}
     `;
 
     this.toggleOverlay("procurementDetailOverlay", true);
@@ -557,14 +600,72 @@ class ProcurementView {
     this.detailEl.querySelectorAll("[data-action]").forEach((btn) => {
       btn.addEventListener("click", () => this.onAction(btn.dataset.action));
     });
+    this.detailEl.querySelector("#procurementDetailAddDocuments")?.addEventListener("click", () => {
+      this.detailEl.querySelector("#procurementDetailDocuments")?.click();
+    });
+    this.detailEl.querySelector("#procurementDetailDocuments")?.addEventListener("change", (e) => {
+      const files = Array.from(e.target.files || []);
+      e.target.value = "";
+      this.addDetailDocuments(files);
+    });
+    this.detailEl.querySelectorAll("[data-remove-document]").forEach((btn) => {
+      btn.addEventListener("click", () => this.removeDetailDocument(Number(btn.dataset.removeDocument)));
+    });
+  }
+
+  async addDetailDocuments(files) {
+    if (!this.detail?.id || !files.length) return;
+    const problems = files.map((file) => this.documentError(file)).filter(Boolean);
+    const valid = files.filter((file) => !this.documentError(file));
+    const requestId = this.detail.id;
+    let result = { documents: null, failed: [] };
+    if (valid.length) {
+      Loading.show("Uploading documents", `Attaching ${valid.length} document${valid.length === 1 ? "" : "s"}…`);
+      try {
+        result = await this.uploadDocuments(requestId, valid);
+      } finally {
+        Loading.hide();
+      }
+    }
+    if (result.documents && this.detail?.id === requestId) {
+      this.detail.documents = result.documents;
+      this.renderDetail();
+    }
+    const failed = [...problems, ...result.failed];
+    if (failed.length) notifyAlert(`Some documents were not added. ${failed.join(" ")}`);
+  }
+
+  async removeDetailDocument(documentId) {
+    const doc = (this.detail?.documents || []).find((d) => d.id === documentId);
+    if (!doc) return;
+    const ok = await confirmAction({
+      title: "Remove this document?",
+      message: `${doc.name} will be removed from this request.`,
+      confirmLabel: "Remove",
+      danger: true,
+    });
+    if (!ok) return;
+    Loading.show("Removing document", "Updating request documents…");
+    try {
+      const res = await fetch(`/api/procurement-requests/${this.detail.id}/documents/${documentId}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        notifyAlert(data.error || "Could not remove this document.");
+        return;
+      }
+      this.detail.documents = data.documents || [];
+      this.renderDetail();
+    } finally {
+      Loading.hide();
+    }
   }
 
   renderWorkflow(req) {
     const steps = [
-      { key: "request", label: "1. Request slip", person: req.uploaded_by, done: true },
-      { key: "dept", label: "2. Department head", person: req.noted_by?.name, done: !!req.noted_at, waiting: req.status === "pending" },
-      { key: "check", label: "3. Procurement check", person: req.checked_by?.name, done: !!req.checked_at, waiting: req.status === "dept_noted" },
-      { key: "manager", label: "4. Branch manager", person: req.approved_by?.name, done: !!req.approved_at, waiting: req.status === "procurement_checked" },
+      { key: "request", label: "1. Requested by", person: req.uploaded_by, done: true },
+      { key: "dept", label: "2. Noted by", person: req.noted_by?.name, done: !!req.noted_at, waiting: req.status === "pending" },
+      { key: "check", label: "3. Checked by", person: req.checked_by?.name, done: !!req.checked_at, waiting: req.status === "dept_noted" },
+      { key: "manager", label: "4. Approved by", person: req.approved_by?.name, done: !!req.approved_at, waiting: req.status === "procurement_checked" },
     ];
 
     return `<ol class="procurement-workflow">
@@ -668,6 +769,8 @@ class ProcurementView {
     this.manualQtys = {};
     this.manualSearch = "";
     this.clearManualAttachment();
+    this.manualDocuments = [];
+    this.renderManualDocuments();
     const search = document.getElementById("procurementManualSearch");
     if (search) search.value = "";
     document.getElementById("procurementManualError")?.classList.add("--hidden");
@@ -864,6 +967,78 @@ class ProcurementView {
     reader.readAsDataURL(file);
   }
 
+  documentError(file) {
+    const ext = String(file.name.split(".").pop() || "").toLowerCase();
+    if (!DOCUMENT_EXTENSIONS.includes(ext)) {
+      return `${file.name}: only PDF, image, Word, or Excel files are allowed.`;
+    }
+    if (file.size > DOCUMENT_MAX_BYTES) {
+      return `${file.name}: larger than 10 MB.`;
+    }
+    return "";
+  }
+
+  addManualDocuments(fileList) {
+    const error = document.getElementById("procurementManualError");
+    const problems = [];
+    Array.from(fileList || []).forEach((file) => {
+      const problem = this.documentError(file);
+      if (problem) problems.push(problem);
+      else this.manualDocuments.push(file);
+    });
+    if (error) {
+      error.textContent = problems.join(" ");
+      error.classList.toggle("--hidden", !problems.length);
+    }
+    this.renderManualDocuments();
+  }
+
+  renderManualDocuments() {
+    const list = document.getElementById("procurementManualDocumentsList");
+    if (!list) return;
+    list.hidden = !this.manualDocuments.length;
+    list.innerHTML = this.manualDocuments.map((file, index) => `
+      <li class="procurement-doc-list__item">
+        <span class="procurement-doc-list__ext">${this.escape(file.name.split(".").pop())}</span>
+        <span class="procurement-doc-list__name">${this.escape(file.name)}</span>
+        <span class="procurement-doc-list__meta">${this.formatBytes(file.size)}</span>
+        <button type="button" class="procurement-manual-attach__clear" data-remove-doc="${index}">Remove</button>
+      </li>`).join("");
+  }
+
+  formatBytes(bytes) {
+    const size = Number(bytes) || 0;
+    if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+    if (size >= 1024) return `${Math.round(size / 1024)} KB`;
+    return `${size} B`;
+  }
+
+  /** Uploads one file per request so large batches stay under the server's post size limit. */
+  async uploadDocuments(requestId, files) {
+    const failed = [];
+    let documents = null;
+    for (const file of files) {
+      const form = new FormData();
+      form.append("files[]", file);
+      try {
+        const res = await fetch(`/api/procurement-requests/${requestId}/documents`, {
+          method: "POST",
+          headers: { Accept: "application/json" },
+          body: form,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const firstError = data.errors ? Object.values(data.errors).flat()[0] : null;
+          throw new Error(data.error || firstError || data.message || "Upload failed.");
+        }
+        documents = data.documents || documents;
+      } catch (err) {
+        failed.push(`${file.name}: ${err.message || "Upload failed."}`);
+      }
+    }
+    return { documents, failed };
+  }
+
   async submitManual() {
     const error = document.getElementById("procurementManualError");
     const items = this.manualItems
@@ -905,6 +1080,7 @@ class ProcurementView {
     });
     if (!signature) return;
 
+    Loading.show("Submitting request", "Saving the requisition slip and attachment…");
     try {
       const payload = {
         source: "manual",
@@ -927,9 +1103,17 @@ class ProcurementView {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not create request.");
+      let failedDocuments = [];
+      if (data.request?.id && this.manualDocuments.length) {
+        Loading.show("Uploading documents", "Attaching supporting documents…");
+        ({ failed: failedDocuments } = await this.uploadDocuments(data.request.id, this.manualDocuments));
+      }
       this.closeManual();
       await this.loadRequests();
       if (data.request?.id) await this.selectRequest(data.request.id);
+      if (failedDocuments.length) {
+        notifyAlert(`The request was created, but some documents were not attached. You can add them from the request details. ${failedDocuments.join(" ")}`);
+      }
     } catch (err) {
       if (error) {
         error.textContent = err.message || "Could not create request.";
@@ -937,6 +1121,8 @@ class ProcurementView {
       } else {
         notifyAlert(err.message || "Could not create request.");
       }
+    } finally {
+      Loading.hide();
     }
   }
 
@@ -1180,6 +1366,8 @@ class ProcurementView {
       danger: true,
     });
     if (!ok) return;
+    Loading.show("Deleting request", "Updating procurement records…");
+    try {
     const res = await fetch(`/api/procurement-requests/${this.detail.id}`, { method: "DELETE" });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -1188,9 +1376,14 @@ class ProcurementView {
     }
     this.hideDetail();
     await this.loadRequests();
+    } finally {
+      Loading.hide();
+    }
   }
 
   async post(url, body) {
+    Loading.show("Updating request", "Saving workflow changes…");
+    try {
     const res = await fetch(url, {
       method: "POST",
       headers: body ? { "Content-Type": "application/json" } : undefined,
@@ -1203,9 +1396,14 @@ class ProcurementView {
     }
     await this.loadRequests();
     if (data.request?.id) await this.selectRequest(data.request.id);
+    } finally {
+      Loading.hide();
+    }
   }
 
   async put(url, body) {
+    Loading.show("Saving changes", "Updating request quantities…");
+    try {
     const res = await fetch(url, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -1219,6 +1417,9 @@ class ProcurementView {
     await this.loadRequests();
     if (data.request?.id) await this.selectRequest(data.request.id);
     return true;
+    } finally {
+      Loading.hide();
+    }
   }
 
   formatWhen(iso) {

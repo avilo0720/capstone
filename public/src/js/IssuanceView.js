@@ -1,6 +1,7 @@
 import confirmAction, { notifyAlert } from "./ConfirmDialog.js";
 import { bindBackdropClose } from "./OverlayDismiss.js";
 import Pagination from "./Pagination.js";
+import Loading from "./Loading.js";
 
 const STATUS = {
   pending: { label: "Pending", tone: "orange" },
@@ -504,6 +505,7 @@ class IssuanceView {
     });
     if (!ok) return;
 
+    Loading.show("Submitting request", "Saving the issuance request…");
     try {
       const res = await fetch("/api/issuance-requests", {
         method: "POST",
@@ -526,6 +528,8 @@ class IssuanceView {
       } else {
         notifyAlert(err.message || "Could not create request.");
       }
+    } finally {
+      Loading.hide();
     }
   }
 
@@ -605,6 +609,8 @@ class IssuanceView {
       danger: true,
     });
     if (!ok) return;
+    Loading.show("Deleting request", "Updating issuance records…");
+    try {
     const res = await fetch(`/api/issuance-requests/${this.detail.id}`, { method: "DELETE" });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -613,9 +619,14 @@ class IssuanceView {
     }
     this.hideDetail();
     await this.loadRequests();
+    } finally {
+      Loading.hide();
+    }
   }
 
   async post(url, body) {
+    Loading.show("Updating request", "Saving issuance workflow changes…");
+    try {
     const res = await fetch(url, {
       method: "POST",
       headers: body ? { "Content-Type": "application/json" } : undefined,
@@ -628,9 +639,14 @@ class IssuanceView {
     }
     await this.loadRequests();
     if (data.request?.id) await this.selectRequest(data.request.id);
+    } finally {
+      Loading.hide();
+    }
   }
 
   async put(url, body) {
+    Loading.show("Saving changes", "Updating issuance quantities…");
+    try {
     const res = await fetch(url, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -643,6 +659,9 @@ class IssuanceView {
     }
     await this.loadRequests();
     if (data.request?.id) await this.selectRequest(data.request.id);
+    } finally {
+      Loading.hide();
+    }
   }
 
   formatWhen(iso) {

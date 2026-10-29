@@ -8892,6 +8892,87 @@ svg use {
   border-radius: 6px;
 }
 
+.procurement-detail-documents .procurement-manual-attach__head strong {
+  margin-bottom: 0;
+}
+
+.procurement-doc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.55rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.procurement-doc-list[hidden] {
+  display: none;
+}
+
+.procurement-doc-list__item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.procurement-doc-list__ext {
+  flex-shrink: 0;
+  min-width: 2.6rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 5px;
+  background: #eff8ff;
+  color: #175cd3;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.procurement-doc-list__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #101828;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.procurement-doc-list__name {
+  color: #175cd3;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.procurement-doc-list__meta {
+  flex-shrink: 0;
+  color: #667085;
+  font-size: 0.75rem;
+}
+
+.procurement-doc-list__empty {
+  margin: 0.5rem 0 0;
+  color: #667085;
+  font-size: 0.82rem;
+}
+
+@media screen and (max-width: 600px) {
+  .procurement-doc-list__item {
+    flex-wrap: wrap;
+  }
+
+  .procurement-doc-list__meta {
+    flex-basis: 100%;
+    order: 3;
+  }
+}
+
 @media screen and (max-width: 960px) {
   .procurement-page .users-tabs {
     width: 100%;
