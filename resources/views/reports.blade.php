@@ -55,7 +55,7 @@
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         </div>
         <div class="reports-summary__card-info">
-          <p class="reports-summary__card-label">Restock Needed</p>
+          <p class="reports-summary__card-label" id="reportLowStockLabel">Restock needed (3 months)</p>
           <p class="reports-summary__card-value" id="reportLowStockCount">—</p>
         </div>
       </div>
@@ -151,6 +151,17 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           Low-Stock Alerts
         </h2>
+        <div class="reports-alerts__controls">
+          <p class="reports-alerts__desc">Items whose current quantity will not last the selected window at the forecast monthly use.</p>
+          <label class="reports-alerts__window">
+            <span>Restock window</span>
+            <select id="reportsAlertWindow">
+              <option value="3" selected>3 months</option>
+              <option value="6">6 months</option>
+              <option value="12">1 year</option>
+            </select>
+          </label>
+        </div>
       </div>
       <div class="reports-alerts__body" id="reportsAlertsBody">
         <div class="reports-alerts__loading">Loading alerts...</div>

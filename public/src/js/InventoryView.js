@@ -2,6 +2,8 @@ import Storage from "./API.js";
 import Pagination from "./Pagination.js";
 import DownloadOptions from "./DownloadOptions.js";
 import confirmAction, { notifyAlert } from "./ConfirmDialog.js";
+import { promptNumber } from "./NumberPrompt.js";
+import { formatLeadTime, getLeadTimeMonths, saveLeadTime } from "./Settings.js";
 import { bindBackdropClose } from "./OverlayDismiss.js";
 
 const mainApp = document.querySelector(".main");
@@ -145,7 +147,50 @@ class InventoryUi {
     this.renderTable();
   }
 
+  bindLeadTime() {
+    const btn = document.getElementById("leadTimeBtn");
+    if (!btn) return;
+
+    const showValue = () => {
+      const value = document.getElementById("leadTimeValue");
+      if (value) value.textContent = formatLeadTime();
+    };
+
+    if (!this.canEdit) {
+      btn.disabled = true;
+      btn.title = "Months from ordering until delivery. Only inventory editors can change it.";
+    }
+
+    btn.addEventListener("click", async () => {
+      if (!this.canEdit) return;
+      const months = await promptNumber({
+        title: "Procurement lead time",
+        message: "Months from ordering an item until it is delivered. This applies to every inventory and recalculates LTD, SS, ROP, MSL, and the trigger point.",
+        label: "Lead time (months)",
+        value: getLeadTimeMonths(),
+        min: 0.1,
+        max: 24,
+        step: 0.1,
+        hint: "Example: 3.5 means about three and a half months.",
+      });
+      if (months === null) return;
+      try {
+        await saveLeadTime(months);
+      } catch (err) {
+        notifyAlert(err.message || "Could not save the lead time.");
+      }
+    });
+
+    // Fired after this user saves, or when another user's change arrives through realtime sync.
+    document.addEventListener("leadtimechange", () => {
+      showValue();
+      this.refreshLive();
+    });
+  }
+
   bindEvents() {
+    this.bindLeadTime();
+
     // Submit item form from button click or Enter key.
     if (productForm) {
       productForm.addEventListener("submit", async (e) => {
@@ -255,7 +300,7 @@ class InventoryUi {
   getFilteredItems(allItems) {
     const maxCumulative =
       allItems.reduce((acc, item) => acc + (Number(item.monthlyDemand) || 0), 0) || 0;
-    const totalProcurementLeadTimeMonths = 3.5;
+    const totalProcurementLeadTimeMonths = getLeadTimeMonths();
     let cumulativeDemand = 0;
     const rows = [];
 
@@ -343,7 +388,7 @@ class InventoryUi {
 
   getRowMetrics(item, cumulativeDemand, cumulativePercent, procurementLeadTimeMonths) {
     const fsn = this.getAutoFSN(cumulativePercent);
-    const leadTimeDemand = (Number(item.monthlyDemand) || 0) * 3.495065789473684;
+    const leadTimeDemand = (Number(item.monthlyDemand) || 0) * procurementLeadTimeMonths;
     const roundedLeadTimeDemand = this.roundHalfDown(leadTimeDemand);
     const safetyStock = ((Number(item.monthlyDemand) || 0) + leadTimeDemand) * 0.1;
     const roundedSafetyStock = this.roundHalfDown(safetyStock);

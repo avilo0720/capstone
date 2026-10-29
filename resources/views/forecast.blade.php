@@ -28,7 +28,19 @@
             <div class="forecast-algo-panel__grid">
               <div class="forecast-algo-card">
                 <h4>Forecast</h4>
-                <p>The expected quantity used per month, estimated from each item's recorded usage. It updates automatically as stock is used.</p>
+                <p>The expected quantity used per month, estimated from each item's recorded usage. The system picks one of the three methods below for each item automatically, and the forecast updates as stock is used.</p>
+              </div>
+              <div class="forecast-algo-card">
+                <h4>Weighted Moving Average (WMA)</h4>
+                <p>Used when an item is used regularly (on at least 1 of every 3 days). Usage is added up per month, and recent months count more:</p>
+                <code class="forecast-algo-formula">Forecast = (M₁×1 + M₂×2 + M₃×3) ÷ 6</code>
+                <p class="forecast-algo-note">M₃ is the latest month. With only 2 months of history, their average is used.</p>
+              </div>
+              <div class="forecast-algo-card">
+                <h4>Croston's Method</h4>
+                <p>Used when an item is used only occasionally (on fewer than 1 of every 3 days). It tracks the usual quantity per use and the usual days between uses, giving recent uses more weight (α = 0.2):</p>
+                <code class="forecast-algo-formula">Daily rate = quantity per use ÷ days between uses</code>
+                <p class="forecast-algo-note">Monthly forecast = daily rate × 30</p>
               </div>
               <div class="forecast-algo-card">
                 <h4>Static</h4>

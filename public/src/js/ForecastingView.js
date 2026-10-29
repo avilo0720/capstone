@@ -3,6 +3,7 @@ import Pagination from "./Pagination.js";
 import DownloadOptions from "./DownloadOptions.js";
 import confirmAction, { notifyAlert, pickAssignee } from "./ConfirmDialog.js";
 import { computeForecasts } from "./ForecastEngine.js";
+import { barChartGutters, contentWidth, fitText } from "./ChartLayout.js";
 
 class ForecastingUi {
   constructor() {
@@ -72,6 +73,7 @@ class ForecastingUi {
       panel.classList.toggle("--hidden", !open);
       btn.classList.toggle("--active", open);
       btn.setAttribute("aria-expanded", open ? "true" : "false");
+      if (open) this.keepPanelOnScreen(panel);
     };
 
     btn.addEventListener("click", (e) => {
@@ -88,6 +90,14 @@ class ForecastingUi {
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") setOpen(false);
     });
+  }
+
+  /** The panel opens to the right of the info button; shift it left if it would run off screen. */
+  keepPanelOnScreen(panel) {
+    panel.style.left = "";
+    const margin = 16;
+    const overflow = panel.getBoundingClientRect().right - (document.documentElement.clientWidth - margin);
+    if (overflow > 0) panel.style.left = `${-overflow}px`;
   }
 
   async loadForecast() {
@@ -285,7 +295,7 @@ class ForecastingUi {
     this.drawHorizontalBarChart(
       needCanvas,
       topNeeds.map((row) => ({
-        label: row.item.title.length > 20 ? `${row.item.title.slice(0, 20)}…` : row.item.title,
+        label: row.item.title,
         value: row.need,
         color: this.coverageTone(this.getCoverageMonths(row.item)) === "critical" ? "#ef4444" : "#1570ef",
       }))
@@ -868,7 +878,7 @@ class ForecastingUi {
   sizeCanvas(canvas, height = 240) {
     const ctx = canvas.getContext("2d");
     const dpr = window.devicePixelRatio || 1;
-    const w = Math.max(canvas.parentElement.clientWidth, 200);
+    const w = Math.max(contentWidth(canvas.parentElement), 200);
     const h = height;
     canvas.width = w * dpr;
     canvas.height = h * dpr;
@@ -881,8 +891,10 @@ class ForecastingUi {
 
   drawHorizontalBarChart(canvas, data) {
     const { ctx, w, h } = this.sizeCanvas(canvas, 240);
-    const pad = { top: 12, right: 36, bottom: 16, left: 108 };
-    const plotW = w - pad.left - pad.right;
+    ctx.font = "600 11px 'Segoe UI', system-ui, sans-serif";
+    const gutters = barChartGutters(ctx, data, w);
+    const pad = { top: 12, right: gutters.right, bottom: 16, left: gutters.left };
+    const plotW = Math.max(w - pad.left - pad.right, 1);
     const plotH = h - pad.top - pad.bottom;
     const maxVal = Math.max(...data.map((d) => d.value), 1);
     const rowH = plotH / data.length;
@@ -903,7 +915,7 @@ class ForecastingUi {
       ctx.font = "600 11px 'Segoe UI', system-ui, sans-serif";
       ctx.textAlign = "right";
       ctx.textBaseline = "middle";
-      ctx.fillText(d.label, pad.left - 8, y + barH / 2);
+      ctx.fillText(fitText(ctx, d.label, gutters.labelWidth), pad.left - 8, y + barH / 2);
 
       ctx.textAlign = "left";
       ctx.fillStyle = "#0f172a";

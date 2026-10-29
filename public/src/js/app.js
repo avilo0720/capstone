@@ -1,16 +1,17 @@
-import DashboardUi from "./Dashboard.js?v=101";
-import InventoryUi from "./InventoryView.js?v=103";
-import ForecastingUi from "./ForecastingView.js?v=102";
-import ReportsView from "./ReportsView.js?v=102";
+import DashboardUi from "./Dashboard.js?v=103";
+import InventoryUi from "./InventoryView.js?v=104";
+import ForecastingUi from "./ForecastingView.js?v=104";
+import ReportsView from "./ReportsView.js?v=107";
 import CalendarView from "./CalendarView.js?v=102";
 import UsersView from "./UsersView.js";
 import ActivityLogsView from "./ActivityLogsView.js?v=101";
-import ProcurementView from "./ProcurementView.js?v=103";
+import ProcurementView from "./ProcurementView.js?v=104";
 import IssuanceView from "./IssuanceView.js";
 import Storage from "./API.js";
 import confirmAction, { notifyAlert } from "./ConfirmDialog.js";
 import { bindBackdropClose } from "./OverlayDismiss.js";
 import Loading from "./Loading.js";
+import { DEFAULT_RESTOCK_WINDOW_MONTHS, loadForecastAlerts, monthsLeftLabel, restockWindowLabel } from "./ForecastAlerts.js";
 
 // --------------------------  Sidebar-Menu  ---------------------------------
 const menuToggle = document.querySelector(".menu-toggle");
@@ -60,7 +61,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     app.startSessionMonitor();
     app.initNotifications();
-    import("./Realtime.js")
+    import("./Realtime.js?v=3")
       .then(({ startRealtime }) => {
         startRealtime({
           onNotifications: () => app.fetchAndRenderNotifications(),
@@ -747,13 +748,13 @@ class App {
 
   async fetchAndRenderNotifications() {
     try {
-      const [summaryRes, readRes, calendarRes] = await Promise.all([
-        fetch('/api/reports/summary'),
+      // Stock alerts come from the forecast, the same list as Reports and the Dashboard.
+      const [forecastAlerts, readRes, calendarRes] = await Promise.all([
+        loadForecastAlerts(DEFAULT_RESTOCK_WINDOW_MONTHS).catch(() => null),
         fetch('/api/notifications/read'),
         fetch('/api/notifications/alerts'),
       ]);
-      if (!summaryRes.ok) return;
-      const data = await summaryRes.json();
+      if (!forecastAlerts) return;
 
       if (readRes.ok) {
         const readData = await readRes.json();
@@ -769,16 +770,15 @@ class App {
         /* ignore */
       }
 
-      const stockAlerts = (data.lowStockItems || []).map(item => ({
+      const stockAlerts = forecastAlerts.map(item => ({
         id: `lowstock-${item.id}`,
         type: 'lowstock',
-        title: item.title,
+        title: item.size ? `${item.title} (${item.size})` : item.title,
         itemCode: item.itemCode,
         currentStock: item.currentStock,
-        reorderPoint: item.reorderPoint,
-        minimumStockLevel: item.minimumStockLevel,
-        deficit: item.deficit,
-        fsn: item.fsn,
+        monthsLeft: item.monthsLeft,
+        restockNeeded: item.restockNeeded,
+        isStatic: item.isStatic,
         urgency: item.urgency || 'medium',
         href: this.lowStockNotifHref(item),
       }));
@@ -940,14 +940,13 @@ class App {
         if (isCalendar) {
           description = this.escapeNotifHtml(alert.message || 'Open calendar to view this note.');
           meta = alert.type === 'calendar_due' ? 'Calendar · Due today' : 'Calendar · Shared with you';
-        } else if (alert.currentStock === 0) {
-          description = `Out of stock! Needs ${alert.deficit} units to reach MSL.`;
-          meta = `<span class="dashboard-alerts__fsn" style="font-size:0.6rem;">${alert.fsn || ''}</span>
-                ${alert.itemCode ? `· Item #${alert.itemCode}` : ''}`;
         } else {
-          description = `Stock: ${alert.currentStock} — below ROP (${alert.reorderPoint}). Deficit: ${alert.deficit}`;
-          meta = `<span class="dashboard-alerts__fsn" style="font-size:0.6rem;">${alert.fsn || ''}</span>
-                ${alert.itemCode ? `· Item #${alert.itemCode}` : ''}`;
+          const windowLabel = restockWindowLabel(DEFAULT_RESTOCK_WINDOW_MONTHS);
+          description = alert.currentStock === 0
+            ? `Out of stock! Needs ${alert.restockNeeded} units for the next ${windowLabel}.`
+            : `Stock: ${alert.currentStock} — lasts ${monthsLeftLabel(alert.monthsLeft)} at forecast use. Needs +${alert.restockNeeded} for ${windowLabel}.`;
+          meta = `Forecast${alert.isStatic ? ' · <span class="dashboard-alerts__fsn" style="font-size:0.6rem;">Static</span>' : ''}
+                ${alert.itemCode ? `· Item #${this.escapeNotifHtml(alert.itemCode)}` : ''}`;
         }
 
         html += `

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\AppSetting;
 use App\Support\InventoryContext;
 use App\Support\PermissionCatalog;
 use App\Support\RolePermissions;
@@ -109,6 +110,7 @@ class ShareUserData
         }
 
         View::share('user', $user);
+        View::share('leadTimeMonths', AppSetting::leadTimeMonths());
         View::share('permissionCatalog', PermissionCatalog::PAGES);
         View::share('assigneeDirectory', is_array($user) ? UserDirectory::assignees() : []);
 

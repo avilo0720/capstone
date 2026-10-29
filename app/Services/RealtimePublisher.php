@@ -99,6 +99,11 @@ class RealtimePublisher
             return ['users', true];
         }
 
+        // System-wide settings (e.g. lead time) change numbers in every inventory.
+        if ($entityType === 'setting') {
+            return ['settings', true];
+        }
+
         return ['activity', false];
     }
 

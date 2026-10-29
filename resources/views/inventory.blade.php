@@ -22,6 +22,9 @@
         <button type="button" class="addProBtn">Add New Item</button>
         <button type="button" class="editToggleBtn">Edit</button>
         <button type="button" class="downloadBtn">Download</button>
+        <button type="button" class="leadTimeBtn" id="leadTimeBtn" title="Months from ordering until delivery. Used for LTD, SS, ROP, and MSL.">
+          Lead time: <strong id="leadTimeValue">{{ rtrim(rtrim(number_format($leadTimeMonths ?? 3.5, 2, '.', ''), '0'), '.') }} months</strong>
+        </button>
         <div class="filterDropdown">
           <button type="button" class="filterBtn">
             <img src="/assets/images/filterIcon.svg" alt="filter Icon" />

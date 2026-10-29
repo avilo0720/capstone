@@ -7,7 +7,7 @@
     <link rel="icon" type="image/png" href="/assets/images/nabua-wave-logo.png" />
     <link rel="stylesheet" href="/src/css/font.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" />
-    <link rel="stylesheet" href="/src/css/style.css?v=133" />
+    <link rel="stylesheet" href="/src/css/style.css?v=137" />
     <title>{{ $title }} | Nabua Water Inventory</title>
     <script>
       // Attach the CSRF token to every same-origin request that changes data.
@@ -36,7 +36,7 @@
       });
     </script>
   </head>
-  <body data-can-edit="{{ ($user['canEdit'] ?? false) ? 'true' : 'false' }}" data-can-calendar-table="{{ ($user['canViewCalendarTable'] ?? false) ? 'true' : 'false' }}" data-can-manage-users="{{ ($user['canManageUsers'] ?? false) ? 'true' : 'false' }}" data-can-procurement-add="{{ ($user['canAddProcurement'] ?? $user['canEditProcurement'] ?? false) ? 'true' : 'false' }}" data-can-procurement-edit="{{ ($user['canAddProcurement'] ?? $user['canEditProcurement'] ?? false) ? 'true' : 'false' }}" data-can-procurement-delete="{{ ($user['canDeleteProcurement'] ?? false) ? 'true' : 'false' }}" data-can-issuance-edit="{{ ($user['canEditIssuance'] ?? false) ? 'true' : 'false' }}" data-can-issuance-review="{{ ($user['canReviewIssuance'] ?? false) ? 'true' : 'false' }}" data-user-id="{{ $user['id'] ?? '' }}" data-inventory="{{ $currentInventory->slug ?? '' }}">
+  <body data-can-edit="{{ ($user['canEdit'] ?? false) ? 'true' : 'false' }}" data-can-calendar-table="{{ ($user['canViewCalendarTable'] ?? false) ? 'true' : 'false' }}" data-can-manage-users="{{ ($user['canManageUsers'] ?? false) ? 'true' : 'false' }}" data-can-procurement-add="{{ ($user['canAddProcurement'] ?? $user['canEditProcurement'] ?? false) ? 'true' : 'false' }}" data-can-procurement-edit="{{ ($user['canAddProcurement'] ?? $user['canEditProcurement'] ?? false) ? 'true' : 'false' }}" data-can-procurement-delete="{{ ($user['canDeleteProcurement'] ?? false) ? 'true' : 'false' }}" data-can-issuance-edit="{{ ($user['canEditIssuance'] ?? false) ? 'true' : 'false' }}" data-can-issuance-review="{{ ($user['canReviewIssuance'] ?? false) ? 'true' : 'false' }}" data-user-id="{{ $user['id'] ?? '' }}" data-inventory="{{ $currentInventory->slug ?? '' }}" data-lead-time-months="{{ $leadTimeMonths ?? 3.5 }}">
     @include('partials.sidebar')
     <div class="app container">
       @include('partials.header')
@@ -56,6 +56,6 @@
     @include('partials.profile-crop-modal')
     <script type="application/json" id="assigneeDirectory">@json($assigneeDirectory ?? [])</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
-    <script src="/src/js/app.js?v=105" type="module"></script>
+    <script src="/src/js/app.js?v=110" type="module"></script>
   </body>
 </html>

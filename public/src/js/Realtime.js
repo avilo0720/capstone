@@ -1,13 +1,14 @@
 // Keep these specifiers identical to app.js: a different ?v= loads a second, unused copy of the module.
 import Storage from "./API.js";
-import DashboardUi from "./Dashboard.js?v=101";
-import InventoryUi from "./InventoryView.js?v=103";
-import ForecastingUi from "./ForecastingView.js?v=102";
-import ReportsView from "./ReportsView.js?v=102";
+import { refreshLeadTime } from "./Settings.js";
+import DashboardUi from "./Dashboard.js?v=103";
+import InventoryUi from "./InventoryView.js?v=104";
+import ForecastingUi from "./ForecastingView.js?v=104";
+import ReportsView from "./ReportsView.js?v=107";
 import CalendarView from "./CalendarView.js?v=102";
 import UsersView from "./UsersView.js";
 import ActivityLogsView from "./ActivityLogsView.js?v=101";
-import ProcurementView from "./ProcurementView.js?v=103";
+import ProcurementView from "./ProcurementView.js?v=104";
 import IssuanceView from "./IssuanceView.js";
 
 const POLL_MS = 2000;
@@ -49,9 +50,16 @@ export function startRealtime({ onNotifications } = {}) {
         await Storage.init();
       }
 
+      // A new lead time changes LTD, SS, ROP, and MSL everywhere. The "leadtimechange"
+      // event updates the Inventory page; the refreshes below cover the other pages.
+      const settingsChanged = types.has("settings");
+      if (settingsChanged) {
+        await refreshLeadTime();
+      }
+
       const tasks = [];
 
-      if (needsStorage || types.has("activity")) {
+      if (needsStorage || settingsChanged || types.has("activity")) {
         tasks.push(DashboardUi.refreshLive?.());
         tasks.push(InventoryUi.refreshLive?.());
         tasks.push(ForecastingUi.refreshLive?.());

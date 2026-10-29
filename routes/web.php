@@ -20,6 +20,7 @@ use App\Http\Controllers\ProcurementController;
 use App\Http\Controllers\ProcurementDocumentController;
 use App\Http\Controllers\IssuanceController;
 use App\Http\Controllers\RealtimeController;
+use App\Http\Controllers\SettingsController;
 
 // Auth
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -59,6 +60,9 @@ Route::middleware('auth.custom')->prefix('api')->group(function () {
     Route::post('/notifications/read', [NotificationController::class, 'markRead']);
     Route::get('/realtime/events', [RealtimeController::class, 'events']);
     Route::get('/activity-logs', [ActivityLogController::class, 'index']);
+
+    Route::get('/settings/lead-time', [SettingsController::class, 'leadTime']);
+    Route::put('/settings/lead-time', [SettingsController::class, 'updateLeadTime'])->middleware(['page:inventory', 'ability:inventory.edit']);
 
     Route::post('/items', [ItemController::class, 'store'])->middleware(['page:inventory', 'ability:inventory.edit']);
     Route::delete('/items/{id}', [ItemController::class, 'destroy'])->middleware(['page:inventory', 'ability:inventory.edit']);

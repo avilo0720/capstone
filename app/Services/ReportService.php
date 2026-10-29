@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\AppSetting;
+
 class ReportService
 {
     public function roundHalfDown(float $value): int
@@ -20,6 +22,7 @@ class ReportService
 
     public function buildSummary(array $items): array
     {
+        $leadTimeMonths = AppSetting::leadTimeMonths();
         $totalItems = count($items);
         $totalQuantity = 0;
         $totalValue = 0.0;
@@ -42,7 +45,7 @@ class ReportService
             $cumulativePercent = $totalDemand === 0 ? 0 : $cumulativeDemand / $totalDemand;
             $fsn = $cumulativePercent <= 0.2 ? 'N' : ($cumulativePercent < 0.7 ? 'S' : 'F');
 
-            $leadTimeDemand = $amc * 3.495065789473684;
+            $leadTimeDemand = $amc * $leadTimeMonths;
             $ltd = $this->roundHalfDown($leadTimeDemand);
             $safetyStock = ($amc + $leadTimeDemand) * 0.1;
             $ss = $this->roundHalfDown($safetyStock);

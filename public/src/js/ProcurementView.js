@@ -5,6 +5,7 @@ import Pagination from "./Pagination.js";
 import { fetchAssignees } from "./API.js";
 import DownloadOptions from "./DownloadOptions.js";
 import Loading from "./Loading.js";
+import { getLeadTimeMonths } from "./Settings.js";
 
 const STATUS = {
   pending: { label: "Dept. head", tone: "orange" },
@@ -817,7 +818,7 @@ class ProcurementView {
   manualMetrics(item) {
     const stock = Number(item.quantity) || 0;
     const amc = Number(item.monthlyDemand) || 0;
-    const leadTimeDemand = amc * 3.495065789473684;
+    const leadTimeDemand = amc * getLeadTimeMonths();
     const safetyStock = (amc + leadTimeDemand) * 0.1;
     const rop = this.roundHalfDown(leadTimeDemand) + this.roundHalfDown(safetyStock);
     const need3m = Math.max(0, Math.ceil(amc * 3 - stock));

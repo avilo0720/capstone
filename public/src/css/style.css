@@ -989,7 +989,8 @@ svg use {
   position: relative;
 }
 
-.downloadBtn {
+.downloadBtn,
+.leadTimeBtn {
   cursor: pointer;
   color: #344054;
   padding: 0.7rem 1rem;
@@ -1426,7 +1427,8 @@ svg use {
     padding: 0.8rem 1.15rem;
   }
 
-  .downloadBtn {
+  .downloadBtn,
+  .leadTimeBtn {
     font-size: 0.88rem;
     padding: 0.8rem 1.15rem;
   }
@@ -4029,6 +4031,40 @@ svg use {
   background: #fafcff;
 }
 
+.reports-alerts__controls {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  margin-top: 0.35rem;
+}
+
+.reports-alerts__desc {
+  margin: 0;
+  flex: 1 1 260px;
+  font-size: 0.8rem;
+  color: #667085;
+}
+
+.reports-alerts__window {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #344054;
+}
+
+.reports-alerts__window select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-weight: 500;
+}
+
 .reports-alerts__header h2 {
   display: flex;
   align-items: center;
@@ -4121,6 +4157,18 @@ svg use {
 
 .reports-alerts__item-name {
   font-weight: 600;
+}
+
+.reports-alerts__size {
+  font-weight: 400;
+  color: #667085;
+}
+
+.reports-alerts__table .badge-static {
+  margin-left: 0.3rem;
+  font-size: 0.62rem;
+  color: #475467 !important;
+  cursor: help;
 }
 
 .reports-fsn-badge {
@@ -4360,6 +4408,7 @@ svg use {
 
   .editToggleBtn,
   .downloadBtn,
+  .leadTimeBtn,
   .filterBtn {
     font-size: 0.72rem;
     padding: 0.55rem 0.7rem;
@@ -4681,6 +4730,7 @@ svg use {
   .addProBtn,
   .editToggleBtn,
   .downloadBtn,
+  .leadTimeBtn,
   .filterBtn {
     font-size: 0.65rem;
     padding: 0.5rem 0.55rem;
@@ -6601,6 +6651,8 @@ svg use {
   left: 0;
   z-index: 30;
   width: min(640px, calc(100vw - 2.5rem));
+  max-height: min(78vh, 760px);
+  overflow-y: auto;
   padding: 1.1rem;
   background: #ffffff;
   border: 1px solid #e9edf3;
@@ -6779,6 +6831,14 @@ svg use {
   border: 1px solid #e9edf3;
   border-radius: 10px;
   padding: 1rem;
+  min-width: 0;
+}
+
+/* The canvas is redrawn to the card's width; this stops its old size from stretching the card first. */
+.reports-chart-card canvas,
+.forecast-chart-card canvas {
+  display: block;
+  max-width: 100%;
 }
 
 .reports-chart-card h3 {
@@ -8778,13 +8838,18 @@ svg use {
   color: #344054;
 }
 
-.confirm-modal__field select {
+.confirm-modal__field select,
+.confirm-modal__field input {
   width: 100%;
   border: 1.5px solid #98a2b3;
   border-radius: 8px;
   padding: 0.55rem 0.7rem;
   font: 500 0.95rem/1.3 inherit;
   background: #fff;
+}
+
+.confirm-modal__hint.confirm-modal__hint--error {
+  color: #b42318;
 }
 
 .confirm-modal__hint {
@@ -9267,6 +9332,7 @@ a.procurement-doc-list__name {
   .addProBtn,
   .editToggleBtn,
   .downloadBtn,
+  .leadTimeBtn,
   .filterBtn {
     width: 100%;
     margin: 0;
@@ -9601,4 +9667,13 @@ a.procurement-doc-list__name {
 }
 .procurement-line-remove:hover {
   color: #7a1710;
+}
+
+.leadTimeBtn strong {
+  color: #175cd3;
+}
+
+.leadTimeBtn:disabled {
+  cursor: default;
+  opacity: 1;
 }

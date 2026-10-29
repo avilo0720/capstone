@@ -135,17 +135,22 @@ class ExportService
         $html .= '<h1>Inventory Summary Report</h1>';
         $html .= '<p style="text-align:center;color:#667085;">Generated: ' . htmlspecialchars(now()->toDateTimeString()) . '</p>';
 
+        $window = $this->restockWindowLabel($summary);
+
         if ($summary) {
             $html .= '<h2>Summary</h2>';
             $html .= '<p>Total Items: ' . (int) ($summary['totalItems'] ?? 0) . '</p>';
             $html .= '<p>Total Quantity: ' . (int) ($summary['totalQuantity'] ?? 0) . '</p>';
             $html .= '<p>Total Value: ₱' . number_format((float) ($summary['totalValue'] ?? 0)) . '</p>';
-            $html .= '<p>Items Needing Restock: ' . (int) ($summary['lowStockCount'] ?? 0) . '</p>';
+            $html .= '<p>Items Needing Restock (' . htmlspecialchars($window) . ', based on forecast): '
+                . (int) ($summary['lowStockCount'] ?? 0) . '</p>';
         }
 
         if (!empty($lowStockItems)) {
-            $headers = ['Item', 'Stock', 'ROP', 'MSL', 'Deficit', 'Urgency'];
-            $html .= '<h2>Low-Stock Alerts</h2><table><thead><tr>';
+            $headers = ['Item', 'Current Qty', 'Forecast / Month', 'Stock Will Last', 'Restock Needed', 'Urgency'];
+            $html .= '<h2>Low-Stock Alerts</h2>';
+            $html .= '<p style="color:#667085;">Items whose current quantity will not last ' . htmlspecialchars($window)
+                . ' at the forecast monthly use.</p><table><thead><tr>';
             foreach ($headers as $header) {
                 $html .= '<th>' . htmlspecialchars($header) . '</th>';
             }
@@ -153,11 +158,13 @@ class ExportService
 
             foreach ($lowStockItems as $item) {
                 $html .= '<tr>';
-                $html .= '<td>' . htmlspecialchars((string) ($item['title'] ?? '')) . '</td>';
+                $html .= '<td>' . htmlspecialchars((string) ($item['title'] ?? ''))
+                    . (!empty($item['size']) ? ' (' . htmlspecialchars((string) $item['size']) . ')' : '')
+                    . (!empty($item['isStatic']) ? ' — Static' : '') . '</td>';
                 $html .= '<td>' . (int) ($item['currentStock'] ?? 0) . '</td>';
-                $html .= '<td>' . (int) ($item['reorderPoint'] ?? 0) . '</td>';
-                $html .= '<td>' . (int) ($item['minimumStockLevel'] ?? 0) . '</td>';
-                $html .= '<td>' . (int) ($item['deficit'] ?? 0) . '</td>';
+                $html .= '<td>' . number_format((float) ($item['forecastAmc'] ?? 0), 1) . '</td>';
+                $html .= '<td>' . htmlspecialchars($this->monthsLeftLabel($item['monthsLeft'] ?? null)) . '</td>';
+                $html .= '<td>' . (int) ($item['restockNeeded'] ?? 0) . '</td>';
                 $html .= '<td>' . htmlspecialchars(strtoupper((string) ($item['urgency'] ?? ''))) . '</td>';
                 $html .= '</tr>';
             }
@@ -192,7 +199,7 @@ class ExportService
         $sheet->setTitle(mb_substr($sheetName, 0, 31));
 
         if ($title === null) {
-            $sheet->fromArray([$headers, ...$rows], null, 'A1');
+            $sheet->fromArray([$headers, ...$rows], null, 'A1', true);
 
             return $spreadsheet;
         }
@@ -206,7 +213,7 @@ class ExportService
         }
 
         $headerRow = 4;
-        $sheet->fromArray([$headers, ...$rows], null, 'A'.$headerRow);
+        $sheet->fromArray([$headers, ...$rows], null, 'A'.$headerRow, true);
 
         if ($headers !== []) {
             $lastColumn = Coordinate::stringFromColumnIndex(count($headers));
@@ -225,6 +232,23 @@ class ExportService
         return $spreadsheet;
     }
 
+    /** "the next 3 months" style label for the forecast window the alerts were built with. */
+    private function restockWindowLabel(?array $summary): string
+    {
+        $months = (int) ($summary['restockWindowMonths'] ?? 3);
+
+        return $months === 12 ? 'the next year' : 'the next '.$months.' months';
+    }
+
+    private function monthsLeftLabel(mixed $months): string
+    {
+        if ($months === null || $months === '') {
+            return 'No forecast use';
+        }
+
+        return number_format((float) $months, 1).' months';
+    }
+
     private function buildReportSpreadsheet(?array $summary, array $lowStockItems): Spreadsheet
     {
         $spreadsheet = new Spreadsheet();
@@ -239,14 +263,14 @@ class ExportService
             ['Total Items', $summary['totalItems'] ?? 0],
             ['Total Quantity', $summary['totalQuantity'] ?? 0],
             ['Total Value', $summary['totalValue'] ?? 0],
-            ['Items Needing Restock', $summary['lowStockCount'] ?? 0],
-        ], null, 'A1');
+            ['Items Needing Restock ('.$this->restockWindowLabel($summary).', based on forecast)', $summary['lowStockCount'] ?? 0],
+        ], null, 'A1', true);
 
         $alertSheet = $spreadsheet->createSheet();
         $alertSheet->setTitle('Low-Stock Alerts');
         $alertHeaders = [
-            'Item Code', 'Item Name', 'Size', 'Current Stock', 'Reorder Point',
-            'Min Stock Level', 'Deficit', 'Unit Cost', 'Restock Cost', 'FSN', 'Urgency',
+            'Item Code', 'Item Name', 'Size', 'Current Qty', 'Forecast / Month',
+            'Stock Will Last', 'Restock Needed', 'Unit Cost', 'Restock Cost', 'Forecast Basis', 'Urgency',
         ];
         $alertRows = array_map(function (array $item) {
             return [
@@ -254,17 +278,17 @@ class ExportService
                 $item['title'] ?? '',
                 $item['size'] ?? '',
                 $item['currentStock'] ?? 0,
-                $item['reorderPoint'] ?? 0,
-                $item['minimumStockLevel'] ?? 0,
-                $item['deficit'] ?? 0,
+                round((float) ($item['forecastAmc'] ?? 0), 1),
+                $this->monthsLeftLabel($item['monthsLeft'] ?? null),
+                $item['restockNeeded'] ?? 0,
                 $item['unitCost'] ?? 0,
                 $item['restockCost'] ?? 0,
-                $item['fsn'] ?? '',
+                !empty($item['isStatic']) ? 'Static (AMC from Inventory)' : 'Usage history',
                 $item['urgency'] ?? '',
             ];
         }, $lowStockItems);
 
-        $alertSheet->fromArray([$alertHeaders, ...$alertRows], null, 'A1');
+        $alertSheet->fromArray([$alertHeaders, ...$alertRows], null, 'A1', true);
 
         return $spreadsheet;
     }

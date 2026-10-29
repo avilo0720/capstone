@@ -1,12 +1,14 @@
 import Pagination from "./Pagination.js";
 import DownloadOptions from "./DownloadOptions.js";
 import { computeForecasts } from "./ForecastEngine.js";
+import { buildForecastAlerts, monthsLeftLabel, restockWindowLabel } from "./ForecastAlerts.js";
 import { notifyAlert } from "./ConfirmDialog.js";
 import { bindBackdropClose } from "./OverlayDismiss.js";
+import { barChartGutters, contentWidth, fitText } from "./ChartLayout.js";
 // Same specifiers as app.js so the Reports tab shares one instance of each page module.
-import InventoryView from "./InventoryView.js?v=103";
-import ForecastingView from "./ForecastingView.js?v=102";
-import ProcurementView from "./ProcurementView.js?v=103";
+import InventoryView from "./InventoryView.js?v=104";
+import ForecastingView from "./ForecastingView.js?v=104";
+import ProcurementView from "./ProcurementView.js?v=104";
 import CalendarView from "./CalendarView.js?v=102";
 
 class ReportsView {
@@ -14,6 +16,7 @@ class ReportsView {
     this.summaryData = null;
     this.forecastData = [];
     this.alertItems = [];
+    this.restockWindow = 3; // months; Low-Stock Alerts list items that won't last this long
     this.pagination = new Pagination({
       pageSize: 10,
       onPageChange: () => this.renderAlerts(),
@@ -25,6 +28,10 @@ class ReportsView {
     await this.loadSummary();
     await this.loadForecastCharts();
     this.bindEvents();
+    window.addEventListener("resize", () => {
+      clearTimeout(this._resizeTimer);
+      this._resizeTimer = setTimeout(() => this.renderForecastCharts(), 160);
+    });
   }
 
   async refreshLive() {
@@ -39,8 +46,6 @@ class ReportsView {
       if (!res.ok) throw new Error('Failed to load summary');
       this.summaryData = await res.json();
       this.renderSummary();
-      this.alertItems = this.summaryData.lowStockItems || [];
-      this.renderAlerts();
     } catch (e) {
       console.error('Failed to load report summary:', e);
     }
@@ -58,9 +63,25 @@ class ReportsView {
       const items = await itemsRes.json();
       this.forecastData = computeForecasts(items, usageData);
       this.renderForecastCharts();
+      this.updateAlerts();
     } catch (e) {
       console.error('Failed to load forecast charts:', e);
     }
+  }
+
+  /** Low-Stock Alerts follow the forecast (shared with the Dashboard and the notification bell). */
+  updateAlerts() {
+    this.alertItems = buildForecastAlerts(this.forecastData, this.restockWindow);
+    this.renderAlerts();
+
+    const label = document.getElementById("reportLowStockLabel");
+    if (label) label.textContent = `Restock needed (${restockWindowLabel(this.restockWindow)})`;
+    const count = document.getElementById("reportLowStockCount");
+    if (count) this.animateCounter(count, this.alertItems.length);
+  }
+
+  asOfDate() {
+    return new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   }
 
   renderSummary() {
@@ -70,12 +91,11 @@ class ReportsView {
     const totalItemsEl = document.getElementById('reportTotalItems');
     const totalQtyEl = document.getElementById('reportTotalQty');
     const totalValueEl = document.getElementById('reportTotalValue');
-    const lowStockCountEl = document.getElementById('reportLowStockCount');
 
     if (totalItemsEl) this.animateCounter(totalItemsEl, d.totalItems);
     if (totalQtyEl) this.animateCounter(totalQtyEl, d.totalQuantity);
     if (totalValueEl) this.animateCounter(totalValueEl, d.totalValue, '₱');
-    if (lowStockCountEl) this.animateCounter(lowStockCountEl, d.lowStockCount);
+    // The "Restock needed" card is set by updateAlerts() from the forecast.
   }
 
   animateCounter(el, target, prefix = '') {
@@ -97,10 +117,7 @@ class ReportsView {
     const body = document.getElementById('reportsAlertsBody');
     if (!body) return;
 
-    const urgencyOrder = { critical: 0, high: 1, medium: 2 };
-    const sorted = [...this.alertItems].sort(
-      (a, b) => (urgencyOrder[a.urgency] ?? 3) - (urgencyOrder[b.urgency] ?? 3)
-    );
+    const sorted = this.alertItems; // already sorted by urgency, then soonest to run out
 
     if (sorted.length === 0) {
       body.innerHTML = `
@@ -109,7 +126,7 @@ class ReportsView {
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
             <polyline points="22 4 12 14.01 9 11.01"/>
           </svg>
-          <p>All stock levels are sufficient. No alerts at this time.</p>
+          <p>Based on the forecast, current stock will last ${restockWindowLabel(this.restockWindow)} for every item.</p>
         </div>`;
       this.pagination.renderControls({ totalItems: 0, totalPages: 1 });
       return;
@@ -122,8 +139,10 @@ class ReportsView {
         <thead>
           <tr>
             <th>Item</th>
-            <th>Current Stock</th>
-            <th>Deficit</th>
+            <th>Current Qty (as of ${this.asOfDate()})</th>
+            <th>Forecast / Month</th>
+            <th>Stock Will Last</th>
+            <th>Restock Needed (${restockWindowLabel(this.restockWindow)})</th>
             <th>Urgency</th>
           </tr>
         </thead>
@@ -131,11 +150,16 @@ class ReportsView {
 
     page.items.forEach((item) => {
       const urgencyClass = `reports-urgency--${item.urgency}`;
+      const staticTag = item.isStatic
+        ? ` <span class="badge badge-static" title="Not enough usage history. Uses the AMC entered in Inventory.">Static</span>`
+        : "";
       html += `
           <tr class="reports-alert-row" data-id="${item.id}" title="Click to view details">
-            <td class="reports-alerts__item-name">${item.title}</td>
+            <td class="reports-alerts__item-name">${item.title}${item.size ? ` <span class="reports-alerts__size">(${item.size})</span>` : ""}</td>
             <td>${item.currentStock}</td>
-            <td>${item.deficit}</td>
+            <td>${item.forecastAmc.toFixed(1)}${staticTag}</td>
+            <td>${monthsLeftLabel(item.monthsLeft)}</td>
+            <td>+${item.restockNeeded}</td>
             <td><span class="reports-urgency-badge ${urgencyClass}">${item.urgency.toUpperCase()}</span></td>
           </tr>`;
     });
@@ -167,15 +191,16 @@ class ReportsView {
             <p class="viewItemModal__code">Item Code: ${item.itemCode || "—"}</p>
           </div>
           <div class="viewItemModal__grid">
-            <div class="viewItemModal__field"><span>Current Stock</span><strong>${item.currentStock}</strong></div>
-            <div class="viewItemModal__field"><span>Reorder Point</span><strong>${item.reorderPoint}</strong></div>
-            <div class="viewItemModal__field"><span>Minimum Stock Level</span><strong>${item.minimumStockLevel}</strong></div>
-            <div class="viewItemModal__field"><span>Deficit</span><strong>${item.deficit}</strong></div>
+            <div class="viewItemModal__field"><span>Current Qty (as of ${this.asOfDate()})</span><strong>${item.currentStock}</strong></div>
+            <div class="viewItemModal__field"><span>Forecast / Month</span><strong>${item.forecastAmc.toFixed(1)}</strong></div>
+            <div class="viewItemModal__field"><span>Forecast Basis</span><strong>${item.isStatic ? "Static (AMC from Inventory)" : "Usage history"}</strong></div>
+            <div class="viewItemModal__field"><span>Stock Will Last</span><strong>${monthsLeftLabel(item.monthsLeft)}</strong></div>
+            <div class="viewItemModal__field"><span>Restock for 3 Months</span><strong>${item.need3m > 0 ? `+${item.need3m}` : "OK"}</strong></div>
+            <div class="viewItemModal__field"><span>Restock for 6 Months</span><strong>${item.need6m > 0 ? `+${item.need6m}` : "OK"}</strong></div>
+            <div class="viewItemModal__field"><span>Restock for 1 Year</span><strong>${item.need1y > 0 ? `+${item.need1y}` : "OK"}</strong></div>
             <div class="viewItemModal__field"><span>Unit Cost</span><strong>₱${Number(item.unitCost).toLocaleString()}</strong></div>
-            <div class="viewItemModal__field"><span>Restock Cost</span><strong>₱${Number(item.restockCost).toLocaleString()}</strong></div>
-            <div class="viewItemModal__field"><span>FSN</span><strong>${item.fsn}</strong></div>
+            <div class="viewItemModal__field"><span>Restock Cost (${restockWindowLabel(this.restockWindow)})</span><strong>₱${Number(item.restockCost).toLocaleString()}</strong></div>
             <div class="viewItemModal__field"><span>Urgency</span><strong>${item.urgency.toUpperCase()}</strong></div>
-            <div class="viewItemModal__field"><span>Trigger Point</span><strong>${item.triggerPoint}</strong></div>
           </div>
         </div>
       </div>`;
@@ -203,7 +228,7 @@ class ReportsView {
     this.drawHorizontalBarChart(
       needCanvas,
       topNeeds.map((item) => ({
-        label: item.title.length > 18 ? item.title.slice(0, 18) + "…" : item.title,
+        label: item.title,
         value: item.need3m,
         color: "#1570ef",
       })),
@@ -214,17 +239,19 @@ class ReportsView {
   drawHorizontalBarChart(canvas, data, xLabel) {
     const ctx = canvas.getContext("2d");
     const dpr = window.devicePixelRatio || 1;
-    const w = canvas.parentElement.clientWidth;
+    const w = Math.max(contentWidth(canvas.parentElement), 200);
     const h = 220;
     canvas.width = w * dpr;
     canvas.height = h * dpr;
     canvas.style.width = w + "px";
     canvas.style.height = h + "px";
-    ctx.scale(dpr, dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
-    const pad = { top: 16, right: 30, bottom: 30, left: 100 };
-    const plotW = w - pad.left - pad.right;
+    ctx.font = "11px Inter, sans-serif";
+    const gutters = barChartGutters(ctx, data, w);
+    const pad = { top: 16, right: gutters.right, bottom: 30, left: gutters.left };
+    const plotW = Math.max(w - pad.left - pad.right, 1);
     const plotH = h - pad.top - pad.bottom;
     const maxVal = Math.max(...data.map((d) => d.value), 1);
     const barH = plotH / data.length * 0.6;
@@ -241,7 +268,7 @@ class ReportsView {
       ctx.fillStyle = "#344054";
       ctx.font = "11px Inter, sans-serif";
       ctx.textAlign = "right";
-      ctx.fillText(d.label, pad.left - 8, y + barH / 2 + 4);
+      ctx.fillText(fitText(ctx, d.label, gutters.labelWidth), pad.left - 8, y + barH / 2 + 4);
 
       ctx.textAlign = "left";
       ctx.fillText(String(d.value), pad.left + barW + 6, y + barH / 2 + 4);
@@ -256,7 +283,7 @@ class ReportsView {
   drawEmptyChart(canvas, message) {
     const ctx = canvas.getContext("2d");
     const dpr = window.devicePixelRatio || 1;
-    const w = canvas.parentElement.clientWidth;
+    const w = Math.max(contentWidth(canvas.parentElement), 200);
     const h = 220;
     canvas.width = w * dpr;
     canvas.height = h * dpr;
@@ -281,6 +308,12 @@ class ReportsView {
 
     document.querySelectorAll('[data-report]').forEach((btn) => {
       btn.addEventListener('click', () => this.downloadFromLibrary(btn.dataset.report));
+    });
+
+    document.getElementById('reportsAlertWindow')?.addEventListener('change', (e) => {
+      this.restockWindow = Number(e.target.value) || 3;
+      this.pagination.reset();
+      this.updateAlerts();
     });
   }
 
@@ -321,9 +354,10 @@ class ReportsView {
             totalItems: this.summaryData.totalItems,
             totalQuantity: this.summaryData.totalQuantity,
             totalValue: this.summaryData.totalValue,
-            lowStockCount: this.summaryData.lowStockCount
+            lowStockCount: this.alertItems.length,
+            restockWindowMonths: this.restockWindow,
           },
-          lowStockItems: this.summaryData.lowStockItems
+          lowStockItems: this.alertItems
         };
         if (options.format === 'pdf') {
           payload.paper = options.paper;
@@ -358,9 +392,10 @@ class ReportsView {
               totalItems: this.summaryData.totalItems,
               totalQuantity: this.summaryData.totalQuantity,
               totalValue: this.summaryData.totalValue,
-              lowStockCount: this.summaryData.lowStockCount,
+              lowStockCount: this.alertItems.length,
+              restockWindowMonths: this.restockWindow,
             },
-            lowStockItems: this.summaryData.lowStockItems,
+            lowStockItems: this.alertItems,
           };
           if (options.format === "pdf") {
             payload.paper = options.paper;

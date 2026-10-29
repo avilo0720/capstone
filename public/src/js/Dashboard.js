@@ -2,6 +2,8 @@ const mainApp = document.querySelector(".main");
 import Storage from "./API.js";
 import { renderActivityChanges } from "./ActivityChanges.js?v=101";
 import { bindBackdropClose } from "./OverlayDismiss.js";
+import { formatLeadTime, getLeadTimeMonths } from "./Settings.js";
+import { DEFAULT_RESTOCK_WINDOW_MONTHS, loadForecastAlerts, monthsLeftLabel, restockWindowLabel } from "./ForecastAlerts.js";
 
 class DashboardUi {
   setApp() {
@@ -244,7 +246,7 @@ class DashboardUi {
           <p>This estimates the total cost of bringing every item up to its Maximum Stock Level (MSL).</p>
           <div class="metric-explain__formula">Σ (MSL × price)</div>
           <ul class="metric-explain__points">
-            <li><strong>LTD</strong> = AMC × 3.495 (lead-time demand)</li>
+            <li><strong>LTD</strong> = AMC × ${getLeadTimeMonths()} (lead-time demand)</li>
             <li><strong>Safety Stock</strong> = (AMC + LTD) × 10%</li>
             <li><strong>MSL</strong> = AMC + LTD + Safety Stock (or 3 for Non-moving items with stock &lt; 3)</li>
             <li>Then multiply MSL by unit price for each item and sum them all</li>
@@ -269,11 +271,11 @@ class DashboardUi {
         html: `
           <p class="metric-explain__result">Current value: <strong>${this.money(m.restockPerLeadTime)}</strong></p>
           <p>Spreads the RS Needed cost across the procurement lead time so you can see the monthly-equivalent funding need.</p>
-          <div class="metric-explain__formula">RS Needed Cost ÷ 3.5 months</div>
+          <div class="metric-explain__formula">RS Needed Cost ÷ ${formatLeadTime()}</div>
           <ul class="metric-explain__points">
             <li>RS Needed Cost = <strong>${this.money(m.subtotalRestockCost)}</strong></li>
-            <li>Procurement lead time used = <strong>3.5 months</strong></li>
-            <li>${this.money(m.subtotalRestockCost)} ÷ 3.5 = <strong>${this.money(m.restockPerLeadTime)}</strong></li>
+            <li>Procurement lead time used = <strong>${formatLeadTime()}</strong></li>
+            <li>${this.money(m.subtotalRestockCost)} ÷ ${getLeadTimeMonths()} = <strong>${this.money(m.restockPerLeadTime)}</strong></li>
           </ul>
         `,
       },
@@ -294,43 +296,19 @@ class DashboardUi {
     return explanations[metricKey] || null;
   }
 
-  renderLowStockAlerts() {
+  /** Same forecast-based alerts as the Reports tab, using the default 3-month window. */
+  async renderLowStockAlerts() {
     const container = document.getElementById('dashboardAlerts');
     if (!container) return;
 
-    const allItems = Storage.getItems();
-    const totalDemand = allItems.reduce((acc, item) => acc + (Number(item.monthlyDemand) || 0), 0);
-
-    let cumulativeDemand = 0;
-    const lowStockItems = [];
-
-    allItems.forEach((item) => {
-      const amc = Number(item.monthlyDemand) || 0;
-      const stock = Number(item.quantity) || 0;
-
-      cumulativeDemand += amc;
-      const cumulativePercent = totalDemand === 0 ? 0 : cumulativeDemand / totalDemand;
-      const fsn = this.getAutoFSN(cumulativePercent);
-
-      const leadTimeDemand = amc * 3.495065789473684;
-      const ltd = this.roundHalfDown(leadTimeDemand);
-      const safetyStock = (amc + leadTimeDemand) * 0.1;
-      const ss = this.roundHalfDown(safetyStock);
-      const rop = ltd + ss;
-
-      const triggerPoint =
-        ((rop > stock && (fsn === 'F' || fsn === 'S')) || (fsn === 'N' && stock < 3))
-          ? 'RS Needed' : 'Sufficient';
-
-      if (triggerPoint === 'RS Needed') {
-        lowStockItems.push({
-          title: item.title,
-          currentStock: stock,
-          reorderPoint: rop,
-          fsn
-        });
-      }
-    });
+    let lowStockItems;
+    try {
+      lowStockItems = await loadForecastAlerts(DEFAULT_RESTOCK_WINDOW_MONTHS);
+    } catch (e) {
+      console.error('Failed to load forecast alerts:', e);
+      return;
+    }
+    const windowLabel = restockWindowLabel(DEFAULT_RESTOCK_WINDOW_MONTHS);
 
     if (lowStockItems.length === 0) {
       container.innerHTML = `
@@ -339,7 +317,7 @@ class DashboardUi {
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
             <polyline points="22 4 12 14.01 9 11.01"/>
           </svg>
-          <span>All stock levels are sufficient.</span>
+          <span>Based on the forecast, current stock will last ${windowLabel} for every item.</span>
         </div>`;
       return;
     }
@@ -348,7 +326,7 @@ class DashboardUi {
     const remaining = lowStockItems.length - topItems.length;
 
     let itemsList = topItems.map(item =>
-      `<li><strong>${item.title}</strong> — Stock: ${item.currentStock}, ROP: ${item.reorderPoint} <span class="dashboard-alerts__fsn">${item.fsn}</span></li>`
+      `<li><strong>${item.title}</strong>${item.size ? ` (${item.size})` : ''} — Stock: ${item.currentStock}, lasts ${monthsLeftLabel(item.monthsLeft)}, needs +${item.restockNeeded}${item.isStatic ? ' <span class="dashboard-alerts__fsn" title="Not enough usage history. Uses the AMC entered in Inventory.">Static</span>' : ''}</li>`
     ).join('');
 
     if (remaining > 0) {
@@ -363,7 +341,7 @@ class DashboardUi {
             <line x1="12" y1="9" x2="12" y2="13"/>
             <line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
-          <span><strong>${lowStockItems.length}</strong> item${lowStockItems.length > 1 ? 's' : ''} need${lowStockItems.length === 1 ? 's' : ''} restocking</span>
+          <span><strong>${lowStockItems.length}</strong> item${lowStockItems.length > 1 ? 's' : ''} need${lowStockItems.length === 1 ? 's' : ''} restocking within ${windowLabel} (forecast)</span>
           ${document.querySelector('.sideBar__reports') ? '<a href="/reports" class="dashboard-alerts__view-link">View Full Report →</a>' : ''}
         </div>
         <ul class="dashboard-alerts__list">${itemsList}</ul>
@@ -396,7 +374,7 @@ class DashboardUi {
       (acc, item) => acc + (Number(item.monthlyDemand) || 0),
       0
     );
-    const procurementLeadTimeMonths = 3.5;
+    const procurementLeadTimeMonths = getLeadTimeMonths();
 
     let cumulativeDemand = 0;
     let subtotalTotalCost = 0;
@@ -417,7 +395,7 @@ class DashboardUi {
       const cumulativePercent = totalDemand === 0 ? 0 : cumulativeDemand / totalDemand;
       const fsn = this.getAutoFSN(cumulativePercent);
 
-      const leadTimeDemand = amc * 3.495065789473684;
+      const leadTimeDemand = amc * getLeadTimeMonths();
       const ltd = this.roundHalfDown(leadTimeDemand);
       const safetyStock = (amc + leadTimeDemand) * 0.1;
       const ss = this.roundHalfDown(safetyStock);
