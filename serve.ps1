@@ -74,6 +74,27 @@ Set-Location $Root
 Start-XamppMysql
 
 $Php = Resolve-PhpExe
+
+# With a certificate in conf\https (see scripts\make-https-cert.ps1), XAMPP's Apache serves
+# the app at https://<host>/ and redirects the old http://<host>:8000 address there.
+$XamppHttpd = 'C:\xampp\apache\bin\httpd.exe'
+$HttpsConf = Join-Path $Root 'conf\apache\httpd-https.conf'
+$HttpsDir = Join-Path $Root 'conf\https'
+if ((Test-Path (Join-Path $HttpsDir 'server.crt')) -and (Test-Path (Join-Path $HttpsDir 'server.key')) -and (Test-Path $XamppHttpd)) {
+    $env:NAWAD_APP_ROOT = $Root -replace '\\', '/'
+    $hostFile = Join-Path $HttpsDir 'host.txt'
+    $env:NAWAD_HOST = if (Test-Path $hostFile) { (Get-Content $hostFile -Raw).Trim() } else { 'localhost' }
+
+    & $XamppHttpd -t -f $HttpsConf
+    if ($LASTEXITCODE -ne 0) {
+        throw "Apache rejected $HttpsConf (see the message above)."
+    }
+
+    Write-Host "Starting app at https://$($env:NAWAD_HOST)/ (http://$($env:NAWAD_HOST):8000 redirects there) ..."
+    Write-Host 'Press Ctrl+C to stop.'
+    & $XamppHttpd -f $HttpsConf
+    return
+}
 $LaravelRouter = Join-Path $Root 'vendor\laravel\framework\src\Illuminate\Foundation\resources\server.php'
 if (-not (Test-Path $LaravelRouter)) {
     throw "Laravel server router not found at $LaravelRouter. Run composer install first."

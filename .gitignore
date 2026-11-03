@@ -29,3 +29,6 @@ yarn-error.log
 /database-backups/*.sql
 /storage/app/procurement-documents/*
 !/storage/app/procurement-documents/.gitkeep
+
+# HTTPS certificate and key made by scripts/make-https-cert.ps1 (per machine)
+/conf/https/
