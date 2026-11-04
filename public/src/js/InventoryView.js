@@ -29,8 +29,10 @@ let productDemandInput;
 // --------------------- SearchBar --------------------------------
 let searchBar;
 
-// Utilities and PA follows its monthly sheet: Balance, In, Out, cost and amount issued.
-const IS_UTILITIES = document.body?.dataset.inventory === "utilities-pa";
+const CURRENT_INVENTORY = document.body?.dataset.inventory || "";
+// Office Materials and Utilities and PA follow the office's monthly sheet:
+// Balance, In, Out, cost and amount issued.
+const USES_MONTHLY_SHEET = ["office-materials", "utilities-pa"].includes(CURRENT_INVENTORY);
 
 // `hint` is the plain-language meaning shown when hovering a column header or toggle.
 const STANDARD_COLUMNS = [
@@ -52,7 +54,7 @@ const STANDARD_COLUMNS = [
   { key: "trigger", label: "Trigger Point", short: "Trigger", hint: "Whether the item needs to be reordered now" },
 ];
 
-const UTILITIES_COLUMNS = [
+const MONTHLY_SHEET_COLUMNS = [
   STANDARD_COLUMNS[0],
   STANDARD_COLUMNS[1],
   STANDARD_COLUMNS[2],
@@ -64,10 +66,10 @@ const UTILITIES_COLUMNS = [
   { key: "stock", label: "Current Stock", short: "Stock", hint: "Quantity on hand right now (Balance + In − Out)" },
 ];
 
-const INVENTORY_COLUMNS = IS_UTILITIES ? UTILITIES_COLUMNS : STANDARD_COLUMNS;
+const INVENTORY_COLUMNS = USES_MONTHLY_SHEET ? MONTHLY_SHEET_COLUMNS : STANDARD_COLUMNS;
 
-const DEFAULT_VISIBLE_COLUMNS = IS_UTILITIES
-  ? UTILITIES_COLUMNS.map((col) => col.key)
+const DEFAULT_VISIBLE_COLUMNS = USES_MONTHLY_SHEET
+  ? MONTHLY_SHEET_COLUMNS.map((col) => col.key)
   : ["no", "item", "size", "stock", "amc", "fsn", "trigger"];
 
 class InventoryUi {
@@ -80,9 +82,9 @@ class InventoryUi {
     this.selectedTriggerFilter = "";
     this.columnWidths = {};
     this.columnWidthStorageKey = "inventoryColumnWidths";
-    // Utilities and PA has its own columns, so it remembers its own choice.
-    this.visibleColumnsStorageKey = IS_UTILITIES
-      ? "inventoryVisibleColumns.utilities-pa"
+    // Monthly-sheet inventories have their own columns, so each remembers its own choice.
+    this.visibleColumnsStorageKey = USES_MONTHLY_SHEET
+      ? `inventoryVisibleColumns.${CURRENT_INVENTORY}`
       : "inventoryVisibleColumns";
     this.visibleColumns = new Set(DEFAULT_VISIBLE_COLUMNS);
     this.filteredItems = [];
@@ -634,7 +636,7 @@ class InventoryUi {
         <p class="viewItemModal__code">Item No. ${this.formatItemCode(row.item.itemCode)}</p>
       </div>
       <div class="viewItemModal__grid">
-        ${IS_UTILITIES ? `
+        ${USES_MONTHLY_SHEET ? `
         <div class="viewItemModal__field"><span>Balance (Start of Month)</span><strong>${this.monthBalance(row.item)}</strong></div>
         <div class="viewItemModal__field"><span>In (This Month)</span><strong>${Number(row.item.monthIn) || 0}</strong></div>
         <div class="viewItemModal__field"><span>Out (This Month)</span><strong>${Number(row.item.monthOut) || 0}</strong></div>
