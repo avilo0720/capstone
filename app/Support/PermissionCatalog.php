@@ -27,6 +27,10 @@ class PermissionCatalog
             'label' => 'Office Materials',
             'abilities' => ['view'],
         ],
+        'utilities-pa' => [
+            'label' => 'Utilities and PA',
+            'abilities' => ['view'],
+        ],
         'forecast' => [
             'label' => 'Forecasting',
             'abilities' => ['view'],
@@ -65,6 +69,7 @@ class PermissionCatalog
     public const INVENTORY_DATASETS = [
         'stock-materials' => 'Stock Materials',
         'office-materials' => 'Office Materials',
+        'utilities-pa' => 'Utilities and PA',
     ];
 
     public static function inventoryDatasetSlugs(): array

@@ -40,6 +40,22 @@ class ShareUserData
             }
         }
 
+        // Sessions from before Utilities and PA existed: it follows Office Materials access,
+        // as the migration granted it.
+        if (is_array($user) && is_array($user['inventories'] ?? null)
+            && ($user['inventoryAccessVersion'] ?? 1) < 2
+        ) {
+            if (in_array('office-materials', $user['inventories'], true)
+                && !in_array('utilities-pa', $user['inventories'], true)
+            ) {
+                $user['inventories'][] = 'utilities-pa';
+                $user['pages'][] = 'utilities-pa';
+                $user['abilities'][] = 'utilities-pa.view';
+            }
+            $user['inventoryAccessVersion'] = 2;
+            $request->session()->put('user', $user);
+        }
+
         if (is_array($user)) {
             $pages = $user['pages'] ?? [];
             $abilities = $user['abilities'] ?? [];

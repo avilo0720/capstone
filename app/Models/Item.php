@@ -14,6 +14,7 @@ class Item extends Model
         'title',
         'size',
         'category',
+        'fundSource',
         'quantity',
         'price',
         'monthlyDemand',

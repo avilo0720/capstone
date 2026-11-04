@@ -10,6 +10,13 @@
         <p>Size/Unit</p>
         <input type="text" placeholder="Enter size or unit" class="itemSizeInput" />
       </div>
+      <div class="addProModal__form__inputs fundSourceField" hidden>
+        <p>Fund Source</p>
+        <select class="fundSourceInput" aria-label="Fund source">
+          <option value="Regular">Fund source: Regular</option>
+          <option value="Petty Cash">Fund source: Petty Cash</option>
+        </select>
+      </div>
       <div class="addProModal__form__inputs">
         <p>Quantity</p>
         <input type="number" placeholder="Enter product quantity" class="productQuantityInput" />

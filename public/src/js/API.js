@@ -113,6 +113,7 @@ class Storage {
           existed.title = data.title;
           existed.size = data.size;
           existed.category = data.category;
+          existed.fundSource = data.fundSource ?? null;
           existed.quantity = data.quantity;
           existed.price = data.price;
           existed.monthlyDemand = data.monthlyDemand || 0;

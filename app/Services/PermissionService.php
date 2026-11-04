@@ -84,6 +84,8 @@ class PermissionService
             'pages' => $resolved['pages'],
             'abilities' => $resolved['abilities'],
             'inventories' => $resolved['inventories'],
+            // 2 = built after Utilities and PA was added (see ShareUserData).
+            'inventoryAccessVersion' => 2,
             'canEdit' => $resolved['canEdit'],
             'canManageUsers' => $resolved['canManageUsers'],
             'canViewCalendarTable' => $resolved['canViewCalendarTable'],

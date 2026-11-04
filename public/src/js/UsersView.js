@@ -7,6 +7,7 @@ const DEFAULT_CATALOG = {
   inventory: { label: "Inventory", abilities: ["view", "edit"] },
   "stock-materials": { label: "Stock Materials", abilities: ["view"] },
   "office-materials": { label: "Office Materials", abilities: ["view"] },
+  "utilities-pa": { label: "Utilities and PA", abilities: ["view"] },
   forecast: { label: "Forecasting", abilities: ["view"] },
   procurement: { label: "Procurement", abilities: ["view", "add", "delete"] },
   issuance: { label: "Issuance", abilities: ["view", "edit", "review"] },
@@ -21,6 +22,7 @@ const PAGE_SHORT = {
   inventory: "Inv",
   "stock-materials": "Stock",
   "office-materials": "Office",
+  "utilities-pa": "Utilities",
   forecast: "Forecast",
   procurement: "Procure",
   issuance: "Issue",
@@ -31,7 +33,7 @@ const PAGE_SHORT = {
 };
 
 const CHILD_PAGES = {
-  inventory: ["stock-materials", "office-materials"],
+  inventory: ["stock-materials", "office-materials", "utilities-pa"],
 };
 
 const ABILITY_LABELS = {

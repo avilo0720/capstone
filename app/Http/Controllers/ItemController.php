@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Inventory;
 use App\Models\Item;
 use App\Services\ActivityLogger;
 use App\Support\ActivityChangeSet;
@@ -9,6 +10,7 @@ use App\Support\InventoryContext;
 use App\Support\RolePermissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ItemController extends Controller
 {
@@ -22,7 +24,40 @@ class ItemController extends Controller
         if (!$inventoryId) {
             return response()->json([]);
         }
-        return response()->json(Item::catalogForInventory($inventoryId));
+
+        $items = Item::catalogForInventory($inventoryId);
+        $movement = $this->monthMovement($items->pluck('id')->all());
+
+        return response()->json($items->map(function (Item $item) use ($movement) {
+            $row = $item->toArray();
+            $row['monthIn'] = (int) ($movement[$item->id]['add'] ?? 0);
+            $row['monthOut'] = (int) ($movement[$item->id]['use'] ?? 0);
+
+            return $row;
+        })->values());
+    }
+
+    /** Quantity received (add) and issued (use) per item in the current calendar month. */
+    private function monthMovement(array $itemIds): array
+    {
+        if (!$itemIds) {
+            return [];
+        }
+
+        $rows = DB::table('transactions')
+            ->whereIn('itemId', $itemIds)
+            ->where('transactionDate', '>=', now()->startOfMonth())
+            ->where('transactionDate', '<', now()->startOfMonth()->addMonth())
+            ->groupBy('itemId', 'action')
+            ->selectRaw('itemId, action, SUM(quantity) as total')
+            ->get();
+
+        $movement = [];
+        foreach ($rows as $row) {
+            $movement[$row->itemId][$row->action] = (int) $row->total;
+        }
+
+        return $movement;
     }
 
     public function store(Request $request): JsonResponse
@@ -39,6 +74,7 @@ class ItemController extends Controller
             'title' => ['required', 'string'],
             'size' => ['nullable', 'string'],
             'category' => ['nullable', 'string'],
+            'fundSource' => ['nullable', 'string', 'in:Regular,Petty Cash'],
             'quantity' => ['nullable', 'integer'],
             'price' => ['nullable', 'numeric'],
             'monthlyDemand' => ['nullable', 'integer'],
@@ -54,11 +90,13 @@ class ItemController extends Controller
 
         $title = trim((string) $data['title']);
         $size = trim((string) ($data['size'] ?? ''));
+        $fundSource = ($data['fundSource'] ?? '') !== '' ? $data['fundSource'] : null;
 
         $duplicate = Item::query()
             ->where('inventory_id', $inventoryId)
             ->whereRaw('LOWER(TRIM(title)) = ?', [mb_strtolower($title)])
             ->whereRaw('LOWER(TRIM(COALESCE(size, ""))) = ?', [mb_strtolower($size)])
+            ->whereRaw('COALESCE(fundSource, "") = ?', [$fundSource ?? ''])
             ->when($normalizedId > 0, fn ($q) => $q->where('id', '!=', $normalizedId))
             ->first();
 
@@ -75,6 +113,7 @@ class ItemController extends Controller
 
         $data['title'] = $title;
         $data['size'] = $size !== '' ? $size : null;
+        $data['fundSource'] = $fundSource;
 
         if ($normalizedId > 0) {
             $current = Item::find($normalizedId);
@@ -84,6 +123,7 @@ class ItemController extends Controller
                 'title' => $data['title'],
                 'size' => $data['size'] ?? null,
                 'category' => $data['category'] ?? null,
+                'fundSource' => $data['fundSource'],
                 'quantity' => $data['quantity'] ?? 0,
                 'price' => $data['price'] ?? 0,
                 'monthlyDemand' => $data['monthlyDemand'] ?? 0,
@@ -107,6 +147,7 @@ class ItemController extends Controller
                         'title' => $current?->title,
                         'size' => $current?->size,
                         'category' => $current?->category,
+                        'fundSource' => $current?->fundSource,
                         'quantity' => $current?->quantity,
                         'price' => $current?->price,
                         'monthlyDemand' => $current?->monthlyDemand,
@@ -136,7 +177,11 @@ class ItemController extends Controller
             }
         }
 
-        $prefix = ($request->session()->get('inventory_slug') === 'office-materials') ? 'OFF-' : 'ITEM-';
+        $prefix = match (Inventory::query()->whereKey($inventoryId)->value('slug')) {
+            'office-materials' => 'OFF-',
+            'utilities-pa' => 'UTL-',
+            default => 'ITEM-',
+        };
         $nextItemCode = $prefix.($maxItemCode + 1);
 
         $item = Item::create([
@@ -145,6 +190,7 @@ class ItemController extends Controller
             'title' => $data['title'],
             'size' => $data['size'] ?? null,
             'category' => $data['category'] ?? null,
+            'fundSource' => $data['fundSource'],
             'quantity' => $data['quantity'] ?? 0,
             'price' => $data['price'] ?? 0,
             'monthlyDemand' => $data['monthlyDemand'] ?? 0,
@@ -165,6 +211,7 @@ class ItemController extends Controller
                     'title' => $data['title'],
                     'size' => $data['size'] ?? null,
                     'category' => $data['category'] ?? null,
+                    'fundSource' => $data['fundSource'],
                     'quantity' => $data['quantity'] ?? 0,
                     'price' => $data['price'] ?? 0,
                     'monthlyDemand' => $data['monthlyDemand'] ?? 0,
@@ -205,6 +252,7 @@ class ItemController extends Controller
                     'title' => $item?->title,
                     'size' => $item?->size,
                     'category' => $item?->category,
+                    'fundSource' => $item?->fundSource,
                     'quantity' => $item?->quantity,
                     'price' => $item?->price,
                     'monthlyDemand' => $item?->monthlyDemand,
@@ -222,6 +270,7 @@ class ItemController extends Controller
             'title' => 'Name',
             'size' => 'Size/Unit',
             'category' => 'Category',
+            'fundSource' => 'Fund source',
             'quantity' => 'Quantity',
             'price' => 'Unit cost',
             'monthlyDemand' => 'Monthly demand',

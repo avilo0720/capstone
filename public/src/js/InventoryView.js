@@ -25,16 +25,27 @@ let itemSizeInput;
 let productQuantityInput;
 let productPriceInput;
 let productDemandInput;
+let fundSourceField;
+let fundSourceInput;
 
 // --------------------- SearchBar --------------------------------
 let searchBar;
 
+const CURRENT_INVENTORY = document.body?.dataset.inventory || "";
+// Utilities and PA tracks this month's movement and where each item is bought from.
+const IS_UTILITIES = CURRENT_INVENTORY === "utilities-pa";
+
 // `hint` is the plain-language meaning shown when hovering a column header or toggle.
-const INVENTORY_COLUMNS = [
+// `only` limits a column to one inventory.
+const ALL_INVENTORY_COLUMNS = [
   { key: "no", label: "No", short: "No", required: true, hint: "Item number" },
   { key: "item", label: "Item Description", short: "Item", required: true, hint: "Item name" },
   { key: "size", label: "Size/Unit", short: "Size/Unit", hint: "Size or unit of the item" },
   { key: "stock", label: "Current Stock", short: "Stock", hint: "Quantity on hand right now" },
+  { key: "monthIn", label: "In (This Month)", short: "In", hint: "Quantity received this month", only: "utilities-pa" },
+  { key: "monthOut", label: "Out (This Month)", short: "Out", hint: "Quantity issued this month", only: "utilities-pa" },
+  { key: "amountIssued", label: "Amount Issued", short: "Issued ₱", hint: "Cost of what was issued this month (Out × unit cost)", only: "utilities-pa" },
+  { key: "fundSource", label: "Fund Source", short: "Fund", hint: "Bought through a regular purchase or petty cash", only: "utilities-pa" },
   { key: "amc", label: "AMC", short: "AMC", hint: "Average Monthly Consumption: how many are used in a typical month" },
   { key: "cumulative", label: "Cumulative", short: "Cumul", hint: "Running total of AMC, used to sort items into FSN groups" },
   { key: "percent", label: "%", short: "%", hint: "Running share of total monthly use, used to sort items into FSN groups" },
@@ -49,7 +60,13 @@ const INVENTORY_COLUMNS = [
   { key: "trigger", label: "Trigger Point", short: "Trigger", hint: "Whether the item needs to be reordered now" },
 ];
 
-const DEFAULT_VISIBLE_COLUMNS = ["no", "item", "size", "stock", "amc", "fsn", "trigger"];
+const INVENTORY_COLUMNS = ALL_INVENTORY_COLUMNS.filter(
+  (col) => !col.only || col.only === CURRENT_INVENTORY
+);
+
+const DEFAULT_VISIBLE_COLUMNS = IS_UTILITIES
+  ? ["no", "item", "size", "stock", "monthIn", "monthOut", "amountIssued", "fundSource", "amc", "trigger"]
+  : ["no", "item", "size", "stock", "amc", "fsn", "trigger"];
 
 class InventoryUi {
   constructor() {
@@ -61,7 +78,10 @@ class InventoryUi {
     this.selectedTriggerFilter = "";
     this.columnWidths = {};
     this.columnWidthStorageKey = "inventoryColumnWidths";
-    this.visibleColumnsStorageKey = "inventoryVisibleColumns";
+    // Utilities and PA has its own columns, so it remembers its own choice.
+    this.visibleColumnsStorageKey = IS_UTILITIES
+      ? "inventoryVisibleColumns.utilities-pa"
+      : "inventoryVisibleColumns";
     this.visibleColumns = new Set(DEFAULT_VISIBLE_COLUMNS);
     this.filteredItems = [];
     this.pagination = new Pagination({
@@ -87,6 +107,9 @@ class InventoryUi {
     productQuantityInput = document.querySelector(".productQuantityInput");
     productPriceInput = document.querySelector(".productPriceInput");
     productDemandInput = document.querySelector(".productDemandInput");
+    fundSourceField = document.querySelector(".fundSourceField");
+    fundSourceInput = document.querySelector(".fundSourceInput");
+    if (fundSourceField) fundSourceField.hidden = !IS_UTILITIES;
     searchBar = document.querySelector(".searchBarInput");
     // Ensure table starts in fit-to-screen mode.
     localStorage.removeItem(this.columnWidthStorageKey);
@@ -481,6 +504,14 @@ class InventoryUi {
         return row.item.size || "---";
       case "stock":
         return String(row.currentStock);
+      case "monthIn":
+        return String(Number(row.item.monthIn) || 0);
+      case "monthOut":
+        return String(Number(row.item.monthOut) || 0);
+      case "amountIssued":
+        return `₱${this.amountIssued(row.item).toFixed(2)}`;
+      case "fundSource":
+        return row.item.fundSource || "---";
       case "amc":
         return String(row.amc);
       case "cumulative":
@@ -508,6 +539,10 @@ class InventoryUi {
       default:
         return "";
     }
+  }
+
+  amountIssued(item) {
+    return (Number(item.monthOut) || 0) * (Number(item.price) || 0);
   }
 
   getVisibleColumnDefs() {
@@ -596,6 +631,11 @@ class InventoryUi {
       </div>
       <div class="viewItemModal__grid">
         <div class="viewItemModal__field"><span>Current Stock</span><strong>${row.currentStock}</strong></div>
+        ${IS_UTILITIES ? `
+        <div class="viewItemModal__field"><span>In (This Month)</span><strong>${Number(row.item.monthIn) || 0}</strong></div>
+        <div class="viewItemModal__field"><span>Out (This Month)</span><strong>${Number(row.item.monthOut) || 0}</strong></div>
+        <div class="viewItemModal__field"><span>Amount Issued (This Month)</span><strong>₱${this.amountIssued(row.item).toFixed(2)}</strong></div>
+        <div class="viewItemModal__field"><span>Fund Source</span><strong>${row.item.fundSource || "---"}</strong></div>` : ""}
         <div class="viewItemModal__field"><span>Average Monthly Consumption</span><strong>${row.amc}</strong></div>
         <div class="viewItemModal__field"><span>Cumulative Demand</span><strong>${row.cumulativeDemand}</strong></div>
         <div class="viewItemModal__field"><span>Cumulative %</span><strong>${(row.cumulativePercent * 100).toFixed(2)}%</strong></div>
@@ -635,18 +675,23 @@ class InventoryUi {
 
   getDefaultColumnWidths(columnCount) {
     const defaults = {
-      0: 72,   // No
-      1: 260,  // Item Description
-      2: 90,   // Size
-      3: 120,  // Current Stock
-      4: 90,   // AMC
-      5: 72,   // FSN
-      6: 130,  // Trigger Point
-      7: 140,  // Actions / Stock
+      no: 72,
+      item: 260,
+      size: 90,
+      stock: 120,
+      monthIn: 100,
+      monthOut: 100,
+      amountIssued: 120,
+      fundSource: 110,
+      amc: 90,
+      fsn: 72,
+      trigger: 130,
     };
+    const keys = this.getVisibleColumnDefs().map((col) => col.key);
     const widths = {};
     for (let i = 0; i < columnCount; i += 1) {
-      widths[i] = defaults[i] || 110;
+      // Past the data columns is the Actions column.
+      widths[i] = i < keys.length ? defaults[keys[i]] || 110 : 140;
     }
     return widths;
   }
@@ -902,6 +947,7 @@ class InventoryUi {
     ].forEach((input) => {
       if (input) input.value = "";
     });
+    if (fundSourceInput) fundSourceInput.value = "Regular";
   }
 
   async addProductModalLogic() {
@@ -944,6 +990,7 @@ class InventoryUi {
         title: itemName,
         size: itemSizeInput.value.trim(),
         category: "",
+        fundSource: IS_UTILITIES ? (fundSourceInput?.value || "Regular") : null,
         quantity: Number(productQuantityInput.value),
         price: Number(productPriceInput.value),
         monthlyDemand: Number(productDemandInput.value),
@@ -1004,6 +1051,7 @@ class InventoryUi {
     productQuantityInput.value = selectedItem.quantity;
     productPriceInput.value = selectedItem.price;
     productDemandInput.value = selectedItem.monthlyDemand || 0;
+    if (fundSourceInput) fundSourceInput.value = selectedItem.fundSource || "Regular";
   }
 
   seachLogic(inputValue) {
