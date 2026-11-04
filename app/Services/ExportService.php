@@ -520,10 +520,10 @@ class ExportService
         return match ($header) {
             'Item Description' => 'item-col',
             'Size', 'Size/Unit' => 'size-col',
-            'Unit Cost', 'Total Cost' => 'cost-col',
+            'Unit Cost', 'Total Cost', 'Cost per Item (Net of VAT)', 'Total Amount Issued (Net of VAT)' => 'cost-col',
             'Trigger Point' => 'trigger-col',
             'No', 'AMC', 'FSN', 'LTD', 'SS', 'ROP', 'MSL', '%', 'Current Stock',
-            'Cumul', 'Cumulative', 'Lead Time (Months)' => 'num',
+            'Cumul', 'Cumulative', 'Lead Time (Months)', 'Balance', 'In', 'Out' => 'num',
             default => '',
         };
     }
@@ -546,10 +546,10 @@ class ExportService
         return match ($header) {
             'Item Description' => 'item-col',
             'Size', 'Size/Unit' => 'size-col nowrap',
-            'Unit Cost', 'Total Cost' => 'cost-col',
+            'Unit Cost', 'Total Cost', 'Cost per Item (Net of VAT)', 'Total Amount Issued (Net of VAT)' => 'cost-col',
             'Trigger Point' => 'trigger-col nowrap',
             'FSN', 'No', 'AMC', 'LTD', 'SS', 'ROP', 'MSL', '%', 'Current Stock',
-            'Cumulative', 'Lead Time (Months)' => 'num',
+            'Cumulative', 'Lead Time (Months)', 'Balance', 'In', 'Out' => 'num',
             default => '',
         };
     }

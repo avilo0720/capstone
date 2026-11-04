@@ -29,8 +29,11 @@ let productDemandInput;
 // --------------------- SearchBar --------------------------------
 let searchBar;
 
+// Utilities and PA follows its monthly sheet: Balance, In, Out, cost and amount issued.
+const IS_UTILITIES = document.body?.dataset.inventory === "utilities-pa";
+
 // `hint` is the plain-language meaning shown when hovering a column header or toggle.
-const INVENTORY_COLUMNS = [
+const STANDARD_COLUMNS = [
   { key: "no", label: "No", short: "No", required: true, hint: "Item number" },
   { key: "item", label: "Item Description", short: "Item", required: true, hint: "Item name" },
   { key: "size", label: "Size/Unit", short: "Size/Unit", hint: "Size or unit of the item" },
@@ -49,7 +52,23 @@ const INVENTORY_COLUMNS = [
   { key: "trigger", label: "Trigger Point", short: "Trigger", hint: "Whether the item needs to be reordered now" },
 ];
 
-const DEFAULT_VISIBLE_COLUMNS = ["no", "item", "size", "stock", "amc", "fsn", "trigger"];
+const UTILITIES_COLUMNS = [
+  STANDARD_COLUMNS[0],
+  STANDARD_COLUMNS[1],
+  STANDARD_COLUMNS[2],
+  { key: "balance", label: "Balance", short: "Balance", hint: "Stock at the start of this month" },
+  { key: "monthIn", label: "In", short: "In", hint: "Quantity received this month" },
+  { key: "monthOut", label: "Out", short: "Out", hint: "Quantity issued this month" },
+  { key: "unitCost", label: "Cost per Item (Net of VAT)", short: "Cost", hint: "Price of one unit, net of VAT" },
+  { key: "amountIssued", label: "Total Amount Issued (Net of VAT)", short: "Issued", hint: "Out × cost per item" },
+  { key: "stock", label: "Current Stock", short: "Stock", hint: "Quantity on hand right now (Balance + In − Out)" },
+];
+
+const INVENTORY_COLUMNS = IS_UTILITIES ? UTILITIES_COLUMNS : STANDARD_COLUMNS;
+
+const DEFAULT_VISIBLE_COLUMNS = IS_UTILITIES
+  ? UTILITIES_COLUMNS.map((col) => col.key)
+  : ["no", "item", "size", "stock", "amc", "fsn", "trigger"];
 
 class InventoryUi {
   constructor() {
@@ -61,7 +80,10 @@ class InventoryUi {
     this.selectedTriggerFilter = "";
     this.columnWidths = {};
     this.columnWidthStorageKey = "inventoryColumnWidths";
-    this.visibleColumnsStorageKey = "inventoryVisibleColumns";
+    // Utilities and PA has its own columns, so it remembers its own choice.
+    this.visibleColumnsStorageKey = IS_UTILITIES
+      ? "inventoryVisibleColumns.utilities-pa"
+      : "inventoryVisibleColumns";
     this.visibleColumns = new Set(DEFAULT_VISIBLE_COLUMNS);
     this.filteredItems = [];
     this.pagination = new Pagination({
@@ -481,6 +503,14 @@ class InventoryUi {
         return row.item.size || "---";
       case "stock":
         return String(row.currentStock);
+      case "balance":
+        return String(this.monthBalance(row.item));
+      case "monthIn":
+        return String(Number(row.item.monthIn) || 0);
+      case "monthOut":
+        return String(Number(row.item.monthOut) || 0);
+      case "amountIssued":
+        return `₱${this.amountIssued(row.item).toFixed(2)}`;
       case "amc":
         return String(row.amc);
       case "cumulative":
@@ -508,6 +538,15 @@ class InventoryUi {
       default:
         return "";
     }
+  }
+
+  /** Stock at the start of the month: what is on hand now, before this month's In and Out. */
+  monthBalance(item) {
+    return (Number(item.quantity) || 0) - (Number(item.monthIn) || 0) + (Number(item.monthOut) || 0);
+  }
+
+  amountIssued(item) {
+    return (Number(item.monthOut) || 0) * (Number(item.price) || 0);
   }
 
   getVisibleColumnDefs() {
@@ -595,6 +634,11 @@ class InventoryUi {
         <p class="viewItemModal__code">Item No. ${this.formatItemCode(row.item.itemCode)}</p>
       </div>
       <div class="viewItemModal__grid">
+        ${IS_UTILITIES ? `
+        <div class="viewItemModal__field"><span>Balance (Start of Month)</span><strong>${this.monthBalance(row.item)}</strong></div>
+        <div class="viewItemModal__field"><span>In (This Month)</span><strong>${Number(row.item.monthIn) || 0}</strong></div>
+        <div class="viewItemModal__field"><span>Out (This Month)</span><strong>${Number(row.item.monthOut) || 0}</strong></div>
+        <div class="viewItemModal__field"><span>Total Amount Issued (Net of VAT)</span><strong>₱${this.amountIssued(row.item).toFixed(2)}</strong></div>` : ""}
         <div class="viewItemModal__field"><span>Current Stock</span><strong>${row.currentStock}</strong></div>
         <div class="viewItemModal__field"><span>Average Monthly Consumption</span><strong>${row.amc}</strong></div>
         <div class="viewItemModal__field"><span>Cumulative Demand</span><strong>${row.cumulativeDemand}</strong></div>
@@ -639,6 +683,11 @@ class InventoryUi {
       item: 260,
       size: 90,
       stock: 120,
+      balance: 100,
+      monthIn: 80,
+      monthOut: 80,
+      unitCost: 140,
+      amountIssued: 170,
       amc: 90,
       fsn: 72,
       trigger: 130,

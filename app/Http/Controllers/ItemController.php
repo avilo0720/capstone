@@ -10,6 +10,7 @@ use App\Support\InventoryContext;
 use App\Support\RolePermissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ItemController extends Controller
 {
@@ -23,7 +24,40 @@ class ItemController extends Controller
         if (!$inventoryId) {
             return response()->json([]);
         }
-        return response()->json(Item::catalogForInventory($inventoryId));
+
+        $items = Item::catalogForInventory($inventoryId);
+        $movement = $this->monthMovement($items->pluck('id')->all());
+
+        return response()->json($items->map(function (Item $item) use ($movement) {
+            $row = $item->toArray();
+            $row['monthIn'] = (int) ($movement[$item->id]['add'] ?? 0);
+            $row['monthOut'] = (int) ($movement[$item->id]['use'] ?? 0);
+
+            return $row;
+        })->values());
+    }
+
+    /** Quantity received (add) and issued (use) per item in the current calendar month. */
+    private function monthMovement(array $itemIds): array
+    {
+        if (!$itemIds) {
+            return [];
+        }
+
+        $rows = DB::table('transactions')
+            ->whereIn('itemId', $itemIds)
+            ->where('transactionDate', '>=', now()->startOfMonth())
+            ->where('transactionDate', '<', now()->startOfMonth()->addMonth())
+            ->groupBy('itemId', 'action')
+            ->selectRaw('itemId, action, SUM(quantity) as total')
+            ->get();
+
+        $movement = [];
+        foreach ($rows as $row) {
+            $movement[$row->itemId][$row->action] = (int) $row->total;
+        }
+
+        return $movement;
     }
 
     public function store(Request $request): JsonResponse
