@@ -7,7 +7,7 @@ import { notifyAlert } from "./ConfirmDialog.js";
 import { bindBackdropClose } from "./OverlayDismiss.js";
 import { barChartGutters, contentWidth, fitText } from "./ChartLayout.js";
 // Same specifiers as app.js so the Reports tab shares one instance of each page module.
-import InventoryView from "./InventoryView.js?v=107";
+import InventoryView from "./InventoryView.js?v=108";
 import ForecastingView from "./ForecastingView.js?v=104";
 import ProcurementView from "./ProcurementView.js?v=104";
 import CalendarView from "./CalendarView.js?v=102";

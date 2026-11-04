@@ -1,7 +1,7 @@
 import DashboardUi from "./Dashboard.js?v=103";
-import InventoryUi from "./InventoryView.js?v=107";
+import InventoryUi from "./InventoryView.js?v=108";
 import ForecastingUi from "./ForecastingView.js?v=104";
-import ReportsView from "./ReportsView.js?v=112";
+import ReportsView from "./ReportsView.js?v=113";
 import CalendarView from "./CalendarView.js?v=102";
 import UsersView from "./UsersView.js";
 import ActivityLogsView from "./ActivityLogsView.js?v=101";
@@ -61,7 +61,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     app.startSessionMonitor();
     app.initNotifications();
-    import("./Realtime.js?v=8")
+    import("./Realtime.js?v=9")
       .then(({ startRealtime }) => {
         startRealtime({
           onNotifications: () => app.fetchAndRenderNotifications(),
