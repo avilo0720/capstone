@@ -519,7 +519,7 @@ class ExportService
 
         return match ($header) {
             'Item Description' => 'item-col',
-            'Size' => 'size-col',
+            'Size', 'Size/Unit' => 'size-col',
             'Unit Cost', 'Total Cost' => 'cost-col',
             'Trigger Point' => 'trigger-col',
             'No', 'AMC', 'FSN', 'LTD', 'SS', 'ROP', 'MSL', '%', 'Current Stock',
@@ -545,7 +545,7 @@ class ExportService
 
         return match ($header) {
             'Item Description' => 'item-col',
-            'Size' => 'size-col nowrap',
+            'Size', 'Size/Unit' => 'size-col nowrap',
             'Unit Cost', 'Total Cost' => 'cost-col',
             'Trigger Point' => 'trigger-col nowrap',
             'FSN', 'No', 'AMC', 'LTD', 'SS', 'ROP', 'MSL', '%', 'Current Stock',

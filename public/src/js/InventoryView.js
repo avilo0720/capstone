@@ -33,7 +33,7 @@ let searchBar;
 const INVENTORY_COLUMNS = [
   { key: "no", label: "No", short: "No", required: true, hint: "Item number" },
   { key: "item", label: "Item Description", short: "Item", required: true, hint: "Item name" },
-  { key: "size", label: "Size", short: "Size", hint: "Size or unit of the item" },
+  { key: "size", label: "Size/Unit", short: "Size/Unit", hint: "Size or unit of the item" },
   { key: "stock", label: "Current Stock", short: "Stock", hint: "Quantity on hand right now" },
   { key: "amc", label: "AMC", short: "AMC", hint: "Average Monthly Consumption: how many are used in a typical month" },
   { key: "cumulative", label: "Cumulative", short: "Cumul", hint: "Running total of AMC, used to sort items into FSN groups" },

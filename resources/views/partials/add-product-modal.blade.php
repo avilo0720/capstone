@@ -7,8 +7,8 @@
         <input type="text" placeholder="Enter item name" class="productNameInput" />
       </div>
       <div class="addProModal__form__inputs">
-        <p>Size</p>
-        <input type="text" placeholder="Enter size" class="itemSizeInput" />
+        <p>Size/Unit</p>
+        <input type="text" placeholder="Enter size or unit" class="itemSizeInput" />
       </div>
       <div class="addProModal__form__inputs">
         <p>Quantity</p>

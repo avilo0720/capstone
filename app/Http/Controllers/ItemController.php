@@ -220,7 +220,7 @@ class ItemController extends Controller
         return [
             'itemCode' => 'Item code',
             'title' => 'Name',
-            'size' => 'Size',
+            'size' => 'Size/Unit',
             'category' => 'Category',
             'quantity' => 'Quantity',
             'price' => 'Unit cost',
