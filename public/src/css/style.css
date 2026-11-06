@@ -5278,6 +5278,25 @@ svg use {
   min-width: 8.5rem;
 }
 
+/* The page has a fixed height: the month scrolls inside it so the footer stays visible. */
+.calendar-page .calendar-grid-wrapper,
+.calendar-page .calendar-table-wrapper {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+}
+
+.calendar-page .calendar-footer {
+  flex: 0 0 auto;
+}
+
+.calendar-page .calendar-weekdays {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
 .calendar-day__top {
   display: flex;
   align-items: center;
