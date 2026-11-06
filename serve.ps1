@@ -90,6 +90,14 @@ if ((Test-Path (Join-Path $HttpsDir 'server.crt')) -and (Test-Path (Join-Path $H
         throw "Apache rejected $HttpsConf (see the message above)."
     }
 
+    # Apache runs PHP in threads, and reading .env on every request can collide between
+    # them (requests then fail with "No application encryption key"). Cached settings are
+    # read once here, so restart this script after changing .env.
+    & $Php artisan config:cache
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Could not cache the app settings (see the message above).'
+    }
+
     Write-Host "Starting app at https://$($env:NAWAD_HOST)/ (http://$($env:NAWAD_HOST):8000 redirects there) ..."
     Write-Host 'Press Ctrl+C to stop.'
     & $XamppHttpd -f $HttpsConf
