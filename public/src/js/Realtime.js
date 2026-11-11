@@ -2,9 +2,9 @@
 import Storage from "./API.js";
 import { refreshLeadTime } from "./Settings.js";
 import DashboardUi from "./Dashboard.js?v=104";
-import InventoryUi from "./InventoryView.js?v=111";
+import InventoryUi from "./InventoryView.js?v=112";
 import ForecastingUi from "./ForecastingView.js?v=105";
-import ReportsView from "./ReportsView.js?v=117";
+import ReportsView from "./ReportsView.js?v=118";
 import CalendarView from "./CalendarView.js?v=103";
 import UsersView from "./UsersView.js?v=2";
 import ActivityLogsView from "./ActivityLogsView.js?v=101";

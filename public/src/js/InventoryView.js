@@ -49,7 +49,7 @@ const STANDARD_COLUMNS = [
   { key: "ss", label: "SS", short: "SS", hint: "Safety Stock: extra quantity kept for unexpected use or late deliveries" },
   { key: "rop", label: "ROP", short: "ROP", hint: "Reorder Point: order again when stock drops to this level" },
   { key: "msl", label: "MSL", short: "MSL", hint: "Minimum Stock Level: the lowest quantity that should be kept" },
-  { key: "unitCost", label: "Unit Cost", short: "Unit", hint: "Price of one unit" },
+  { key: "unitCost", label: "Unit Cost", short: "Cost", hint: "Price of one unit" },
   { key: "totalCost", label: "Total Cost", short: "Total", hint: "Current stock × unit cost" },
   { key: "trigger", label: "Trigger Point", short: "Trigger", hint: "Whether the item needs to be reordered now" },
 ];
@@ -346,6 +346,8 @@ class InventoryUi {
   }
 
   renderTable() {
+    // The download dialog can be opened from the Reports page, where there is no inventory table.
+    if (!this.productSectionHTMl) return;
     this.updateDom(this.filteredItems);
   }
 
@@ -843,14 +845,58 @@ class InventoryUi {
       notifyAlert("There are no items in this inventory to export.");
       return;
     }
-    this.exportVisibleTable(() => ({
-      headers: INVENTORY_COLUMNS.map((col) => col.label),
-      rows: rows.map((row) => INVENTORY_COLUMNS.map((col) => this.getColumnValue(row, col.key))),
-    }));
+    // Starts with every column; choices here don't change the Inventory page's saved columns.
+    const chosen = new Set(INVENTORY_COLUMNS.map((col) => col.key));
+    const chosenDefs = () => INVENTORY_COLUMNS.filter((col) => chosen.has(col.key));
+    const setChosen = (keys) => {
+      chosen.clear();
+      keys.forEach((key) => chosen.add(key));
+      INVENTORY_COLUMNS.forEach((col) => col.required && chosen.add(col.key));
+    };
+
+    this.exportVisibleTable(
+      () => ({
+        headers: chosenDefs().map((col) => col.label),
+        rows: rows.map((row) => chosenDefs().map((col) => this.getColumnValue(row, col.key))),
+      }),
+      {
+        defs: INVENTORY_COLUMNS,
+        getVisible: () => [...chosen],
+        onToggle: (key) => {
+          const col = INVENTORY_COLUMNS.find((c) => c.key === key);
+          if (!col || col.required) return;
+          if (chosen.has(key)) chosen.delete(key);
+          else chosen.add(key);
+        },
+        onSetDefault: () => setChosen(DEFAULT_VISIBLE_COLUMNS),
+        onSetAll: () => setChosen(INVENTORY_COLUMNS.map((col) => col.key)),
+      }
+    );
   }
 
-  exportVisibleTable(getTableData = () => this.getVisibleTableData()) {
-    if (!this.getVisibleColumnDefs().length) {
+  /** Column chips in the download dialog for the Inventory page: they change the page's columns too. */
+  pageColumnApi() {
+    return {
+      defs: INVENTORY_COLUMNS,
+      getVisible: () => [...this.visibleColumns],
+      onToggle: (key) => {
+        this.toggleColumn(key);
+        this.applyFilterUI();
+        this.renderTable();
+      },
+      onSetDefault: () => {
+        this.setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
+        this.renderTable();
+      },
+      onSetAll: () => {
+        this.setVisibleColumns(INVENTORY_COLUMNS.map((c) => c.key));
+        this.renderTable();
+      },
+    };
+  }
+
+  exportVisibleTable(getTableData = () => this.getVisibleTableData(), columns = this.pageColumnApi()) {
+    if (!getTableData().headers.length) {
       notifyAlert("Nothing to export.");
       return;
     }
@@ -909,23 +955,7 @@ class InventoryUi {
           if (!res.ok) throw new Error("Preview failed");
           return res.blob();
         },
-        columns: {
-          defs: INVENTORY_COLUMNS,
-          getVisible: () => [...this.visibleColumns],
-          onToggle: (key) => {
-            this.toggleColumn(key);
-            this.applyFilterUI();
-            this.renderTable();
-          },
-          onSetDefault: () => {
-            this.setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
-            this.renderTable();
-          },
-          onSetAll: () => {
-            this.setVisibleColumns(INVENTORY_COLUMNS.map((c) => c.key));
-            this.renderTable();
-          },
-        },
+        columns,
       }
     );
   }
