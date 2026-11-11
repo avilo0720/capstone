@@ -10,7 +10,7 @@ import { barChartGutters, contentWidth, fitText } from "./ChartLayout.js";
 import InventoryView from "./InventoryView.js?v=111";
 import ForecastingView from "./ForecastingView.js?v=105";
 import ProcurementView from "./ProcurementView.js?v=104";
-import CalendarView from "./CalendarView.js?v=102";
+import CalendarView from "./CalendarView.js?v=103";
 
 class ReportsView {
   constructor() {

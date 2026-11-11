@@ -20,6 +20,8 @@ class CalendarView {
     this.currentMonth = new Date().getMonth(); // 0-indexed
     this.currentYear = new Date().getFullYear();
     this.transactions = [];
+    // Item id -> stock at the end of the shown month (see TransactionController::monthEndStock).
+    this.monthEndStock = {};
     this.notes = [];
     this.dayTransactions = [];
     this.dayNotes = [];
@@ -388,17 +390,20 @@ class CalendarView {
 
   async loadMonth() {
     try {
-      const [txRes, notesRes] = await Promise.all([
+      const [txRes, notesRes, stockRes] = await Promise.all([
         fetch(`/api/transactions?month=${this.currentMonth + 1}&year=${this.currentYear}`),
         fetch(`/api/calendar-notes?month=${this.currentMonth + 1}&year=${this.currentYear}`),
+        fetch(`/api/transactions/month-end-stock?month=${this.currentMonth + 1}&year=${this.currentYear}`),
       ]);
 
       this.transactions = txRes.ok ? await txRes.json() : [];
       this.notes = notesRes.ok ? await notesRes.json() : [];
+      this.monthEndStock = stockRes.ok ? await stockRes.json() : {};
     } catch (e) {
       console.error("Failed to fetch calendar data:", e);
       this.transactions = [];
       this.notes = [];
+      this.monthEndStock = {};
     }
     this.renderViews();
 
@@ -613,6 +618,7 @@ class CalendarView {
         <th class="calendar-table__item-col">Item</th>
         ${dayHeaders.join("")}
         <th class="calendar-table__total-col">Total</th>
+        <th class="calendar-table__stock-col" title="Stock on hand at the end of this month (today, for the current month)">End Stock</th>
       </tr>`;
 
     const hint = document.getElementById("calHideEmptyHint");
@@ -628,7 +634,7 @@ class CalendarView {
         : "No items in this inventory";
       this.tableBody.innerHTML = `
         <tr>
-          <td class="calendar-table__empty-col" colspan="${days.length + 2}">${message}</td>
+          <td class="calendar-table__empty-col" colspan="${days.length + 3}">${message}</td>
         </tr>`;
       if (this.tableFoot) this.tableFoot.innerHTML = "";
       return;
@@ -655,6 +661,7 @@ class CalendarView {
           </td>
           ${dayCells.join("")}
           <td class="calendar-table__total-col">${this.qtyCell(rowTotal.added, rowTotal.used)}</td>
+          <td class="calendar-table__stock-col">${this.endStockOf(item.id) ?? "—"}</td>
         </tr>`;
     }).join("");
 
@@ -667,6 +674,7 @@ class CalendarView {
             dayTotals.reduce((s, q) => s + q.added, 0),
             dayTotals.reduce((s, q) => s + q.used, 0)
           )}</td>
+          <td class="calendar-table__stock-col">${this.sumEndStock(items)}</td>
         </tr>`;
     }
   }
@@ -721,6 +729,15 @@ class CalendarView {
     return cells;
   }
 
+  endStockOf(itemId, stock = this.monthEndStock) {
+    const value = stock?.[itemId];
+    return value === undefined ? null : Number(value);
+  }
+
+  sumEndStock(items, stock = this.monthEndStock) {
+    return items.reduce((sum, item) => sum + (this.endStockOf(item.id, stock) ?? 0), 0);
+  }
+
   qtyCell(added, used) {
     if (!added && !used) return `<span class="calendar-table__empty">·</span>`;
     return `<div class="calendar-table__qty">
@@ -748,9 +765,10 @@ class CalendarView {
   buildMonthlyReportTable(options = {}) {
     const year = options.year ?? this.currentYear;
     const month = options.month ?? this.currentMonth;
+    const stock = options.stock ?? this.monthEndStock;
     const { items, days, cells, rowTotals, dayTotals } = this.buildMonthMatrix({ ...options, year, month });
     const inventoryName = document.querySelector(".inventory-context-name")?.textContent?.trim() || "";
-    const headers = ["Item", ...days.map(String), "Added", "Used"];
+    const headers = ["Item", ...days.map(String), "Added", "Used", "End Stock"];
     let monthAdded = 0;
     let monthUsed = 0;
 
@@ -765,6 +783,7 @@ class CalendarView {
       monthUsed += used;
       row.push(added ? `+${added}` : "0");
       row.push(used ? `-${used}` : "0");
+      row.push(String(this.endStockOf(item.id, stock) ?? ""));
       return row;
     });
 
@@ -775,6 +794,7 @@ class CalendarView {
       });
       totalRow.push(monthAdded ? `+${monthAdded}` : "0");
       totalRow.push(monthUsed ? `-${monthUsed}` : "0");
+      totalRow.push(String(this.sumEndStock(items, stock)));
       rows.push(totalRow);
     }
 
@@ -789,10 +809,14 @@ class CalendarView {
   /** Used by the Reports tab: loads one month's transactions and opens the download dialog. */
   async exportMonthForReports(year, month, hideEmpty = this.hideEmpty) {
     try {
-      const res = await fetch(`/api/transactions?month=${month + 1}&year=${year}`);
+      const [res, stockRes] = await Promise.all([
+        fetch(`/api/transactions?month=${month + 1}&year=${year}`),
+        fetch(`/api/transactions/month-end-stock?month=${month + 1}&year=${year}`),
+      ]);
       if (!res.ok) throw new Error("Could not load transactions for that month.");
       const transactions = await res.json();
-      return this.downloadMonthlyReport(this.buildMonthlyReportTable({ transactions, year, month, hideEmpty }));
+      const stock = stockRes.ok ? await stockRes.json() : {};
+      return this.downloadMonthlyReport(this.buildMonthlyReportTable({ transactions, stock, year, month, hideEmpty }));
     } catch (err) {
       notifyAlert(err.message || "Could not load transactions for that month.");
       return false;

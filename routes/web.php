@@ -73,6 +73,7 @@ Route::middleware('auth.custom')->prefix('api')->group(function () {
     Route::post('/stock', [StockController::class, 'store'])->middleware(['page:inventory', 'ability:inventory.edit']);
 
     Route::get('/transactions', [TransactionController::class, 'index'])->middleware('page:calendar');
+    Route::get('/transactions/month-end-stock', [TransactionController::class, 'monthEndStock'])->middleware('page:calendar');
     Route::get('/calendar-notes/options', [CalendarNoteController::class, 'options'])->middleware('page:calendar');
     Route::get('/calendar-notes', [CalendarNoteController::class, 'index'])->middleware('page:calendar');
     Route::post('/calendar-notes', [CalendarNoteController::class, 'store'])->middleware('page:calendar');

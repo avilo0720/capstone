@@ -5117,6 +5117,28 @@ svg use {
   z-index: 5;
 }
 
+/* End Stock pins to the right edge, with Total pinned just inside it. */
+.calendar-table__stock-col {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  width: 5.25rem;
+  min-width: 5.25rem;
+  background: #eef4ff;
+  box-shadow: -1px 0 0 #e4e7ec;
+  font-weight: 700;
+  text-align: center;
+}
+
+.calendar-table .calendar-table__total-col {
+  right: 5.25rem;
+}
+
+.calendar-table thead .calendar-table__stock-col,
+.calendar-table tfoot .calendar-table__stock-col {
+  z-index: 5;
+}
+
 .calendar-table__day {
   cursor: pointer;
 }
