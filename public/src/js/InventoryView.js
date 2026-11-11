@@ -38,7 +38,7 @@ const USES_MONTHLY_SHEET = ["office-materials", "utilities-pa"].includes(CURRENT
 const STANDARD_COLUMNS = [
   { key: "no", label: "No", short: "No", required: true, hint: "Item number" },
   { key: "item", label: "Item Description", short: "Item", required: true, hint: "Item name" },
-  { key: "size", label: "Size/Unit", short: "Size/Unit", hint: "Size or unit of the item" },
+  { key: "size", label: "Unit", short: "Unit", hint: "Unit the item is counted in, such as pcs or meters" },
   { key: "stock", label: "Current Stock", short: "Stock", hint: "Quantity on hand right now" },
   { key: "amc", label: "AMC", short: "AMC", hint: "Average Monthly Consumption: how many are used in a typical month" },
   { key: "cumulative", label: "Cumulative", short: "Cumul", hint: "Running total of AMC, used to sort items into FSN groups" },
@@ -632,7 +632,7 @@ class InventoryUi {
 
     this.viewModalBody.innerHTML = `
       <div class="viewItemModal__section">
-        <h3>${row.item.title}${row.item.size ? ` (${row.item.size})` : ""}</h3>
+        <h3>${row.item.title}</h3>
         <p class="viewItemModal__code">Item No. ${this.formatItemCode(row.item.itemCode)}</p>
       </div>
       <div class="viewItemModal__grid">

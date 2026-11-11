@@ -269,7 +269,7 @@ class ExportService
         $alertSheet = $spreadsheet->createSheet();
         $alertSheet->setTitle('Low-Stock Alerts');
         $alertHeaders = [
-            'Item Code', 'Item Name', 'Size', 'Current Qty', 'Forecast / Month',
+            'Item Code', 'Item Name', 'Unit', 'Current Qty', 'Forecast / Month',
             'Stock Will Last', 'Restock Needed', 'Unit Cost', 'Restock Cost', 'Forecast Basis', 'Urgency',
         ];
         $alertRows = array_map(function (array $item) {
@@ -519,7 +519,7 @@ class ExportService
 
         return match ($header) {
             'Item Description' => 'item-col',
-            'Size', 'Size/Unit' => 'size-col',
+            'Size', 'Size/Unit', 'Unit' => 'size-col',
             'Unit Cost', 'Total Cost', 'Cost per Item (Net of VAT)', 'Total Amount Issued (Net of VAT)' => 'cost-col',
             'Trigger Point' => 'trigger-col',
             'No', 'AMC', 'FSN', 'LTD', 'SS', 'ROP', 'MSL', '%', 'Current Stock',
@@ -545,7 +545,7 @@ class ExportService
 
         return match ($header) {
             'Item Description' => 'item-col',
-            'Size', 'Size/Unit' => 'size-col nowrap',
+            'Size', 'Size/Unit', 'Unit' => 'size-col nowrap',
             'Unit Cost', 'Total Cost', 'Cost per Item (Net of VAT)', 'Total Amount Issued (Net of VAT)' => 'cost-col',
             'Trigger Point' => 'trigger-col nowrap',
             'FSN', 'No', 'AMC', 'LTD', 'SS', 'ROP', 'MSL', '%', 'Current Stock',

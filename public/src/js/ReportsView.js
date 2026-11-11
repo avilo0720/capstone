@@ -7,8 +7,8 @@ import { notifyAlert } from "./ConfirmDialog.js";
 import { bindBackdropClose } from "./OverlayDismiss.js";
 import { barChartGutters, contentWidth, fitText } from "./ChartLayout.js";
 // Same specifiers as app.js so the Reports tab shares one instance of each page module.
-import InventoryView from "./InventoryView.js?v=110";
-import ForecastingView from "./ForecastingView.js?v=104";
+import InventoryView from "./InventoryView.js?v=111";
+import ForecastingView from "./ForecastingView.js?v=105";
 import ProcurementView from "./ProcurementView.js?v=104";
 import CalendarView from "./CalendarView.js?v=102";
 
@@ -153,7 +153,7 @@ class ReportsView {
         : "";
       html += `
           <tr class="reports-alert-row" data-id="${item.id}" title="Click to view details">
-            <td class="reports-alerts__item-name">${item.title}${item.size ? ` <span class="reports-alerts__size">(${item.size})</span>` : ""}</td>
+            <td class="reports-alerts__item-name">${item.title}</td>
             <td>${item.currentStock}</td>
             <td>${item.forecastAmc.toFixed(1)}${staticTag}</td>
             <td>${monthsLeftLabel(item.monthsLeft)}</td>
@@ -185,7 +185,7 @@ class ReportsView {
         </div>
         <div class="viewItemModal__body">
           <div class="viewItemModal__section">
-            <h3>${item.title}${item.size ? ` (${item.size})` : ""}</h3>
+            <h3>${item.title}</h3>
             <p class="viewItemModal__code">Item Code: ${item.itemCode || "—"}</p>
           </div>
           <div class="viewItemModal__grid">

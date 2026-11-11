@@ -1,7 +1,7 @@
-import DashboardUi from "./Dashboard.js?v=103";
-import InventoryUi from "./InventoryView.js?v=110";
-import ForecastingUi from "./ForecastingView.js?v=104";
-import ReportsView from "./ReportsView.js?v=115";
+import DashboardUi from "./Dashboard.js?v=104";
+import InventoryUi from "./InventoryView.js?v=111";
+import ForecastingUi from "./ForecastingView.js?v=105";
+import ReportsView from "./ReportsView.js?v=116";
 import CalendarView from "./CalendarView.js?v=102";
 import UsersView from "./UsersView.js?v=2";
 import ActivityLogsView from "./ActivityLogsView.js?v=101";
@@ -61,7 +61,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     app.startSessionMonitor();
     app.initNotifications();
-    import("./Realtime.js?v=12")
+    import("./Realtime.js?v=13")
       .then(({ startRealtime }) => {
         startRealtime({
           onNotifications: () => app.fetchAndRenderNotifications(),
@@ -777,7 +777,7 @@ class App {
       const stockAlerts = forecastAlerts.map(item => ({
         id: `lowstock-${item.id}`,
         type: 'lowstock',
-        title: item.size ? `${item.title} (${item.size})` : item.title,
+        title: item.title,
         itemCode: item.itemCode,
         currentStock: item.currentStock,
         monthsLeft: item.monthsLeft,

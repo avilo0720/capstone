@@ -370,7 +370,7 @@ class ForecastingUi {
         <td class="forecast-row__item">
           <div class="forecast-row__item-main">
             ${itemNo ? `<span class="forecast-row__item-no">No. ${itemNo}</span>` : ""}
-            <span class="forecast-row__item-name">${item.title}${item.size ? ` <span class="forecast-row__item-size">(${item.size})</span>` : ""}</span>
+            <span class="forecast-row__item-name">${item.title}</span>
           </div>
           ${this.sparklineSVG(item.id)}
         </td>
@@ -479,7 +479,7 @@ class ForecastingUi {
     row.after(expandRow);
 
     panel.classList.remove("--hidden");
-    title.textContent = `${item.title}${item.size ? ' (' + item.size + ')' : ''} — Demand Timeline`;
+    title.textContent = `${item.title} — Demand Timeline`;
 
     document.getElementById("statForecast").textContent =
       item.forecast ? `${item.forecast.toFixed(1)} / month` : "—";
@@ -1050,7 +1050,7 @@ class ForecastingUi {
     const headers = [
       "Item Code",
       "Item Name",
-      "Size",
+      "Unit",
       this.currentQtyLabel(),
       this.amcLabel(mode),
       "Restock for 3 Months",

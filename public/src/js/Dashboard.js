@@ -326,7 +326,7 @@ class DashboardUi {
     const remaining = lowStockItems.length - topItems.length;
 
     let itemsList = topItems.map(item =>
-      `<li><strong>${item.title}</strong>${item.size ? ` (${item.size})` : ''} — Stock: ${item.currentStock}, lasts ${monthsLeftLabel(item.monthsLeft)}, needs +${item.restockNeeded}${item.isStatic ? ' <span class="dashboard-alerts__fsn" title="Not enough usage history. Uses the AMC entered in Inventory.">Static</span>' : ''}</li>`
+      `<li><strong>${item.title}</strong> — Stock: ${item.currentStock}, lasts ${monthsLeftLabel(item.monthsLeft)}, needs +${item.restockNeeded}${item.isStatic ? ' <span class="dashboard-alerts__fsn" title="Not enough usage history. Uses the AMC entered in Inventory.">Static</span>' : ''}</li>`
     ).join('');
 
     if (remaining > 0) {
