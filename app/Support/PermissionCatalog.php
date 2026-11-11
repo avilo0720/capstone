@@ -31,6 +31,10 @@ class PermissionCatalog
             'label' => 'Utilities and PA',
             'abilities' => ['view'],
         ],
+        'operation-maintenance' => [
+            'label' => 'Operation Maintenance',
+            'abilities' => ['view'],
+        ],
         'forecast' => [
             'label' => 'Forecasting',
             'abilities' => ['view'],
@@ -70,6 +74,7 @@ class PermissionCatalog
         'stock-materials' => 'Stock Materials',
         'office-materials' => 'Office Materials',
         'utilities-pa' => 'Utilities and PA',
+        'operation-maintenance' => 'Operation Maintenance',
     ];
 
     public static function inventoryDatasetSlugs(): array

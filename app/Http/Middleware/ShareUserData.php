@@ -40,19 +40,26 @@ class ShareUserData
             }
         }
 
-        // Sessions from before Utilities and PA existed: it follows Office Materials access,
-        // as the migration granted it.
+        // Sessions from before an inventory existed get it the way its migration granted it:
+        // version => [inventory it follows, new inventory].
+        $inventoryUpgrades = [
+            2 => ['office-materials', 'utilities-pa'],
+            3 => ['stock-materials', 'operation-maintenance'],
+        ];
         if (is_array($user) && is_array($user['inventories'] ?? null)
-            && ($user['inventoryAccessVersion'] ?? 1) < 2
+            && ($user['inventoryAccessVersion'] ?? 1) < max(array_keys($inventoryUpgrades))
         ) {
-            if (in_array('office-materials', $user['inventories'], true)
-                && !in_array('utilities-pa', $user['inventories'], true)
-            ) {
-                $user['inventories'][] = 'utilities-pa';
-                $user['pages'][] = 'utilities-pa';
-                $user['abilities'][] = 'utilities-pa.view';
+            foreach ($inventoryUpgrades as $version => [$follows, $added]) {
+                if (($user['inventoryAccessVersion'] ?? 1) < $version
+                    && in_array($follows, $user['inventories'], true)
+                    && !in_array($added, $user['inventories'], true)
+                ) {
+                    $user['inventories'][] = $added;
+                    $user['pages'][] = $added;
+                    $user['abilities'][] = $added.'.view';
+                }
             }
-            $user['inventoryAccessVersion'] = 2;
+            $user['inventoryAccessVersion'] = max(array_keys($inventoryUpgrades));
             $request->session()->put('user', $user);
         }
 
