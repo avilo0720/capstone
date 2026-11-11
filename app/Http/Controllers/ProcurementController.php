@@ -779,10 +779,7 @@ class ProcurementController extends Controller
             return [
                 'qty' => $qty,
                 'unit' => $line->size ?: '',
-                'particulars' => trim(implode(' ', array_filter([
-                    $line->title,
-                    $line->item_code ? '('.$line->item_code.')' : null,
-                ]))),
+                'particulars' => trim((string) $line->title),
                 'price' => $price,
                 'total' => $price * $qty,
             ];
